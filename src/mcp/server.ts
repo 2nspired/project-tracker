@@ -954,6 +954,105 @@ server.prompt(
 	},
 );
 
+server.prompt(
+	"setup-project",
+	"Guide for setting up a new project on the tracker board. Use this when connecting a project for the first time.",
+	{
+		projectName: z.string().describe("Name of the project to set up"),
+	},
+	async ({ projectName }) => {
+		// Check if project already exists
+		const existing = await db.project.findFirst({
+			where: { name: { equals: projectName } },
+			include: { boards: { include: { columns: true } } },
+		});
+
+		const instructions = [
+			`# Project Setup — ${projectName}`,
+			"",
+		];
+
+		if (existing) {
+			instructions.push(
+				`Project "${projectName}" already exists (ID: ${existing.id}).`,
+				existing.boards.length > 0
+					? `It has ${existing.boards.length} board(s): ${existing.boards.map((b) => `"${b.name}" (${b.id})`).join(", ")}`
+					: "It has no boards yet — create one with a descriptive name.",
+				"",
+				"Skip to Step 3 below to populate the board.",
+			);
+		} else {
+			instructions.push(
+				"## Step 1: Create the project",
+				"",
+				`Use \`createProject\` with name "${projectName}" and a brief description.`,
+				"This will create a default board with standard columns (Backlog, To Do, In Progress, Review, Done, Parking Lot).",
+				"",
+			);
+		}
+
+		instructions.push(
+			"",
+			"## Step 2: Understand the columns",
+			"",
+			"| Column | Purpose |",
+			"|---|---|",
+			"| **Backlog** | Known work, not yet prioritized. \"We should do this eventually.\" |",
+			"| **To Do** | Prioritized and ready to pick up. The active work queue. |",
+			"| **In Progress** | Actively being worked on. Limit to 2-3 cards. |",
+			"| **Review** | Code written, needs human review or testing. |",
+			"| **Done** | Shipped, merged, verified. |",
+			"| **Parking Lot** | Ideas and maybes. Low-cost storage for future possibilities. |",
+			"",
+			"## Step 3: Populate the board",
+			"",
+			"Read the project's docs to understand current state:",
+			"- README, CLAUDE.md, STATUS.md, PHASES.md, or similar planning docs",
+			"- Recent git history (`git log --oneline -20`)",
+			"- Any ADRs or decision records",
+			"",
+			"Then create cards based on what you find:",
+			"",
+			"1. **Completed work** → Done column (so the board reflects history)",
+			"2. **Current/active work** → In Progress",
+			"3. **Next priorities** → To Do (limit to what's realistically next)",
+			"4. **Future work** → Backlog (organized by phase or area)",
+			"5. **Ideas and open questions** → Parking Lot",
+			"",
+			"Use `bulkCreateCards` to create them efficiently. Add checklist items for sub-tasks on larger cards.",
+			"",
+			"## Step 4: Set up the project's CLAUDE.md",
+			"",
+			"Add this section to the project's CLAUDE.md so future conversations use the board:",
+			"",
+			"```",
+			"## Project Tracking",
+			"",
+			"This project is tracked in the Project Tracker board.",
+			"Use the `project-tracker` MCP tools to read and update the board.",
+			`At the start of each conversation, use the \`start-session\` prompt with the board ID.`,
+			"Reference cards by #number in conversation (e.g. \"working on #7\").",
+			"```",
+			"",
+			"## Tips",
+			"",
+			"- Each card should be roughly one work session or PR in size",
+			"- Use tags for cross-cutting concerns: `feature:auth`, `epic:v2`, `bug`, `debt`",
+			"- Set priority on cards: URGENT and HIGH get attention first",
+			"- Add checklist items for sub-tasks on larger cards",
+			"- Use `createCardFromTemplate` for standard card types (Bug, Feature, Spike, Tech Debt, Epic)",
+			"- Ask the user questions before creating cards — they may have context about priorities and scope",
+		);
+
+		return {
+			messages: [{
+				role: "user" as const,
+				content: { type: "text" as const, text: instructions.join("\n") },
+			}],
+		};
+	},
+);
+
 // ─── Start ──────────────────────────────────────────────────────────
 
 async function main() {

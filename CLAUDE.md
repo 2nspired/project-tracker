@@ -30,6 +30,17 @@ Local-first kanban board with MCP integration for AI-assisted development.
 
 When this MCP is connected to a project, use the board as your shared workspace with the user. These guidelines keep it useful without burning tokens.
 
+### Column definitions
+
+| Column | Purpose | When to move here |
+|---|---|---|
+| **Backlog** | Known work that hasn't been prioritized yet. Dumping ground for "we should do this eventually." | When identifying future work during planning or conversation |
+| **To Do** | Prioritized and ready to pick up. This is the active work queue. | When the user or agent agrees this should happen next |
+| **In Progress** | Actively being worked on right now. Limit to 2-3 cards to stay focused. | When you start writing code or doing real work on it |
+| **Review** | Code is written, needs human review, testing, or verification. | When the agent finishes implementation and wants the user to check |
+| **Done** | Shipped, merged, verified. No more work needed. | After human confirms it's good, or after merging |
+| **Parking Lot** | Ideas, maybes, "what if we..." — not committed to. Low-cost storage for thoughts that might become real work later. | When someone has an idea but it's not actionable yet |
+
 ### When to use the board
 
 **Start of conversation** — Call `getBoard` once to understand current state. This replaces re-reading files and git logs to figure out where things stand. If there are checklist items or cards in "To Do", that's your work queue.

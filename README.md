@@ -121,12 +121,13 @@ Replace `/path/to/project-tracker` with the actual path where you cloned this re
 | `createColumn` | Add a new column to a board |
 | `createProject` | Set up a new project with a default board |
 
-### MCP Prompts (2)
+### MCP Prompts (3)
 
 | Prompt | Purpose |
 | --- | --- |
 | `start-session` | Structured overview of board state + suggested actions. Use at conversation start. |
 | `plan-work` | Planning template for breaking work into cards and checklists. |
+| `setup-project` | Step-by-step guide for setting up a new project. Reads docs, creates cards, configures CLAUDE.md. |
 
 ### Card References
 
