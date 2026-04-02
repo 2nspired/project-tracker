@@ -93,12 +93,16 @@ export function BoardView({ board }: { board: FullBoard }) {
 	}, [allCards]);
 
 	// Apply filters to get filtered columns
+	// Done column sorts by most recently completed (updatedAt desc) instead of position
 	const filteredColumns = useMemo(
 		() =>
-			board.columns.map((col) => ({
-				...col,
-				cards: filterCards(col.cards, filters),
-			})),
+			board.columns.map((col) => {
+				const cards = filterCards(col.cards, filters);
+				if (col.name === "Done") {
+					return { ...col, cards: [...cards].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()) };
+				}
+				return { ...col, cards };
+			}),
 		[board.columns, filters],
 	);
 

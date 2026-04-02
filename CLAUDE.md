@@ -72,6 +72,16 @@ When this MCP is connected to a project, use the board as your shared workspace 
 | Bug or issue found during work | New card with priority set |
 | What changed in code | Git commit (not the board) |
 
+### Linking commits to cards
+
+When you commit work related to a card, add a comment linking the commit:
+
+```
+addComment #7 "Commit: abc1234 — Add auth middleware"
+```
+
+This keeps the card's history connected to the code without needing a formal model. Do this as part of your end-of-work flow, not after every small commit.
+
 ### Efficiency tips
 
 - Use `bulkCreateCards` instead of multiple `createCard` calls
