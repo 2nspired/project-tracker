@@ -540,6 +540,38 @@ server.tool(
 	},
 );
 
+server.tool(
+	"listComments",
+	"List all comments on a card. Use this to read decisions, context, and discussion history.",
+	{
+		cardId: z.string().describe("Card ref — UUID or #number (e.g. '#7')"),
+	},
+	async ({ cardId: cardRef }) => {
+		const cardId = await resolveCardId(cardRef);
+		if (!cardId) {
+			return { content: [{ type: "text" as const, text: `Card "${cardRef}" not found.` }], isError: true };
+		}
+
+		const comments = await db.comment.findMany({
+			where: { cardId },
+			orderBy: { createdAt: "asc" },
+		});
+
+		return {
+			content: [{
+				type: "text" as const,
+				text: JSON.stringify(comments.map((c) => ({
+					id: c.id,
+					content: c.content,
+					authorType: c.authorType,
+					authorName: c.authorName,
+					createdAt: c.createdAt,
+				})), null, 2),
+			}],
+		};
+	},
+);
+
 // ─── Planning ───────────────────────────────────────────────────────
 
 server.tool(

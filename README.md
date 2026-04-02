@@ -118,6 +118,7 @@ Replace `/path/to/project-tracker` with the actual path where you cloned this re
 | `addChecklistItem` | Add a sub-task to a card |
 | `toggleChecklistItem` | Check/uncheck a sub-task |
 | `addComment` | Add a note — decisions, blockers, context |
+| `listComments` | Read all comments on a card |
 | `createColumn` | Add a new column to a board |
 | `createProject` | Set up a new project with a default board |
 
@@ -230,7 +231,7 @@ src/
 │   ├── services/                  # Business logic (ServiceResult pattern)
 │   └── api/routers/               # tRPC routers
 ├── mcp/
-│   └── server.ts                  # MCP server (15 tools, 2 prompts)
+│   └── server.ts                  # MCP server (16 tools, 3 prompts)
 ├── lib/
 │   ├── schemas/                   # Zod validation
 │   └── card-templates.ts          # Card templates
