@@ -16,8 +16,10 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 - Notes scratch pad with promote-to-card
 - Activity feed showing agent and human actions
 - Parking Lot column for ideas that aren't actionable yet
+- Project colors for quick visual identification
 - Auto-polling — board updates every 3 seconds when agents make changes
-- 15 MCP tools + 2 MCP prompts for agent workflows
+- Multi-agent support (Claude, Codex, etc.) via `AGENT_NAME` env var
+- 16 MCP tools + 3 MCP prompts for agent workflows
 
 ## Quick Start
 
@@ -56,11 +58,17 @@ From your project directory, run the connect script:
 /path/to/project-tracker/scripts/connect.sh
 ```
 
-This creates a `.mcp.json` in your project that tells Claude Code where to find the tracker's MCP server. That's it — next time you start a Claude Code conversation in that project, the tracker tools are available.
+This creates a `.mcp.json` in your project that tells your agent where to find the tracker's MCP server. That's it — next time you start a conversation in that project, the tracker tools are available.
+
+For non-Claude agents, set the agent name:
+
+```bash
+AGENT_NAME=Codex /path/to/project-tracker/scripts/connect.sh
+```
 
 ### 5. Add tracking instructions to your project (optional)
 
-Add this to your project's `CLAUDE.md` so the agent knows to use the board:
+Add this to your project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc.) so the agent knows to use the board:
 
 ```markdown
 ## Project Tracking
@@ -70,6 +78,8 @@ Use the `project-tracker` MCP tools to read and update the board.
 At the start of each conversation, use the `start-session` prompt with the board ID.
 Reference cards by #number in conversation (e.g. "working on #7").
 ```
+
+See [AGENTS.md](AGENTS.md) for the full shared agent guidelines (column definitions, workflow conventions, efficiency tips).
 
 ## How It Works
 
@@ -101,7 +111,7 @@ Replace `/path/to/project-tracker` with the actual path where you cloned this re
 
 ## What the Agent Can Do
 
-### MCP Tools (15)
+### MCP Tools (16)
 
 | Tool | What it does |
 | --- | --- |
@@ -272,6 +282,8 @@ scripts/
 └── connect.sh                     # Connect any project to the tracker
 prisma/schema.prisma               # Data model
 data/tracker.db                    # SQLite database (gitignored)
+AGENTS.md                          # Shared agent guidelines (all agents)
+CLAUDE.md                          # Claude-specific project config
 ```
 
 ## Troubleshooting
