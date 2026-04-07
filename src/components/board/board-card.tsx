@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Priority } from "@/lib/schemas/card-schemas";
 
 const priorityBorders: Record<Priority, string> = {
-	NONE: "border-l-transparent",
+	NONE: "border-l-border",
 	LOW: "border-l-blue-400",
 	MEDIUM: "border-l-yellow-400",
 	HIGH: "border-l-orange-400",
@@ -49,7 +49,7 @@ export function BoardCard({ card, onClick }: BoardCardProps) {
 
 	return (
 		<div
-			className={`cursor-pointer rounded-md border border-l-[3px] bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-ring/20 ${priorityBorders[priority]}`}
+			className={`cursor-pointer rounded-md border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-ring/20 ${priority !== "NONE" ? `border-l-[3px] ${priorityBorders[priority]}` : ""}`}
 			onClick={onClick}
 		>
 			<div className="space-y-2">

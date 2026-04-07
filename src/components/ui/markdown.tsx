@@ -1,12 +1,13 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 
 export function Markdown({ children }: { children: string }) {
 	return (
 		<ReactMarkdown
-			remarkPlugins={[remarkGfm]}
+			remarkPlugins={[remarkGfm, remarkBreaks]}
 			components={{
 				p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
 				ul: ({ children }) => <ul className="mb-2 list-disc pl-4 last:mb-0">{children}</ul>,

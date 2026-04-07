@@ -24,6 +24,7 @@ import { useSearchParams } from "next/navigation";
 import { use, useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { NoteCollection, NoteSearchInput, NoteTagFilter, NoteTagInput, NoteViewToggle, filterNotes, type NoteItem, type NoteViewMode } from "@/components/notes/note-views";
 import { CreateBoardDialog } from "@/components/project/create-board-dialog";
 import {
 	AlertDialog,
@@ -35,6 +36,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -543,6 +545,11 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 	const [title, setTitle] = useState("");
 	const [content, setContent] = useState("");
 	const [preview, setPreview] = useState(false);
+	const [noteTags, setNoteTags] = useState<string[]>([]);
+	const [noteTagInput, setNoteTagInput] = useState("");
+	const [viewMode, setViewMode] = useState<NoteViewMode>("card");
+	const [filterTags, setFilterTags] = useState<string[]>([]);
+	const [search, setSearch] = useState("");
 
 	// Promote state
 	const [promoteBoardId, setPromoteBoardId] = useState("");
@@ -605,6 +612,8 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 		setTitle("");
 		setContent("");
 		setPreview(false);
+		setNoteTags([]);
+		setNoteTagInput("");
 	};
 
 	const handleCreate = (e: React.FormEvent) => {
@@ -614,6 +623,7 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 			title: title.trim(),
 			content: content.trim(),
 			projectId,
+			tags: noteTags,
 		});
 	};
 
@@ -622,7 +632,7 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 		if (!editingId || !title.trim()) return;
 		updateNote.mutate({
 			id: editingId,
-			data: { title: title.trim(), content: content.trim() },
+			data: { title: title.trim(), content: content.trim(), tags: noteTags },
 		});
 	};
 
@@ -636,10 +646,12 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 		});
 	};
 
-	const startEdit = (note: { id: string; title: string; content: string }) => {
+	const startEdit = (note: NoteItem) => {
 		setEditingId(note.id);
 		setTitle(note.title);
 		setContent(note.content);
+		setNoteTags(JSON.parse(note.tags));
+		setNoteTagInput("");
 		setPreview(false);
 	};
 
@@ -653,42 +665,24 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 					<p className="text-muted-foreground">No notes for this project yet.</p>
 				</div>
 			) : (
-				<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-					{notes.map((note) => (
-						<div
-							key={note.id}
-							role="button"
-							tabIndex={0}
-							onClick={() => setViewingId(note.id)}
-							onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setViewingId(note.id); }}
-							className="group flex cursor-pointer flex-col rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted/30"
-						>
-							<div className="mb-2 flex w-full items-start justify-between">
-								<h3 className="font-medium">{note.title}</h3>
-								<div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-									<Button variant="ghost" size="icon" className="h-7 w-7" title="Promote to card" onClick={(e) => { e.stopPropagation(); setPromoteId(note.id); }}>
-										<ArrowUpRight className="h-3.5 w-3.5" />
-									</Button>
-									<Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); startEdit(note); }}>
-										<Pencil className="h-3.5 w-3.5" />
-									</Button>
-									<Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); if (confirm("Delete this note?")) deleteNote.mutate({ id: note.id }); }}>
-										<Trash2 className="h-3.5 w-3.5" />
-									</Button>
-								</div>
-							</div>
-							{note.content && (
-								<div className="flex-1 text-sm text-muted-foreground">
-									<div className="line-clamp-6">
-										<Markdown>{note.content}</Markdown>
-									</div>
-								</div>
-							)}
-							<p className="mt-2 text-[10px] text-muted-foreground/60">
-								{new Date(note.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-							</p>
+				<div className="space-y-4">
+					<div className="flex items-center justify-between">
+						<NoteTagFilter notes={notes} selectedTags={filterTags} setSelectedTags={setFilterTags} />
+						<div className="flex items-center gap-3">
+							<NoteSearchInput value={search} onChange={setSearch} />
+							<NoteViewToggle view={viewMode} setView={setViewMode} />
 						</div>
-					))}
+					</div>
+					<NoteCollection
+						notes={filterNotes(notes, { search, tags: filterTags })}
+						view={viewMode}
+						actions={{
+							onView: (id) => setViewingId(id),
+							onEdit: (note) => startEdit(note),
+							onPromote: (id) => setPromoteId(id),
+							onDelete: (id) => deleteNote.mutate({ id }),
+						}}
+					/>
 				</div>
 			)}
 
@@ -711,6 +705,15 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 									})}
 								</p>
 							</DialogHeader>
+							{JSON.parse(viewNote.tags).length > 0 && (
+								<div className="mt-2 flex flex-wrap gap-1">
+									{(JSON.parse(viewNote.tags) as string[]).map((tag) => (
+										<Badge key={tag} variant="outline" className="text-xs">
+											{tag}
+										</Badge>
+									))}
+								</div>
+							)}
 							<div className="mt-4 min-h-[200px] text-sm">
 								{viewNote.content ? (
 									<Markdown>{viewNote.content}</Markdown>
@@ -760,6 +763,7 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 								<Label htmlFor="pnote-title">Title</Label>
 								<Input id="pnote-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What's on your mind?" autoFocus />
 							</div>
+							<NoteTagInput tags={noteTags} setTags={setNoteTags} tagInput={noteTagInput} setTagInput={setNoteTagInput} />
 							<NoteEditor content={content} setContent={setContent} preview={preview} setPreview={setPreview} />
 						</div>
 						<DialogFooter className="mt-6">
@@ -781,6 +785,7 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 								<Label htmlFor="pnote-edit-title">Title</Label>
 								<Input id="pnote-edit-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
 							</div>
+							<NoteTagInput tags={noteTags} setTags={setNoteTags} tagInput={noteTagInput} setTagInput={setNoteTagInput} />
 							<NoteEditor content={content} setContent={setContent} preview={preview} setPreview={setPreview} />
 						</div>
 						<DialogFooter className="mt-6">

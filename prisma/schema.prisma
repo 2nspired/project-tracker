@@ -162,6 +162,7 @@ model Note {
   projectId String?  @map("project_id")
   title     String
   content   String   @default("")
+  tags      String   @default("[]")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

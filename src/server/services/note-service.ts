@@ -27,8 +27,9 @@ async function list(projectId?: string | null): Promise<ServiceResult<NoteWithPr
 
 async function create(data: CreateNoteInput): Promise<ServiceResult<NoteWithProject>> {
 	try {
+		const { tags, ...rest } = data;
 		const note = await db.note.create({
-			data,
+			data: { ...rest, tags: JSON.stringify(tags ?? []) },
 			include: { project: { select: { id: true, name: true } } },
 		});
 		return { success: true, data: note };
@@ -44,9 +45,10 @@ async function update(noteId: string, data: UpdateNoteInput): Promise<ServiceRes
 		if (!existing) {
 			return { success: false, error: { code: "NOT_FOUND", message: "Note not found." } };
 		}
+		const { tags, ...rest } = data;
 		const note = await db.note.update({
 			where: { id: noteId },
-			data,
+			data: { ...rest, ...(tags !== undefined && { tags: JSON.stringify(tags) }) },
 			include: { project: { select: { id: true, name: true } } },
 		});
 		return { success: true, data: note };

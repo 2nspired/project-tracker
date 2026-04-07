@@ -8,18 +8,18 @@ import {
 	Heading2,
 	Italic,
 	Link,
-	List,
+	List as ListIcon,
 	ListOrdered,
 	NotebookPen,
 	Pencil,
 	Plus,
 	Quote,
-	Trash2,
-	X,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { NoteCollection, NoteSearchInput, NoteTagFilter, NoteTagInput, NoteViewToggle, filterNotes, type NoteItem, type NoteViewMode } from "@/components/notes/note-views";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -57,7 +57,7 @@ const toolbarActions: InsertAction[] = [
 	{ label: "Italic", icon: <Italic className="h-3.5 w-3.5" />, prefix: "_", suffix: "_" },
 	{ label: "Heading", icon: <Heading2 className="h-3.5 w-3.5" />, prefix: "## ", block: true },
 	{ label: "Quote", icon: <Quote className="h-3.5 w-3.5" />, prefix: "> ", block: true },
-	{ label: "Bullet list", icon: <List className="h-3.5 w-3.5" />, prefix: "- ", block: true },
+	{ label: "Bullet list", icon: <ListIcon className="h-3.5 w-3.5" />, prefix: "- ", block: true },
 	{ label: "Numbered list", icon: <ListOrdered className="h-3.5 w-3.5" />, prefix: "1. ", block: true },
 	{ label: "Code", icon: <Code className="h-3.5 w-3.5" />, prefix: "`", suffix: "`" },
 	{ label: "Link", icon: <Link className="h-3.5 w-3.5" />, prefix: "[", suffix: "](url)" },
@@ -188,6 +188,11 @@ export default function NotesPage() {
 	const [content, setContent] = useState("");
 	const [projectId, setProjectId] = useState<string | null>(null);
 	const [preview, setPreview] = useState(false);
+	const [noteTags, setNoteTags] = useState<string[]>([]);
+	const [noteTagInput, setNoteTagInput] = useState("");
+	const [viewMode, setViewMode] = useState<NoteViewMode>("card");
+	const [filterTags, setFilterTags] = useState<string[]>([]);
+	const [search, setSearch] = useState("");
 	const [filterProjectId, setFilterProjectId] = useState<string | undefined>(undefined);
 
 	// Promote state
@@ -261,6 +266,8 @@ export default function NotesPage() {
 		setContent("");
 		setProjectId(null);
 		setPreview(false);
+		setNoteTags([]);
+		setNoteTagInput("");
 	};
 
 	const handleCreate = (e: React.FormEvent) => {
@@ -270,6 +277,7 @@ export default function NotesPage() {
 			title: title.trim(),
 			content: content.trim(),
 			projectId,
+			tags: noteTags,
 		});
 	};
 
@@ -278,7 +286,7 @@ export default function NotesPage() {
 		if (!editingId || !title.trim()) return;
 		updateNote.mutate({
 			id: editingId,
-			data: { title: title.trim(), content: content.trim(), projectId },
+			data: { title: title.trim(), content: content.trim(), projectId, tags: noteTags },
 		});
 	};
 
@@ -292,16 +300,18 @@ export default function NotesPage() {
 		});
 	};
 
-	const startEdit = (note: { id: string; title: string; content: string; projectId: string | null }) => {
+	const startEdit = (note: NoteItem & { projectId: string | null }) => {
 		setEditingId(note.id);
 		setTitle(note.title);
 		setContent(note.content);
 		setProjectId(note.projectId);
+		setNoteTags(JSON.parse(note.tags));
+		setNoteTagInput("");
 		setPreview(false);
 	};
 
 	return (
-		<div className="mx-auto max-w-5xl px-4 py-6">
+		<div className="container mx-auto px-4 py-6">
 			<div className="mb-6 flex items-center justify-between">
 				<div>
 					<h1 className="text-2xl font-bold">Notes</h1>
@@ -325,6 +335,8 @@ export default function NotesPage() {
 							))}
 						</SelectContent>
 					</Select>
+					<NoteSearchInput value={search} onChange={setSearch} />
+					<NoteViewToggle view={viewMode} setView={setViewMode} />
 					<Button onClick={() => { resetForm(); setCreateOpen(true); }}>
 						<Plus className="mr-2 h-4 w-4" />
 						New Note
@@ -343,73 +355,19 @@ export default function NotesPage() {
 					</p>
 				</div>
 			) : (
-				<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-					{notes.map((note) => (
-						<div
-							key={note.id}
-							role="button"
-							tabIndex={0}
-							onClick={() => setViewingId(note.id)}
-							onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setViewingId(note.id); }}
-							className="group flex cursor-pointer flex-col rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted/30"
-						>
-							<div className="mb-2 flex w-full items-start justify-between">
-								<div className="min-w-0 flex-1">
-									<h3 className="font-medium">{note.title}</h3>
-									{note.project && (
-										<span className="text-xs text-muted-foreground">{note.project.name}</span>
-									)}
-								</div>
-								<div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-7 w-7"
-										title="Promote to card"
-										onClick={(e) => { e.stopPropagation(); setPromoteId(note.id); }}
-									>
-										<ArrowUpRight className="h-3.5 w-3.5" />
-									</Button>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-7 w-7"
-										onClick={(e) => { e.stopPropagation(); startEdit(note); }}
-									>
-										<Pencil className="h-3.5 w-3.5" />
-									</Button>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-7 w-7 text-destructive"
-										onClick={(e) => {
-											e.stopPropagation();
-											if (confirm("Delete this note?")) {
-												deleteNote.mutate({ id: note.id });
-											}
-										}}
-									>
-										<Trash2 className="h-3.5 w-3.5" />
-									</Button>
-								</div>
-							</div>
-							{note.content && (
-								<div className="flex-1 text-sm text-muted-foreground">
-									<div className="line-clamp-6">
-										<Markdown>{note.content}</Markdown>
-									</div>
-								</div>
-							)}
-							<p className="mt-2 text-[10px] text-muted-foreground/60">
-								{new Date(note.updatedAt).toLocaleDateString("en-US", {
-									month: "short",
-									day: "numeric",
-									hour: "2-digit",
-									minute: "2-digit",
-								})}
-							</p>
-						</div>
-					))}
+				<div className="space-y-3">
+					<NoteTagFilter notes={notes} selectedTags={filterTags} setSelectedTags={setFilterTags} />
+					<NoteCollection
+						notes={filterNotes(notes, { search, tags: filterTags })}
+						view={viewMode}
+						showProject
+						actions={{
+							onView: (id) => setViewingId(id),
+							onEdit: (note) => startEdit(note as NoteItem & { projectId: string | null }),
+							onPromote: (id) => setPromoteId(id),
+							onDelete: (id) => deleteNote.mutate({ id }),
+						}}
+					/>
 				</div>
 			)}
 
@@ -439,6 +397,15 @@ export default function NotesPage() {
 									</div>
 								</div>
 							</DialogHeader>
+							{JSON.parse(viewNote.tags).length > 0 && (
+								<div className="mt-2 flex flex-wrap gap-1">
+									{(JSON.parse(viewNote.tags) as string[]).map((tag) => (
+										<Badge key={tag} variant="outline" className="text-xs">
+											{tag}
+										</Badge>
+									))}
+								</div>
+							)}
 							<div className="mt-4 min-h-[200px] text-sm">
 								{viewNote.content ? (
 									<Markdown>{viewNote.content}</Markdown>
@@ -513,6 +480,7 @@ export default function NotesPage() {
 									</Select>
 								</div>
 							</div>
+							<NoteTagInput tags={noteTags} setTags={setNoteTags} tagInput={noteTagInput} setTagInput={setNoteTagInput} />
 							<NoteEditor
 								content={content}
 								setContent={setContent}
@@ -565,6 +533,7 @@ export default function NotesPage() {
 									</Select>
 								</div>
 							</div>
+							<NoteTagInput tags={noteTags} setTags={setNoteTags} tagInput={noteTagInput} setTagInput={setNoteTagInput} />
 							<NoteEditor
 								content={content}
 								setContent={setContent}
