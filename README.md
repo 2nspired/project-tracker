@@ -4,7 +4,7 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 
 **The problem:** When working with AI coding agents, context gets lost between conversations. What was planned? What's done? What decisions were made? You end up re-explaining everything.
 
-**The solution:** A shared workspace. You see cards, columns, and progress in the browser. Your agent sees structured context it can read and write through MCP tools. The board persists across conversations — the next session picks up exactly where the last one left off.
+**The solution:** A shared workspace with persistent memory. You see cards, columns, and progress in the browser. Your agent sees structured context it can read and write through MCP tools. Session handoffs carry context between conversations — the next session picks up exactly where the last one left off.
 
 ## What It Looks Like
 
@@ -12,6 +12,12 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 - Cards with priority, tags, checklists, comments, and activity log
 - Card numbers (`#1`, `#2`) for easy reference in conversation
 - Card templates (Bug Report, Feature, Spike, Tech Debt, Epic)
+- Card dependencies — blocks, related, parent/child relationships with blocked indicators
+- Architectural decision records linked to cards
+- Git commit auto-linking — commits referencing `#N` are linked to cards
+- Session handoffs — agents save context for the next conversation
+- Agent scratchpad — ephemeral working memory that auto-expires
+- Roadmap view with milestone horizons and river flow visualization
 - Cross-project dashboard
 - Notes scratch pad with promote-to-card
 - Activity feed showing agent and human actions
@@ -19,7 +25,8 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 - Project colors for quick visual identification
 - Auto-polling — board updates every 3 seconds when agents make changes
 - Multi-agent support (Claude, Codex, etc.) via `AGENT_NAME` env var
-- 16 MCP tools + 3 MCP prompts for agent workflows
+- TOON encoding for ~40% token savings in agent responses
+- Schema version detection with migration hints
 
 ## Quick Start
 
@@ -75,7 +82,8 @@ Add this to your project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, et
 
 This project is tracked in the Project Tracker board.
 Use the `project-tracker` MCP tools to read and update the board.
-At the start of each conversation, use the `start-session` prompt with the board ID.
+Use the `resume-session` prompt with the board ID at the start of each conversation.
+Use `end-session` before wrapping up to save handoff for the next session.
 Reference cards by #number in conversation (e.g. "working on #7").
 ```
 
@@ -104,41 +112,68 @@ I want to connect this project to my Project Tracker board.
 
 The project tracker is installed at: /path/to/project-tracker
 
-Please run the connect script at /path/to/project-tracker/scripts/connect.sh from this directory to create the .mcp.json file. Then add a "Project Tracking" section to this project's CLAUDE.md explaining that the project is tracked via the project-tracker MCP tools, cards should be referenced by #number, and the agent should use the start-session prompt at the beginning of each conversation.
+Please run the connect script at /path/to/project-tracker/scripts/connect.sh from this directory to create the .mcp.json file. Then add a "Project Tracking" section to this project's CLAUDE.md explaining that the project is tracked via the project-tracker MCP tools, cards should be referenced by #number, and the agent should use the resume-session prompt at the beginning of each conversation and end-session before wrapping up.
 ```
 
 Replace `/path/to/project-tracker` with the actual path where you cloned this repo.
 
 ## What the Agent Can Do
 
-### MCP Tools (16)
+The tracker uses an **Essential + Catalog** pattern: 9 essential tools are always loaded in the agent's context. 44 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
+
+### Essential MCP Tools (9)
 
 | Tool | What it does |
 | --- | --- |
-| `listProjects` | See all projects |
-| `getBoard` | Full board state — columns, cards, checklists |
-| `listCards` | Cards with filters (tag, priority, assignee) |
-| `searchCards` | Search across all projects by text or tag |
-| `createCard` | Create a card in a column (by column name) |
-| `bulkCreateCards` | Create multiple cards at once (for planning) |
-| `createCardFromTemplate` | Create from template (Bug, Feature, Spike, Tech Debt, Epic) |
+| `getBoard` | Full board state — columns, cards, checklists (supports TOON format) |
+| `createCard` | Create a card in a column (by name); auto-creates milestones |
 | `updateCard` | Update any card fields |
 | `moveCard` | Move to column by name (e.g. "In Progress") |
-| `deleteCard` | Remove a card |
-| `addChecklistItem` | Add a sub-task to a card |
-| `toggleChecklistItem` | Check/uncheck a sub-task |
-| `addComment` | Add a note — decisions, blockers, context |
-| `listComments` | Read all comments on a card |
-| `createColumn` | Add a new column to a board |
-| `createProject` | Set up a new project with a default board |
+| `addComment` | Add a comment — decisions, blockers, context |
+| `searchCards` | Search across all projects by text or tag |
+| `getRoadmap` | Cards grouped by milestone and horizon (now/next/later/done) |
+| `getTools` | Browse 44 extended tools by category |
+| `runTool` | Execute any extended tool by name |
 
-### MCP Prompts (3)
+### Extended Tool Categories (44 tools)
+
+| Category | Tools | What they do |
+| --- | --- | --- |
+| `discovery` | 5 | List projects, boards, cards, stats, compound queries |
+| `cards` | 4 | Bulk create, templates, bulk move, delete |
+| `checklist` | 3 | Add, toggle, delete checklist items |
+| `comments` | 2 | List and delete comments |
+| `milestones` | 4 | Create, update, set, list milestones |
+| `notes` | 4 | Create, update, list, delete project notes |
+| `activity` | 1 | View recent activity history |
+| `setup` | 3 | Create projects, columns, set repo path |
+| `relations` | 3 | Link/unlink cards, get blockers |
+| `session` | 3 | Save/load handoffs, board diff |
+| `decisions` | 3 | Record, list, update architectural decisions |
+| `scratch` | 4 | Set, get, list, clear ephemeral agent notes |
+| `git` | 4 | Sync commits, get log, code map, card commits |
+| `context` | 1 | Focus context bundles (card/milestone/tag scope) |
+
+### MCP Prompts (7)
 
 | Prompt | Purpose |
 | --- | --- |
-| `start-session` | Structured overview of board state + suggested actions. Use at conversation start. |
+| `resume-session` | Load board state + last handoff + diff since then. Use at conversation start. |
+| `end-session` | Review board accuracy, save handoff, clean up. Use before wrapping up. |
+| `deep-dive` | Load focused context for deep work on a specific card. |
+| `sprint-review` | Velocity, milestone progress, stale cards, blockers. |
 | `plan-work` | Planning template for breaking work into cards and checklists. |
-| `setup-project` | Step-by-step guide for setting up a new project. Reads docs, creates cards, configures CLAUDE.md. |
+| `setup-project` | Step-by-step guide for setting up a new project on the tracker. |
+| `holistic-review` | Review board against actual codebase — sync board state with reality. |
+
+### MCP Resources (4)
+
+| Resource URI | What it provides |
+| --- | --- |
+| `tracker://board/{boardId}` | Full board state (browsable list) |
+| `tracker://board/{boardId}/card/{number}` | Single card with all details |
+| `tracker://board/{boardId}/handoff` | Latest session handoff |
+| `tracker://project/{projectId}/decisions` | All project decisions |
 
 ### Card References
 
@@ -150,18 +185,33 @@ Cards get sequential numbers per project (`#1`, `#2`, `#3`). Use these in conver
 
 The agent resolves `#number` references automatically — no UUIDs needed.
 
+## Session Lifecycle
+
+The tracker is designed for multi-conversation workflows:
+
+```
+Conversation 1:
+  resume-session → work on cards → end-session (saves handoff)
+
+Conversation 2:
+  resume-session → loads handoff + diff → picks up where you left off
+```
+
+**`resume-session`** loads the board state, the last agent's handoff (what they worked on, findings, next steps, blockers), and a diff of changes since then. The agent is immediately productive without re-explaining context.
+
+**`end-session`** walks the agent through a checklist: review board accuracy, move completed cards, update checklists, save a handoff with context for the next session, and add comments on cards with important information.
+
 ## Example Agent Workflow
 
 ```
-Agent: [calls getBoard] → sees "#4 Add user auth" in To Do
-Agent: [calls moveCard #4 → "In Progress"]
-Agent: [calls addChecklistItem #4] → "Set up JWT middleware"
-Agent: [calls addChecklistItem #4] → "Create login endpoint"
+Agent: [resume-session] → sees handoff from yesterday + 3 new changes
+Agent: [getFocusContext #4] → loads card + relations + decisions + commits
+Agent: [moves #4 → "In Progress"]
   ... writes the code ...
-Agent: [calls toggleChecklistItem] → checks off "Set up JWT middleware"
-Agent: [calls addComment #4] → "Used jose library — expires in 7d"
-  ... finishes ...
-Agent: [calls moveCard #4 → "Done"]
+Agent: [toggleChecklistItem] → checks off "Set up JWT middleware"
+Agent: [syncGitActivity] → links new commits to cards
+Agent: [recordDecision] → "Used jose library for JWT — lightweight, no deps"
+Agent: [end-session] → saves handoff for next conversation
 ```
 
 You see all of this happen on your board in real-time (3-second polling).
@@ -219,7 +269,7 @@ AGENT_NAME=Codex /path/to/project-tracker/scripts/connect.sh
 }
 ```
 
-Multiple agents can connect to the same tracker simultaneously — they all share the same SQLite database. Comments, card moves, and activity entries are attributed to whichever agent made them.
+Multiple agents can connect to the same tracker simultaneously — they all share the same SQLite database. Comments, card moves, and activity entries are attributed to whichever agent made them. Session handoffs let agents pick up each other's work across conversations.
 
 ## Tags
 
@@ -267,20 +317,37 @@ src/
 │   ├── dashboard/                 # Cross-project dashboard
 │   ├── notes/                     # Notes scratch pad
 │   └── projects/[id]/boards/[id]/ # Kanban board
-│       └── timeline/              # Card timeline view
-├── components/board/              # Board UI (columns, cards, detail sheet, toolbar)
+│       ├── timeline/              # Card timeline view
+│       └── roadmap/               # Milestone roadmap view
+├── components/
+│   ├── board/                     # Board UI (columns, cards, detail sheet, toolbar)
+│   └── roadmap/                   # Roadmap visualization components
 ├── server/
 │   ├── services/                  # Business logic (ServiceResult pattern)
 │   └── api/routers/               # tRPC routers
 ├── mcp/
-│   └── server.ts                  # MCP server (16 tools, 3 prompts)
+│   ├── server.ts                  # MCP server (9 essential tools, 7 prompts)
+│   ├── tool-registry.ts           # Extended tool catalog (44 tools, 14 categories)
+│   ├── extended-tools.ts          # Core extended tools
+│   ├── tools/                     # Domain-split tool files
+│   │   ├── relation-tools.ts      # Card dependencies
+│   │   ├── session-tools.ts       # Session handoff + diff
+│   │   ├── decision-tools.ts      # Architectural decisions
+│   │   ├── scratch-tools.ts       # Agent scratchpad
+│   │   ├── git-tools.ts           # Git commit linking
+│   │   ├── query-tools.ts         # Smart queries
+│   │   └── context-tools.ts       # Focus context bundles
+│   ├── resources.ts               # 4 MCP resources
+│   ├── git-utils.ts               # Git child_process wrapper
+│   ├── toon.ts                    # TOON compact encoding
+│   └── utils.ts                   # Shared helpers, version detection
 ├── lib/
 │   ├── schemas/                   # Zod validation
 │   └── card-templates.ts          # Card templates
 └── trpc/                          # tRPC React client
 scripts/
 └── connect.sh                     # Connect any project to the tracker
-prisma/schema.prisma               # Data model
+prisma/schema.prisma               # Data model (15 models)
 data/tracker.db                    # SQLite database (gitignored)
 AGENTS.md                          # Shared agent guidelines (all agents)
 CLAUDE.md                          # Claude-specific project config
@@ -324,6 +391,16 @@ If you use an alternate config directory (e.g. `~/.claude-alt/`), the project-le
 ### Database is empty after cloning
 
 The SQLite database (`data/tracker.db`) is gitignored — each install starts fresh. Run `npx prisma db push` to create the tables, then create your first project through the web UI or MCP tools.
+
+### Schema version mismatch
+
+If `resume-session` shows a migration warning, run:
+
+```bash
+npx prisma db push
+```
+
+This adds any new tables (relations, decisions, handoffs, git links, scratchpad) without losing existing data.
 
 ## License
 
