@@ -56,12 +56,13 @@ registerExtendedTool("listBoards", {
 
 registerExtendedTool("getCard", {
 	category: "discovery",
-	description: "Full card detail: description, checklist, comments, activity history.",
+	description: "Full card detail: description, checklist, comments, activity history. TOON by default.",
 	parameters: z.object({
 		cardId: z.string().describe("Card UUID or #number"),
+		format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
 	}),
 	annotations: { readOnlyHint: true },
-	handler: ({ cardId }) => safeExecute(async () => {
+	handler: ({ cardId, format }) => safeExecute(async () => {
 		const id = await resolveCardId(cardId as string);
 		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs, or searchCards to find by title.");
 
@@ -125,7 +126,7 @@ registerExtendedTool("getCard", {
 				actor: a.actorName ?? a.actorType,
 				createdAt: a.createdAt,
 			})),
-		});
+		}, format as "json" | "toon");
 	}),
 });
 
