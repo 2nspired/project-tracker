@@ -14,6 +14,7 @@ export const createCardSchema = z.object({
 	tags: z.array(z.string().max(50)).default([]),
 	assignee: z.enum(actorValues).optional(),
 	dueDate: z.string().datetime().optional(),
+	milestoneId: z.string().uuid().nullable().optional(),
 	createdBy: z.enum(actorValues).default("HUMAN"),
 });
 
@@ -24,6 +25,7 @@ export const updateCardSchema = z.object({
 	tags: z.array(z.string().max(50)).optional(),
 	assignee: z.enum(actorValues).nullable().optional(),
 	dueDate: z.string().datetime().nullable().optional(),
+	milestoneId: z.string().uuid().nullable().optional(),
 });
 
 export const moveCardSchema = z.object({

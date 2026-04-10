@@ -35,6 +35,30 @@ async function getById(cardId: string): Promise<
 				actorName: string | null;
 				createdAt: Date;
 			}>;
+			relationsFrom: Array<{
+				id: string;
+				type: string;
+				toCard: { id: string; number: number; title: string };
+			}>;
+			relationsTo: Array<{
+				id: string;
+				type: string;
+				fromCard: { id: string; number: number; title: string };
+			}>;
+			decisions: Array<{
+				id: string;
+				title: string;
+				status: string;
+				decision: string;
+			}>;
+			gitLinks: Array<{
+				id: string;
+				commitHash: string;
+				message: string;
+				author: string;
+				commitDate: Date;
+				filePaths: string;
+			}>;
 		}
 	>
 > {
@@ -45,6 +69,10 @@ async function getById(cardId: string): Promise<
 				checklists: { orderBy: { position: "asc" } },
 				comments: { orderBy: { createdAt: "asc" } },
 				activities: { orderBy: { createdAt: "desc" } },
+				relationsFrom: { include: { toCard: { select: { id: true, number: true, title: true } } } },
+				relationsTo: { include: { fromCard: { select: { id: true, number: true, title: true } } } },
+				decisions: { select: { id: true, title: true, status: true, decision: true }, orderBy: { createdAt: "desc" } },
+				gitLinks: { orderBy: { commitDate: "desc" }, take: 20 },
 			},
 		});
 		if (!card) {
@@ -94,6 +122,7 @@ async function create(data: CreateCardInput): Promise<ServiceResult<Card>> {
 				assignee: data.assignee,
 				createdBy: data.createdBy,
 				dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+				milestoneId: data.milestoneId ?? undefined,
 				position,
 			},
 		});
@@ -131,6 +160,7 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 				tags: data.tags ? JSON.stringify(data.tags) : undefined,
 				assignee: data.assignee,
 				dueDate: data.dueDate !== undefined ? (data.dueDate ? new Date(data.dueDate) : null) : undefined,
+				milestoneId: data.milestoneId !== undefined ? data.milestoneId : undefined,
 			},
 		});
 		return { success: true, data: card };

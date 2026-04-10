@@ -13,16 +13,38 @@ model Project {
   description     String?
   color           String   @default("slate")
   slug            String   @unique
+  repoPath        String?  @map("repo_path")
   nextCardNumber  Int      @default(1) @map("next_card_number")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  boards Board[]
-  labels Label[]
-  cards  Card[]
-  notes  Note[]
+  boards     Board[]
+  labels     Label[]
+  cards      Card[]
+  notes      Note[]
+  milestones Milestone[]
+  decisions  Decision[]
+  gitLinks   GitLink[]
 
   @@map("project")
+}
+
+model Milestone {
+  id          String    @id @default(uuid())
+  projectId   String    @map("project_id")
+  name        String
+  description String?
+  targetDate  DateTime? @map("target_date")
+  position    Int       @default(0)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cards   Card[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("milestone")
 }
 
 model Label {
@@ -48,8 +70,10 @@ model Board {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  columns Column[]
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  columns   Column[]
+  handoffs  SessionHandoff[]
+  scratches AgentScratch[]
 
   @@index([projectId])
   @@map("board")
@@ -85,20 +109,27 @@ model Card {
   tags        String   @default("[]")
   assignee    String?
   createdBy   String   @default("HUMAN") @map("created_by")
+  milestoneId String?   @map("milestone_id")
   dueDate     DateTime? @map("due_date")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  column     Column          @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  project    Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  checklists ChecklistItem[]
-  comments   Comment[]
-  activities Activity[]
-  cardLabels CardLabel[]
+  column        Column          @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone     Milestone?      @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  checklists    ChecklistItem[]
+  comments      Comment[]
+  activities    Activity[]
+  cardLabels    CardLabel[]
+  relationsFrom CardRelation[]  @relation("RelationFrom")
+  relationsTo   CardRelation[]  @relation("RelationTo")
+  decisions     Decision[]
+  gitLinks      GitLink[]
 
   @@unique([projectId, number])
   @@index([columnId])
   @@index([projectId])
+  @@index([milestoneId])
   @@map("card")
 }
 
@@ -170,4 +201,97 @@ model Note {
 
   @@index([projectId])
   @@map("note")
+}
+
+// ─── AI Context Engine Models ─────────────────────────────────────
+
+model CardRelation {
+  id         String   @id @default(uuid())
+  fromCardId String   @map("from_card_id")
+  toCardId   String   @map("to_card_id")
+  type       String   // blocks, related, parent
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  fromCard Card @relation("RelationFrom", fields: [fromCardId], references: [id], onDelete: Cascade)
+  toCard   Card @relation("RelationTo", fields: [toCardId], references: [id], onDelete: Cascade)
+
+  @@unique([fromCardId, toCardId, type])
+  @@index([fromCardId])
+  @@index([toCardId])
+  @@map("card_relation")
+}
+
+model SessionHandoff {
+  id        String   @id @default(uuid())
+  boardId   String   @map("board_id")
+  agentName String   @map("agent_name")
+  workingOn String   @default("[]") @map("working_on") // JSON array
+  findings  String   @default("[]") // JSON array
+  nextSteps String   @default("[]") @map("next_steps") // JSON array
+  blockers  String   @default("[]") // JSON array
+  summary   String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId, createdAt])
+  @@map("session_handoff")
+}
+
+model Decision {
+  id           String   @id @default(uuid())
+  projectId    String   @map("project_id")
+  cardId       String?  @map("card_id")
+  title        String
+  status       String   @default("proposed") // proposed, accepted, rejected, superseded
+  decision     String
+  alternatives String   @default("[]") // JSON array
+  rationale    String   @default("")
+  author       String   @default("AGENT")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  card    Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([cardId])
+  @@map("decision")
+}
+
+model AgentScratch {
+  id        String    @id @default(uuid())
+  boardId   String    @map("board_id")
+  agentName String    @map("agent_name")
+  key       String
+  value     String
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, agentName, key])
+  @@index([expiresAt])
+  @@map("agent_scratch")
+}
+
+model GitLink {
+  id         String   @id @default(uuid())
+  projectId  String   @map("project_id")
+  cardId     String   @map("card_id")
+  commitHash String   @map("commit_hash")
+  message    String   @default("")
+  author     String   @default("")
+  commitDate DateTime @default(now()) @map("commit_date")
+  filePaths  String   @default("[]") @map("file_paths") // JSON array
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  card    Card    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, commitHash, cardId])
+  @@index([projectId])
+  @@index([cardId])
+  @@map("git_link")
 }

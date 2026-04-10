@@ -1,0 +1,162 @@
+"use client";
+
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { MilestoneGroup, RoadmapCard } from "./roadmap-view";
+
+const PRIORITY_COLORS: Record<string, string> = {
+	URGENT: "bg-red-500",
+	HIGH: "bg-orange-500",
+	MEDIUM: "bg-amber-400",
+	LOW: "bg-blue-400",
+	NONE: "bg-muted-foreground/50",
+};
+
+const DONE_COLOR = "bg-emerald-500";
+
+function DotNode({ card, isDone }: { card: RoadmapCard; isDone: boolean }) {
+	const color = isDone ? DONE_COLOR : (PRIORITY_COLORS[card.priority] ?? PRIORITY_COLORS.NONE);
+
+	return (
+		<TooltipProvider delayDuration={200}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<div
+						className={`h-2.5 w-2.5 shrink-0 rounded-full ${color} ring-2 ring-background transition-transform hover:scale-150`}
+					/>
+				</TooltipTrigger>
+				<TooltipContent side="top" className="max-w-48">
+					<p className="text-xs font-medium">
+						<span className="font-mono text-muted-foreground">#{card.number}</span>{" "}
+						{card.title}
+					</p>
+					<p className="text-[10px] text-muted-foreground">
+						{card.columnName} {card.priority !== "NONE" ? `/ ${card.priority}` : ""}
+					</p>
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+}
+
+type RiverFlowProps = {
+	milestones: MilestoneGroup[];
+	columnOrder: string[];
+	allCards: RoadmapCard[];
+};
+
+export function RiverFlow({ milestones, columnOrder, allCards }: RiverFlowProps) {
+	if (allCards.length === 0) return null;
+
+	return (
+		<div className="rounded-lg border bg-card p-4">
+			<h2 className="mb-4 text-sm font-semibold text-muted-foreground">
+				Flow
+			</h2>
+
+			{/* Column headers */}
+			<div className="mb-1 flex items-center">
+				<div className="w-28 shrink-0" />
+				<div className="flex flex-1 items-center">
+					{columnOrder.map((col, i) => (
+						<div key={col} className="flex-1 text-center">
+							<span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+								{col}
+							</span>
+						</div>
+					))}
+				</div>
+				<div className="w-16 shrink-0" />
+			</div>
+
+			{/* Milestone rivers */}
+			<div className="space-y-3">
+				{milestones.map((milestone) => (
+					<MilestoneRiver
+						key={milestone.id ?? "__ungrouped__"}
+						milestone={milestone}
+						columnOrder={columnOrder}
+					/>
+				))}
+			</div>
+		</div>
+	);
+}
+
+function MilestoneRiver({
+	milestone,
+	columnOrder,
+}: {
+	milestone: MilestoneGroup;
+	columnOrder: string[];
+}) {
+	// Group cards by column
+	const cardsByColumn = new Map<string, RoadmapCard[]>();
+	for (const col of columnOrder) {
+		cardsByColumn.set(col, []);
+	}
+	// Cards in parking lot or unknown columns go to the first column bucket
+	for (const card of milestone.cards) {
+		const bucket = cardsByColumn.get(card.columnName);
+		if (bucket) {
+			bucket.push(card);
+		} else {
+			// Parking lot / unknown → treat as "later" visually, put in first column
+			const first = columnOrder[0];
+			if (first) cardsByColumn.get(first)?.push(card);
+		}
+	}
+
+	const pct = milestone.total > 0 ? Math.round((milestone.done / milestone.total) * 100) : 0;
+
+	return (
+		<div className="flex items-center">
+			{/* Milestone label */}
+			<div className="w-28 shrink-0 pr-3">
+				<p className="truncate text-xs font-medium">{milestone.name}</p>
+				<p className="text-[10px] text-muted-foreground">
+					{milestone.done}/{milestone.total}
+				</p>
+			</div>
+
+			{/* River track */}
+			<div className="relative flex flex-1 items-center">
+				{/* Background track line */}
+				<div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border" />
+
+				{/* Column segments with dots */}
+				{columnOrder.map((col) => {
+					const cards = cardsByColumn.get(col) ?? [];
+					const isDone = col.toLowerCase() === "done";
+
+					return (
+						<div
+							key={col}
+							className="relative z-10 flex flex-1 items-center justify-center gap-1 py-1.5"
+						>
+							{cards.map((card) => (
+								<DotNode
+									key={card.id}
+									card={card}
+									isDone={isDone}
+								/>
+							))}
+						</div>
+					);
+				})}
+			</div>
+
+			{/* Progress */}
+			<div className="flex w-16 shrink-0 items-center justify-end gap-1.5 pl-3">
+				<div className="h-1.5 w-10 overflow-hidden rounded-full bg-muted">
+					<div
+						className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+						style={{ width: `${pct}%` }}
+					/>
+				</div>
+				<span className="text-[10px] tabular-nums text-muted-foreground">
+					{pct}%
+				</span>
+			</div>
+		</div>
+	);
+}

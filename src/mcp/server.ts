@@ -3,80 +3,38 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 import { db } from "./db.js";
+import { toToon } from "./toon.js";
+import { AGENT_NAME, SCHEMA_VERSION, detectFeatures, resolveCardId, resolveOrCreateMilestone, ok, err, safeExecute } from "./utils.js";
+import { getToolCatalog, executeTool, getRegistrySize } from "./tool-registry.js";
+import { registerResources } from "./resources.js";
 
-// Agent identity — set via AGENT_NAME env var in MCP config
-// e.g. { "env": { "AGENT_NAME": "Codex" } }
-const AGENT_NAME = process.env.AGENT_NAME || "Agent";
+// Initialize extended tools (registers them in the catalog)
+import "./extended-tools.js";
+import "./tools/relation-tools.js";
+import "./tools/session-tools.js";
+import "./tools/decision-tools.js";
+import "./tools/scratch-tools.js";
+import "./tools/context-tools.js";
+import "./tools/query-tools.js";
+import "./tools/git-tools.js";
 
 const server = new McpServer({
 	name: "project-tracker",
-	version: "1.0.0",
+	version: "2.1.0",
 });
 
-/**
- * Resolve a card reference — accepts either a UUID or "#number" (requires projectId for number lookup).
- */
-async function resolveCardId(ref: string, projectId?: string): Promise<string | null> {
-	// If it looks like a UUID, use directly
-	if (ref.includes("-") && ref.length > 10) return ref;
+// ─── Essential Tools (always loaded in LLM context) ────────────────
 
-	// Strip leading # if present
-	const num = Number.parseInt(ref.replace(/^#/, ""), 10);
-	if (Number.isNaN(num)) return null;
-
-	// If projectId provided, look up by project + number
-	if (projectId) {
-		const card = await db.card.findUnique({
-			where: { projectId_number: { projectId, number: num } },
-			select: { id: true },
-		});
-		return card?.id ?? null;
-	}
-
-	// Otherwise search across all projects (less precise but convenient)
-	const card = await db.card.findFirst({
-		where: { number: num },
-		select: { id: true },
-	});
-	return card?.id ?? null;
-}
-
-// ─── Discovery & Context ────────────────────────────────────────────
-
-server.tool(
-	"listProjects",
-	"List all projects in the tracker",
-	async () => {
-		const projects = await db.project.findMany({
-			orderBy: { createdAt: "desc" },
-			include: { _count: { select: { boards: true } } },
-		});
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: JSON.stringify(
-						projects.map((p) => ({
-							id: p.id,
-							name: p.name,
-							slug: p.slug,
-							description: p.description,
-							boardCount: p._count.boards,
-						})),
-						null,
-						2,
-					),
-				},
-			],
-		};
+server.registerTool("getBoard", {
+	title: "Get Board",
+	description: "Full board state: columns, cards with #refs, checklists, milestones. Use format='toon' for ~40% fewer tokens.",
+	inputSchema: {
+		boardId: z.string().describe("Board UUID"),
+		format: z.enum(["json", "toon"]).default("json").describe("'toon' saves ~40% tokens"),
 	},
-);
-
-server.tool(
-	"getBoard",
-	"Get full board state including all columns, cards, and checklist progress. Use this at the start of a conversation to understand current project state.",
-	{ boardId: z.string().describe("Board ID (UUID)") },
-	async ({ boardId }) => {
+	annotations: { readOnlyHint: true },
+}, async ({ boardId, format }) => {
+	return safeExecute(async () => {
 		const board = await db.board.findUnique({
 			where: { id: boardId },
 			include: {
@@ -88,6 +46,7 @@ server.tool(
 							orderBy: { position: "asc" },
 							include: {
 								checklists: { orderBy: { position: "asc" } },
+								milestone: { select: { id: true, name: true } },
 								_count: { select: { comments: true } },
 							},
 						},
@@ -96,14 +55,12 @@ server.tool(
 			},
 		});
 
-		if (!board) {
-			return { content: [{ type: "text" as const, text: "Board not found." }], isError: true };
-		}
+		if (!board) return err("Board not found.", "Use getTools({ category: 'discovery' }) → runTool('listProjects') → runTool('listBoards') to find a valid boardId.");
 
 		const summary = {
 			id: board.id,
 			name: board.name,
-			project: board.project.name,
+			project: { id: board.project.id, name: board.project.name },
 			columns: board.columns.map((col) => ({
 				id: col.id,
 				name: col.name,
@@ -119,6 +76,7 @@ server.tool(
 					tags: JSON.parse(card.tags),
 					assignee: card.assignee,
 					createdBy: card.createdBy,
+					milestone: card.milestone ? { id: card.milestone.id, name: card.milestone.name } : null,
 					checklist: {
 						total: card.checklists.length,
 						done: card.checklists.filter((c) => c.completed).length,
@@ -133,47 +91,211 @@ server.tool(
 			})),
 		};
 
-		return { content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }] };
-	},
-);
+		return ok(summary, format as "json" | "toon");
+	});
+});
 
-server.tool(
-	"listBoards",
-	"List all boards for a project",
-	{ projectId: z.string().describe("Project ID (UUID)") },
-	async ({ projectId }) => {
-		const boards = await db.board.findMany({
-			where: { projectId },
-			orderBy: { createdAt: "desc" },
-			include: { _count: { select: { columns: true } } },
+server.registerTool("createCard", {
+	title: "Create Card",
+	description: "Create a card. Uses column name (not ID); auto-creates milestone if name is new.",
+	inputSchema: {
+		boardId: z.string().describe("Board UUID"),
+		columnName: z.string().describe("Column name (e.g. 'To Do', 'Backlog')"),
+		title: z.string().describe("Card title"),
+		description: z.string().optional().describe("Markdown description"),
+		priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).default("NONE"),
+		tags: z.array(z.string()).default([]).describe("e.g. ['bug', 'feature:auth']"),
+		assignee: z.enum(["HUMAN", "AGENT"]).optional(),
+		milestoneName: z.string().optional().describe("Auto-creates if new"),
+	},
+}, async ({ boardId, columnName, title, description, priority, tags, assignee, milestoneName }) => {
+	return safeExecute(async () => {
+		const column = await db.column.findFirst({
+			where: { boardId, name: { equals: columnName } },
 		});
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: JSON.stringify(
-						boards.map((b) => ({
-							id: b.id,
-							name: b.name,
-							description: b.description,
-						})),
-						null,
-						2,
-					),
-				},
-			],
-		};
-	},
-);
+		if (!column) {
+			const columns = await db.column.findMany({ where: { boardId }, select: { name: true } });
+			return err(`Column "${columnName}" not found.`, `Available: ${columns.map((c) => c.name).join(", ")}`);
+		}
 
-server.tool(
-	"searchCards",
-	"Search cards across all projects by title, description, or tag",
-	{
-		query: z.string().describe("Search text to match against card title or description"),
-		tag: z.string().optional().describe("Filter by tag (exact match)"),
+		const board = await db.board.findUnique({ where: { id: boardId }, select: { projectId: true } });
+		if (!board) return err("Board not found.");
+
+		const maxPosition = await db.card.aggregate({ where: { columnId: column.id }, _max: { position: true } });
+		const project = await db.project.update({
+			where: { id: board.projectId },
+			data: { nextCardNumber: { increment: 1 } },
+		});
+		const cardNumber = project.nextCardNumber - 1;
+
+		let milestoneId: string | undefined;
+		if (milestoneName) {
+			milestoneId = await resolveOrCreateMilestone(board.projectId, milestoneName);
+		}
+
+		const card = await db.card.create({
+			data: {
+				columnId: column.id,
+				projectId: board.projectId,
+				number: cardNumber,
+				title,
+				description,
+				priority,
+				tags: JSON.stringify(tags),
+				assignee,
+				milestoneId,
+				createdBy: "AGENT",
+				position: (maxPosition._max.position ?? -1) + 1,
+			},
+		});
+
+		await db.activity.create({
+			data: {
+				cardId: card.id,
+				action: "created",
+				details: `Card #${cardNumber} "${title}" created in ${columnName}`,
+				actorType: "AGENT",
+				actorName: AGENT_NAME,
+			},
+		});
+
+		return ok({ id: card.id, number: cardNumber, ref: `#${cardNumber}`, title: card.title, column: columnName });
+	});
+});
+
+server.registerTool("updateCard", {
+	title: "Update Card",
+	description: "Update card fields. Omitted fields unchanged.",
+	inputSchema: {
+		cardId: z.string().describe("Card UUID or #number"),
+		title: z.string().optional(),
+		description: z.string().optional().describe("Markdown"),
+		priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+		tags: z.array(z.string()).optional().describe("Replaces all tags"),
+		assignee: z.enum(["HUMAN", "AGENT"]).nullable().optional().describe("null to unassign"),
+		milestoneName: z.string().nullable().optional().describe("null to unassign; auto-creates if new"),
 	},
-	async ({ query, tag }) => {
+	annotations: { idempotentHint: true },
+}, async ({ cardId: cardRef, title, description, priority, tags, assignee, milestoneName }) => {
+	return safeExecute(async () => {
+		const cardId = await resolveCardId(cardRef);
+		if (!cardId) return err(`Card "${cardRef}" not found.`, "Use getBoard to see valid card refs.");
+
+		const existing = await db.card.findUnique({ where: { id: cardId } });
+		if (!existing) return err("Card not found.");
+
+		let milestoneId: string | null | undefined;
+		if (milestoneName !== undefined) {
+			milestoneId = milestoneName ? await resolveOrCreateMilestone(existing.projectId, milestoneName) : null;
+		}
+
+		const card = await db.card.update({
+			where: { id: cardId },
+			data: {
+				title,
+				description,
+				priority,
+				tags: tags ? JSON.stringify(tags) : undefined,
+				assignee,
+				milestoneId: milestoneId !== undefined ? milestoneId : undefined,
+			},
+		});
+
+		return ok({ id: card.id, ref: `#${card.number}`, title: card.title, updated: true });
+	});
+});
+
+server.registerTool("moveCard", {
+	title: "Move Card",
+	description: "Move a card to a column. Position 0 = top; default = bottom.",
+	inputSchema: {
+		cardId: z.string().describe("Card UUID or #number"),
+		columnName: z.string().describe("Target column (e.g. 'In Progress', 'Done')"),
+		position: z.number().int().min(0).optional().describe("0 = top, omit = bottom"),
+	},
+}, async ({ cardId: cardRef, columnName, position }) => {
+	return safeExecute(async () => {
+		const cardId = await resolveCardId(cardRef);
+		if (!cardId) return err(`Card "${cardRef}" not found.`, "Use getBoard to see valid card refs.");
+
+		const card = await db.card.findUnique({
+			where: { id: cardId },
+			include: { column: { include: { board: true } } },
+		});
+		if (!card) return err("Card not found.");
+
+		const targetColumn = await db.column.findFirst({
+			where: { boardId: card.column.boardId, name: { equals: columnName } },
+		});
+		if (!targetColumn) {
+			const cols = await db.column.findMany({ where: { boardId: card.column.boardId }, select: { name: true } });
+			return err(`Column "${columnName}" not found.`, `Available: ${cols.map((c) => c.name).join(", ")}`);
+		}
+
+		const cardsInTarget = await db.card.findMany({
+			where: { columnId: targetColumn.id },
+			orderBy: { position: "asc" },
+		});
+
+		const filtered = cardsInTarget.filter((c) => c.id !== cardId);
+		const insertAt = position !== undefined ? Math.min(position, filtered.length) : filtered.length;
+		filtered.splice(insertAt, 0, card);
+
+		const updates = filtered.map((c, i) =>
+			db.card.update({ where: { id: c.id }, data: { columnId: targetColumn.id, position: i } }),
+		);
+		await db.$transaction(updates);
+
+		const fromCol = card.column.name;
+		if (fromCol !== columnName) {
+			await db.activity.create({
+				data: {
+					cardId,
+					action: "moved",
+					details: `Moved from "${fromCol}" to "${columnName}"`,
+					actorType: "AGENT",
+					actorName: AGENT_NAME,
+				},
+			});
+		}
+
+		return ok({ id: cardId, ref: `#${card.number}`, title: card.title, from: fromCol, to: columnName });
+	});
+});
+
+server.registerTool("addComment", {
+	title: "Add Comment",
+	description: "Add a comment to a card.",
+	inputSchema: {
+		cardId: z.string().describe("Card UUID or #number"),
+		content: z.string().describe("Comment text (markdown)"),
+	},
+}, async ({ cardId: cardRef, content }) => {
+	return safeExecute(async () => {
+		const cardId = await resolveCardId(cardRef);
+		if (!cardId) return err(`Card "${cardRef}" not found.`, "Use getBoard to see valid card refs.");
+
+		const card = await db.card.findUnique({ where: { id: cardId } });
+		if (!card) return err("Card not found.");
+
+		const comment = await db.comment.create({
+			data: { cardId, content, authorType: "AGENT", authorName: AGENT_NAME },
+		});
+
+		return ok({ id: comment.id, ref: `#${card.number}`, created: true });
+	});
+});
+
+server.registerTool("searchCards", {
+	title: "Search Cards",
+	description: "Search cards by title/description across all projects. Tag filter is exact-match.",
+	inputSchema: {
+		query: z.string().describe("Text to match in title and description"),
+		tag: z.string().optional().describe("Exact tag match (e.g. 'bug')"),
+	},
+	annotations: { readOnlyHint: true },
+}, async ({ query, tag }) => {
+	return safeExecute(async () => {
 		const cards = await db.card.findMany({
 			where: {
 				OR: [
@@ -194,9 +316,10 @@ server.tool(
 			title: card.title,
 			description: card.description,
 			priority: card.priority,
-			tags: JSON.parse(card.tags),
+			tags: JSON.parse(card.tags) as string[],
 			column: card.column.name,
 			board: card.column.board.name,
+			boardId: card.column.board.id,
 			project: card.column.board.project.name,
 		}));
 
@@ -204,673 +327,34 @@ server.tool(
 			results = results.filter((r) => r.tags.includes(tag));
 		}
 
-		return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
+		return ok(results);
+	});
+});
+
+server.registerTool("getRoadmap", {
+	title: "Get Roadmap",
+	description: "Roadmap view: cards grouped by milestone and horizon. Horizons: In Progress/Review=Now, To Do=Next, Backlog=Later, Done=Done.",
+	inputSchema: {
+		boardId: z.string().describe("Board UUID"),
+		format: z.enum(["json", "toon"]).default("json").describe("'toon' saves ~40% tokens"),
 	},
-);
-
-// ─── Card Management ────────────────────────────────────────────────
-
-server.tool(
-	"createCard",
-	"Create a new card in a column. Use columnName to specify the column by name (e.g. 'In Progress') instead of ID.",
-	{
-		boardId: z.string().describe("Board ID (UUID)"),
-		columnName: z.string().describe("Column name (e.g. 'To Do', 'In Progress', 'Backlog')"),
-		title: z.string().describe("Card title"),
-		description: z.string().optional().describe("Card description"),
-		priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).default("NONE").describe("Priority level"),
-		tags: z.array(z.string()).default([]).describe("Tags (e.g. ['bug', 'feature:auth'])"),
-		assignee: z.enum(["HUMAN", "AGENT"]).optional().describe("Who is assigned"),
-	},
-	async ({ boardId, columnName, title, description, priority, tags, assignee }) => {
-		const column = await db.column.findFirst({
-			where: {
-				boardId,
-				name: { equals: columnName },
-			},
-		});
-
-		if (!column) {
-			const columns = await db.column.findMany({
-				where: { boardId },
-				select: { name: true },
-			});
-			return {
-				content: [
-					{
-						type: "text" as const,
-						text: `Column "${columnName}" not found. Available columns: ${columns.map((c) => c.name).join(", ")}`,
-					},
-				],
-				isError: true,
-			};
-		}
-
-		// Get projectId from board
-		const board = await db.board.findUnique({ where: { id: boardId }, select: { projectId: true } });
-		if (!board) {
-			return { content: [{ type: "text" as const, text: "Board not found." }], isError: true };
-		}
-
-		const maxPosition = await db.card.aggregate({
-			where: { columnId: column.id },
-			_max: { position: true },
-		});
-
-		// Assign next card number
-		const project = await db.project.update({
-			where: { id: board.projectId },
-			data: { nextCardNumber: { increment: 1 } },
-		});
-		const cardNumber = project.nextCardNumber - 1;
-
-		const card = await db.card.create({
-			data: {
-				columnId: column.id,
-				projectId: board.projectId,
-				number: cardNumber,
-				title,
-				description,
-				priority,
-				tags: JSON.stringify(tags),
-				assignee,
-				createdBy: "AGENT",
-				position: (maxPosition._max.position ?? -1) + 1,
-			},
-		});
-
-		await db.activity.create({
-			data: {
-				cardId: card.id,
-				action: "created",
-				details: `Card #${cardNumber} "${title}" created in ${columnName}`,
-				actorType: "AGENT",
-				actorName: AGENT_NAME,
-			},
-		});
-
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: JSON.stringify({ id: card.id, number: cardNumber, ref: `#${cardNumber}`, title: card.title, column: columnName }, null, 2),
-				},
-			],
-		};
-	},
-);
-
-server.tool(
-	"updateCard",
-	"Update a card's title, description, priority, tags, or assignee",
-	{
-		cardId: z.string().describe("Card ref — UUID or #number (e.g. '#7')"),
-		title: z.string().optional().describe("New title"),
-		description: z.string().optional().describe("New description"),
-		priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional().describe("New priority"),
-		tags: z.array(z.string()).optional().describe("Replace all tags"),
-		assignee: z.enum(["HUMAN", "AGENT"]).nullable().optional().describe("New assignee (null to unassign)"),
-	},
-	async ({ cardId: cardRef, title, description, priority, tags, assignee }) => {
-		const cardId = await resolveCardId(cardRef);
-		if (!cardId) {
-			return { content: [{ type: "text" as const, text: `Card "${cardRef}" not found.` }], isError: true };
-		}
-		const existing = await db.card.findUnique({ where: { id: cardId } });
-		if (!existing) {
-			return { content: [{ type: "text" as const, text: "Card not found." }], isError: true };
-		}
-
-		const card = await db.card.update({
-			where: { id: cardId },
-			data: {
-				title,
-				description,
-				priority,
-				tags: tags ? JSON.stringify(tags) : undefined,
-				assignee,
-			},
-		});
-
-		return {
-			content: [{ type: "text" as const, text: JSON.stringify({ id: card.id, title: card.title, updated: true }, null, 2) }],
-		};
-	},
-);
-
-server.tool(
-	"moveCard",
-	"Move a card to a different column by column name. Use this to update card status (e.g. move to 'In Progress' when starting work).",
-	{
-		cardId: z.string().describe("Card ref — UUID or #number (e.g. '#7')"),
-		columnName: z.string().describe("Target column name (e.g. 'In Progress', 'Done')"),
-		position: z.number().int().min(0).optional().describe("Position within column (0 = top). Defaults to bottom."),
-	},
-	async ({ cardId: cardRef, columnName, position }) => {
-		const cardId = await resolveCardId(cardRef);
-		if (!cardId) {
-			return { content: [{ type: "text" as const, text: `Card "${cardRef}" not found.` }], isError: true };
-		}
-		const card = await db.card.findUnique({
-			where: { id: cardId },
-			include: { column: { include: { board: true } } },
-		});
-		if (!card) {
-			return { content: [{ type: "text" as const, text: "Card not found." }], isError: true };
-		}
-
-		const targetColumn = await db.column.findFirst({
-			where: {
-				boardId: card.column.boardId,
-				name: { equals: columnName },
-			},
-		});
-		if (!targetColumn) {
-			return {
-				content: [{ type: "text" as const, text: `Column "${columnName}" not found.` }],
-				isError: true,
-			};
-		}
-
-		const cardsInTarget = await db.card.findMany({
-			where: { columnId: targetColumn.id },
-			orderBy: { position: "asc" },
-		});
-
-		const filtered = cardsInTarget.filter((c) => c.id !== cardId);
-		const insertAt = position !== undefined ? Math.min(position, filtered.length) : filtered.length;
-		filtered.splice(insertAt, 0, card);
-
-		const updates = filtered.map((c, i) =>
-			db.card.update({
-				where: { id: c.id },
-				data: { columnId: targetColumn.id, position: i },
-			}),
-		);
-		await db.$transaction(updates);
-
-		const fromCol = card.column.name;
-		if (fromCol !== columnName) {
-			await db.activity.create({
-				data: {
-					cardId,
-					action: "moved",
-					details: `Moved from "${fromCol}" to "${columnName}"`,
-					actorType: "AGENT",
-					actorName: AGENT_NAME,
-				},
-			});
-		}
-
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: JSON.stringify({ id: cardId, title: card.title, from: fromCol, to: columnName }, null, 2),
-				},
-			],
-		};
-	},
-);
-
-server.tool(
-	"deleteCard",
-	"Delete a card from the board",
-	{ cardId: z.string().describe("Card ref — UUID or #number (e.g. '#7')") },
-	async ({ cardId: cardRef }) => {
-		const cardId = await resolveCardId(cardRef);
-		if (!cardId) {
-			return { content: [{ type: "text" as const, text: `Card "${cardRef}" not found.` }], isError: true };
-		}
-		const card = await db.card.findUnique({ where: { id: cardId } });
-		if (!card) {
-			return { content: [{ type: "text" as const, text: "Card not found." }], isError: true };
-		}
-		await db.card.delete({ where: { id: cardId } });
-		return {
-			content: [{ type: "text" as const, text: JSON.stringify({ deleted: true, title: card.title }, null, 2) }],
-		};
-	},
-);
-
-// ─── Progress Tracking ──────────────────────────────────────────────
-
-server.tool(
-	"addChecklistItem",
-	"Add a checklist sub-task to a card",
-	{
-		cardId: z.string().describe("Card ref — UUID or #number (e.g. '#7')"),
-		text: z.string().describe("Checklist item text"),
-	},
-	async ({ cardId: cardRef, text }) => {
-		const cardId = await resolveCardId(cardRef);
-		if (!cardId) {
-			return { content: [{ type: "text" as const, text: `Card "${cardRef}" not found.` }], isError: true };
-		}
-		const card = await db.card.findUnique({ where: { id: cardId } });
-		if (!card) {
-			return { content: [{ type: "text" as const, text: "Card not found." }], isError: true };
-		}
-
-		const maxPos = await db.checklistItem.aggregate({
-			where: { cardId },
-			_max: { position: true },
-		});
-
-		const item = await db.checklistItem.create({
-			data: {
-				cardId,
-				text,
-				position: (maxPos._max.position ?? -1) + 1,
-			},
-		});
-
-		return {
-			content: [{ type: "text" as const, text: JSON.stringify({ id: item.id, text: item.text }, null, 2) }],
-		};
-	},
-);
-
-server.tool(
-	"toggleChecklistItem",
-	"Toggle a checklist item complete/incomplete",
-	{
-		checklistItemId: z.string().describe("Checklist item ID (UUID)"),
-		completed: z.boolean().describe("Whether the item is completed"),
-	},
-	async ({ checklistItemId, completed }) => {
-		const item = await db.checklistItem.findUnique({ where: { id: checklistItemId } });
-		if (!item) {
-			return { content: [{ type: "text" as const, text: "Checklist item not found." }], isError: true };
-		}
-
-		const updated = await db.checklistItem.update({
-			where: { id: checklistItemId },
-			data: { completed },
-		});
-
-		if (completed) {
-			await db.activity.create({
-				data: {
-					cardId: item.cardId,
-					action: "checklist_completed",
-					details: `Completed: ${item.text}`,
-					actorType: "AGENT",
-					actorName: AGENT_NAME,
-				},
-			});
-		}
-
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: JSON.stringify({ id: updated.id, text: updated.text, completed: updated.completed }, null, 2),
-				},
-			],
-		};
-	},
-);
-
-server.tool(
-	"addComment",
-	"Add a comment/note to a card. Use this to record decisions, context, or blockers.",
-	{
-		cardId: z.string().describe("Card ref — UUID or #number (e.g. '#7')"),
-		content: z.string().describe("Comment text"),
-	},
-	async ({ cardId: cardRef, content }) => {
-		const cardId = await resolveCardId(cardRef);
-		if (!cardId) {
-			return { content: [{ type: "text" as const, text: `Card "${cardRef}" not found.` }], isError: true };
-		}
-		const card = await db.card.findUnique({ where: { id: cardId } });
-		if (!card) {
-			return { content: [{ type: "text" as const, text: "Card not found." }], isError: true };
-		}
-
-		const comment = await db.comment.create({
-			data: {
-				cardId,
-				content,
-				authorType: "AGENT",
-				authorName: AGENT_NAME,
-			},
-		});
-
-		return {
-			content: [{ type: "text" as const, text: JSON.stringify({ id: comment.id, created: true }, null, 2) }],
-		};
-	},
-);
-
-server.tool(
-	"listComments",
-	"List all comments on a card. Use this to read decisions, context, and discussion history.",
-	{
-		cardId: z.string().describe("Card ref — UUID or #number (e.g. '#7')"),
-	},
-	async ({ cardId: cardRef }) => {
-		const cardId = await resolveCardId(cardRef);
-		if (!cardId) {
-			return { content: [{ type: "text" as const, text: `Card "${cardRef}" not found.` }], isError: true };
-		}
-
-		const comments = await db.comment.findMany({
-			where: { cardId },
-			orderBy: { createdAt: "asc" },
-		});
-
-		return {
-			content: [{
-				type: "text" as const,
-				text: JSON.stringify(comments.map((c) => ({
-					id: c.id,
-					content: c.content,
-					authorType: c.authorType,
-					authorName: c.authorName,
-					createdAt: c.createdAt,
-				})), null, 2),
-			}],
-		};
-	},
-);
-
-// ─── Planning ───────────────────────────────────────────────────────
-
-server.tool(
-	"createProject",
-	"Create a new project with a default board",
-	{
-		name: z.string().describe("Project name"),
-		description: z.string().optional().describe("Project description"),
-		boardName: z.string().default("Main Board").describe("Name for the default board"),
-	},
-	async ({ name, description, boardName }) => {
-		let slug = name
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, "-")
-			.replace(/^-|-$/g, "");
-
-		const existing = await db.project.findUnique({ where: { slug } });
-		if (existing) {
-			slug = `${slug}-${Date.now().toString(36)}`;
-		}
-
-		const project = await db.project.create({
-			data: {
-				name,
-				description,
-				slug,
-				boards: {
-					create: {
-						name: boardName,
-						columns: {
-							create: [
-								{ name: "Backlog", description: "This hasn't been started", position: 0 },
-								{ name: "To Do", description: "This is ready to be picked up", position: 1 },
-								{ name: "In Progress", description: "This is actively being worked on", position: 2 },
-								{ name: "Review", description: "This is in review", position: 3 },
-								{ name: "Done", description: "This has been completed", position: 4 },
-								{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 5, isParking: true },
-							],
-						},
-					},
-				},
-			},
-			include: { boards: true },
-		});
-
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: JSON.stringify(
-						{
-							projectId: project.id,
-							projectName: project.name,
-							slug: project.slug,
-							boardId: project.boards[0].id,
-							boardName: project.boards[0].name,
-						},
-						null,
-						2,
-					),
-				},
-			],
-		};
-	},
-);
-
-server.tool(
-	"createColumn",
-	"Add a new column to a board",
-	{
-		boardId: z.string().describe("Board ID (UUID)"),
-		name: z.string().describe("Column name"),
-		description: z.string().optional().describe("Column description"),
-	},
-	async ({ boardId, name, description }) => {
-		const maxPos = await db.column.aggregate({
-			where: { boardId },
-			_max: { position: true },
-		});
-
-		const column = await db.column.create({
-			data: {
-				boardId,
-				name,
-				description,
-				position: (maxPos._max.position ?? -1) + 1,
-			},
-		});
-
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: JSON.stringify({ id: column.id, name: column.name }, null, 2),
-				},
-			],
-		};
-	},
-);
-
-server.tool(
-	"bulkCreateCards",
-	"Create multiple cards at once. Useful for planning sessions.",
-	{
-		boardId: z.string().describe("Board ID (UUID)"),
-		cards: z.array(
-			z.object({
-				columnName: z.string().describe("Column name"),
-				title: z.string().describe("Card title"),
-				description: z.string().optional(),
-				priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).default("NONE"),
-				tags: z.array(z.string()).default([]),
-			}),
-		).describe("Array of cards to create"),
-	},
-	async ({ boardId, cards }) => {
-		const board = await db.board.findUnique({ where: { id: boardId }, select: { projectId: true } });
-		if (!board) {
-			return { content: [{ type: "text" as const, text: "Board not found." }], isError: true };
-		}
-
-		const columns = await db.column.findMany({ where: { boardId } });
-		const columnMap = new Map(columns.map((c) => [c.name.toLowerCase(), c]));
-
-		const created: Array<{ id: string; number: number; ref: string; title: string; column: string }> = [];
-		const errors: string[] = [];
-
-		for (const cardInput of cards) {
-			const col = columnMap.get(cardInput.columnName.toLowerCase());
-			if (!col) {
-				errors.push(`Column "${cardInput.columnName}" not found for card "${cardInput.title}"`);
-				continue;
-			}
-
-			const maxPos = await db.card.aggregate({
-				where: { columnId: col.id },
-				_max: { position: true },
-			});
-
-			const project = await db.project.update({
-				where: { id: board.projectId },
-				data: { nextCardNumber: { increment: 1 } },
-			});
-			const cardNumber = project.nextCardNumber - 1;
-
-			const card = await db.card.create({
-				data: {
-					columnId: col.id,
-					projectId: board.projectId,
-					number: cardNumber,
-					title: cardInput.title,
-					description: cardInput.description,
-					priority: cardInput.priority,
-					tags: JSON.stringify(cardInput.tags),
-					createdBy: "AGENT",
-					position: (maxPos._max.position ?? -1) + 1,
-				},
-			});
-
-			await db.activity.create({
-				data: {
-					cardId: card.id,
-					action: "created",
-					details: `Card #${cardNumber} "${cardInput.title}" created in ${col.name}`,
-					actorType: "AGENT",
-					actorName: AGENT_NAME,
-				},
-			});
-
-			created.push({ id: card.id, number: cardNumber, ref: `#${cardNumber}`, title: card.title, column: col.name });
-		}
-
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: JSON.stringify({ created, errors: errors.length > 0 ? errors : undefined }, null, 2),
-				},
-			],
-		};
-	},
-);
-
-server.tool(
-	"createCardFromTemplate",
-	"Create a card from a template (Bug Report, Feature, Spike, Tech Debt, Epic). Includes pre-filled description, tags, priority, and checklist.",
-	{
-		boardId: z.string().describe("Board ID (UUID)"),
-		columnName: z.string().describe("Column name (e.g. 'To Do', 'Backlog')"),
-		template: z.enum(["Bug Report", "Feature", "Spike / Research", "Tech Debt", "Epic"]).describe("Template name"),
-		title: z.string().describe("Card title (appended to template prefix)"),
-	},
-	async ({ boardId, columnName, template, title }) => {
-		const templates: Record<string, { prefix: string; description: string; priority: string; tags: string[]; checklist: string[] }> = {
-			"Bug Report": {
-				prefix: "Bug: ", description: "**What happened:**\n\n**Expected behavior:**\n\n**Steps to reproduce:**\n1. \n\n**Environment:**\n",
-				priority: "HIGH", tags: ["bug"], checklist: ["Reproduce the issue", "Identify root cause", "Write fix", "Test fix"],
-			},
-			"Feature": {
-				prefix: "Feature: ", description: "**Goal:**\n\n**Approach:**\n\n**Acceptance criteria:**\n- \n",
-				priority: "MEDIUM", tags: ["feature"], checklist: ["Design approach", "Implement", "Add tests", "Update docs if needed"],
-			},
-			"Spike / Research": {
-				prefix: "Spike: ", description: "**Question to answer:**\n\n**Time-box:** 2 hours\n\n**Options to evaluate:**\n1. \n\n**Decision:**\n",
-				priority: "LOW", tags: ["spike"], checklist: ["Research options", "Prototype if needed", "Document findings", "Make recommendation"],
-			},
-			"Tech Debt": {
-				prefix: "Refactor: ", description: "**Current state:**\n\n**Desired state:**\n\n**Why now:**\n",
-				priority: "LOW", tags: ["debt"], checklist: ["Assess impact", "Refactor", "Verify no regressions"],
-			},
-			"Epic": {
-				prefix: "Epic: ", description: "**Overview:**\n\n**Sub-tasks:**\nCreate individual cards for each sub-task.\n\n**Success criteria:**\n- \n",
-				priority: "MEDIUM", tags: ["epic"], checklist: ["Break down into cards", "Prioritize sub-tasks", "Track progress"],
-			},
-		};
-
-		const tmpl = templates[template];
-		if (!tmpl) {
-			return { content: [{ type: "text" as const, text: `Template "${template}" not found.` }], isError: true };
-		}
-
-		const column = await db.column.findFirst({ where: { boardId, name: { equals: columnName } } });
-		if (!column) {
-			return { content: [{ type: "text" as const, text: `Column "${columnName}" not found.` }], isError: true };
-		}
-
-		const board = await db.board.findUnique({ where: { id: boardId }, select: { projectId: true } });
-		if (!board) {
-			return { content: [{ type: "text" as const, text: "Board not found." }], isError: true };
-		}
-
-		const maxPos = await db.card.aggregate({ where: { columnId: column.id }, _max: { position: true } });
-		const project = await db.project.update({ where: { id: board.projectId }, data: { nextCardNumber: { increment: 1 } } });
-		const cardNumber = project.nextCardNumber - 1;
-		const fullTitle = `${tmpl.prefix}${title}`;
-
-		const card = await db.card.create({
-			data: {
-				columnId: column.id,
-				projectId: board.projectId,
-				number: cardNumber,
-				title: fullTitle,
-				description: tmpl.description,
-				priority: tmpl.priority,
-				tags: JSON.stringify(tmpl.tags),
-				createdBy: "AGENT",
-				position: (maxPos._max.position ?? -1) + 1,
-			},
-		});
-
-		// Create checklist items
-		for (let i = 0; i < tmpl.checklist.length; i++) {
-			await db.checklistItem.create({
-				data: { cardId: card.id, text: tmpl.checklist[i], position: i },
-			});
-		}
-
-		await db.activity.create({
-			data: {
-				cardId: card.id,
-				action: "created",
-				details: `Card #${cardNumber} "${fullTitle}" created from ${template} template`,
-				actorType: "AGENT",
-				actorName: AGENT_NAME,
-			},
-		});
-
-		return {
-			content: [{
-				type: "text" as const,
-				text: JSON.stringify({ id: card.id, number: cardNumber, ref: `#${cardNumber}`, title: fullTitle, template, column: columnName, checklistItems: tmpl.checklist.length }, null, 2),
-			}],
-		};
-	},
-);
-
-// ─── Prompts ───────────────────────────────────────────────────────
-
-server.prompt(
-	"start-session",
-	"Get current project state and suggested next actions. Use this at the start of every conversation.",
-	{ boardId: z.string().describe("Board ID to review") },
-	async ({ boardId }) => {
+	annotations: { readOnlyHint: true },
+}, async ({ boardId, format }) => {
+	return safeExecute(async () => {
 		const board = await db.board.findUnique({
 			where: { id: boardId },
 			include: {
-				project: true,
+				project: {
+					include: { milestones: { orderBy: { position: "asc" } } },
+				},
 				columns: {
 					orderBy: { position: "asc" },
 					include: {
 						cards: {
 							orderBy: { position: "asc" },
 							include: {
-								checklists: true,
-								_count: { select: { comments: true } },
+								milestone: { select: { id: true, name: true } },
+								checklists: { select: { completed: true } },
 							},
 						},
 					},
@@ -878,223 +362,633 @@ server.prompt(
 			},
 		});
 
-		if (!board) {
-			return { messages: [{ role: "user" as const, content: { type: "text" as const, text: "Board not found." } }] };
+		if (!board) return err("Board not found.", "Use getTools({ category: 'discovery' }) to find boards.");
+
+		function getHorizon(colName: string): string {
+			const lower = colName.toLowerCase();
+			if (lower === "done") return "done";
+			if (lower === "in progress" || lower === "review") return "now";
+			if (lower === "to do") return "next";
+			return "later";
 		}
 
-		const inProgress = board.columns.find((c) => c.name === "In Progress")?.cards ?? [];
-		const todo = board.columns.find((c) => c.name === "To Do")?.cards ?? [];
-		const review = board.columns.find((c) => c.name === "Review")?.cards ?? [];
-		const blocked = board.columns.flatMap((c) => c.cards).filter((card) => {
-			const tags: string[] = JSON.parse(card.tags);
-			return tags.includes("blocked");
-		});
-
-		const summary = [
-			`# Session Start — ${board.project.name} / ${board.name}`,
-			"",
-			`## Currently In Progress (${inProgress.length})`,
-			...inProgress.map((c) => {
-				const done = c.checklists.filter((i) => i.completed).length;
-				const total = c.checklists.length;
-				const progress = total > 0 ? ` [${done}/${total}]` : "";
-				return `- #${c.number} ${c.title}${progress} (${c.priority})`;
-			}),
-			"",
-			`## Ready (To Do) (${todo.length})`,
-			...todo.map((c) => `- #${c.number} ${c.title} (${c.priority})`),
-			"",
-			`## In Review (${review.length})`,
-			...review.map((c) => `- #${c.number} ${c.title}`),
-			"",
-		];
-
-		if (blocked.length > 0) {
-			summary.push(`## Blocked (${blocked.length})`);
-			for (const c of blocked) {
-				summary.push(`- #${c.number} ${c.title}`);
-			}
-			summary.push("");
-		}
-
-		summary.push(
-			"## Suggested Actions",
-			"1. Continue work on any In Progress cards — check their checklists for next sub-task",
-			"2. If In Progress is clear, pick the highest priority card from To Do",
-			"3. Check Review cards if any need follow-up",
-			blocked.length > 0 ? "4. Address blocked items if possible" : "",
-			"",
-			`Use \`getBoard\` with boardId "${boardId}" for full details including all columns.`,
+		const allCards = board.columns.flatMap((col) =>
+			col.cards.map((card) => ({
+				id: card.id,
+				number: card.number,
+				ref: `#${card.number}`,
+				title: card.title,
+				priority: card.priority,
+				column: col.name,
+				horizon: getHorizon(col.name),
+				milestone: card.milestone?.name ?? null,
+				checklistDone: card.checklists.filter((c) => c.completed).length,
+				checklistTotal: card.checklists.length,
+			})),
 		);
 
-		return {
-			messages: [{
-				role: "user" as const,
-				content: { type: "text" as const, text: summary.join("\n") },
-			}],
-		};
-	},
-);
-
-server.prompt(
-	"plan-work",
-	"Create a structured plan for upcoming work. Returns a template you can fill in and execute with bulkCreateCards.",
-	{ boardId: z.string().describe("Board ID to plan for") },
-	async ({ boardId }) => {
-		const board = await db.board.findUnique({
-			where: { id: boardId },
-			include: {
-				project: true,
-				columns: { select: { name: true } },
-			},
-		});
-
-		if (!board) {
-			return { messages: [{ role: "user" as const, content: { type: "text" as const, text: "Board not found." } }] };
+		const milestoneMap = new Map<string, typeof allCards>();
+		for (const card of allCards) {
+			const key = card.milestone ?? "Ungrouped";
+			if (!milestoneMap.has(key)) milestoneMap.set(key, []);
+			milestoneMap.get(key)!.push(card);
 		}
 
-		const columnNames = board.columns.map((c) => c.name).join(", ");
-
-		const template = [
-			`# Planning Session — ${board.project.name} / ${board.name}`,
-			"",
-			`Available columns: ${columnNames}`,
-			`Board ID: ${boardId}`,
-			"",
-			"## Plan your work",
-			"",
-			"Break down the work into cards. For each card, specify:",
-			"- **Column**: Which column it starts in (usually Backlog or To Do)",
-			"- **Title**: Clear, actionable title",
-			"- **Priority**: NONE, LOW, MEDIUM, HIGH, or URGENT",
-			"- **Tags**: Relevant tags (feature:X, epic:Y, bug, etc.)",
-			"",
-			"Once you have your plan, use `bulkCreateCards` to create all cards at once.",
-			"Then use `addChecklistItem` to add sub-tasks to individual cards.",
-			"",
-			"## Templates available",
-			"Use `createCardFromTemplate` for common card types:",
-			"- **Bug Report** — pre-filled with repro steps, checklist for fix workflow",
-			"- **Feature** — goal, approach, acceptance criteria, implementation checklist",
-			"- **Spike / Research** — question, time-box, options, decision template",
-			"- **Tech Debt** — current state, desired state, refactor checklist",
-			"- **Epic** — overview, sub-task breakdown, tracking checklist",
-		];
-
-		return {
-			messages: [{
-				role: "user" as const,
-				content: { type: "text" as const, text: template.join("\n") },
-			}],
+		const roadmap = {
+			board: board.name,
+			project: { id: board.project.id, name: board.project.name },
+			milestones: board.project.milestones.map((ms) => ({
+				id: ms.id,
+				name: ms.name,
+				description: ms.description,
+				targetDate: ms.targetDate,
+			})),
+			groups: Array.from(milestoneMap.entries()).map(([name, cards]) => {
+				const done = cards.filter((c) => c.horizon === "done").length;
+				return {
+					milestone: name,
+					total: cards.length,
+					done,
+					progress: cards.length > 0 ? `${Math.round((done / cards.length) * 100)}%` : "0%",
+					now: cards.filter((c) => c.horizon === "now"),
+					next: cards.filter((c) => c.horizon === "next"),
+					later: cards.filter((c) => c.horizon === "later"),
+					done_cards: cards.filter((c) => c.horizon === "done"),
+				};
+			}),
 		};
-	},
-);
 
-server.prompt(
-	"setup-project",
-	"Guide for setting up a new project on the tracker board. Use this when connecting a project for the first time.",
-	{
+		return ok(roadmap, format as "json" | "toon");
+	});
+});
+
+// ─── Meta-Tools (Essential + Catalog pattern) ──────────────────────
+
+server.registerTool("getTools", {
+	title: "Get Tools",
+	description: `Browse ${getRegistrySize()} extended tools. No args=categories, category=list tools, tool=full schema.`,
+	inputSchema: {
+		category: z.string().optional().describe("e.g. 'cards', 'milestones', 'notes'"),
+		tool: z.string().optional().describe("Tool name for full parameter schema"),
+	},
+	annotations: { readOnlyHint: true },
+}, async ({ category, tool }) => {
+	const result = getToolCatalog({ category, tool });
+	if (!result) return err(`Tool "${tool}" not found.`, "Call getTools() with no args to see all categories.");
+	return ok(result);
+});
+
+server.registerTool("runTool", {
+	title: "Run Tool",
+	description: "Execute an extended tool by name with validated parameters.",
+	inputSchema: {
+		tool: z.string().describe("e.g. 'bulkCreateCards', 'listActivity', 'createNote'"),
+		params: z.record(z.string(), z.unknown()).default({}).describe("Tool parameters as key-value object"),
+	},
+}, async ({ tool, params }) => {
+	return executeTool(tool, params);
+});
+
+// ─── Prompts ───────────────────────────────────────────────────────
+
+server.registerPrompt("resume-session", {
+	title: "Resume Session",
+	description: "Load board state + last handoff + diff. Use at the start of every conversation.",
+	argsSchema: {
+		boardId: z.string().describe("Board ID"),
+	},
+}, async ({ boardId }) => {
+	const board = await db.board.findUnique({
+		where: { id: boardId },
+		include: {
+			project: true,
+			columns: {
+				orderBy: { position: "asc" },
+				include: {
+					cards: {
+						orderBy: { position: "asc" },
+						include: {
+							checklists: true,
+							_count: { select: { comments: true } },
+							relationsTo: { where: { type: "blocks" }, select: { id: true } },
+						},
+					},
+				},
+			},
+		},
+	});
+
+	if (!board) {
+		return { messages: [{ role: "user" as const, content: { type: "text" as const, text: "Board not found." } }] };
+	}
+
+	// Last handoff
+	const lastHandoff = await db.sessionHandoff.findFirst({
+		where: { boardId },
+		orderBy: { createdAt: "desc" },
+	});
+
+	// Board diff since last handoff
+	let diffSummary = "";
+	if (lastHandoff) {
+		const cardIds = board.columns.flatMap((c) => c.cards.map((card) => card.id));
+		const recentActivity = await db.activity.findMany({
+			where: { cardId: { in: cardIds }, createdAt: { gt: lastHandoff.createdAt } },
+			include: { card: { select: { number: true } } },
+			orderBy: { createdAt: "desc" },
+			take: 20,
+		});
+		if (recentActivity.length > 0) {
+			diffSummary = `\n## Changes since last session (${recentActivity.length})\n` +
+				recentActivity.slice(0, 10).map((a) => `- #${a.card.number}: ${a.details ?? a.action}`).join("\n");
+		}
+	}
+
+	const inProgress = board.columns.find((c) => c.name === "In Progress")?.cards ?? [];
+	const todo = board.columns.find((c) => c.name === "To Do")?.cards ?? [];
+	const blocked = board.columns.flatMap((c) => c.cards).filter((c) => c.relationsTo.length > 0);
+
+	// Detect available features
+	const features = await detectFeatures();
+	const missingFeatures = Object.entries(features)
+		.filter(([key, val]) => key !== "version" && val === false)
+		.map(([key]) => key);
+
+	const lines = [
+		`# Session — ${board.project.name} / ${board.name}`,
+		`Board: \`${boardId}\` | Project: \`${board.project.id}\` | Schema v${features.version}`,
+	];
+
+	if (missingFeatures.length > 0) {
+		lines.push(
+			"",
+			`> **Migration needed**: Run \`npm run db:push\` to enable: ${missingFeatures.join(", ")}`,
+			"> Some tools (relations, decisions, handoffs, git links, scratchpad) may not work until schema is updated.",
+		);
+	}
+
+	if (lastHandoff) {
+		const handoffData = {
+			agent: lastHandoff.agentName,
+			summary: lastHandoff.summary,
+			nextSteps: JSON.parse(lastHandoff.nextSteps) as string[],
+			blockers: JSON.parse(lastHandoff.blockers) as string[],
+		};
+		lines.push("", "## Last Handoff", `Agent: ${handoffData.agent} | ${lastHandoff.createdAt.toISOString()}`);
+		if (handoffData.summary) lines.push(handoffData.summary);
+		if (handoffData.nextSteps.length > 0) {
+			lines.push("**Next steps:**");
+			for (const s of handoffData.nextSteps) lines.push(`- ${s}`);
+		}
+		if (handoffData.blockers.length > 0) {
+			lines.push("**Blockers:**");
+			for (const b of handoffData.blockers) lines.push(`- ${b}`);
+		}
+	}
+
+	if (diffSummary) lines.push(diffSummary);
+
+	lines.push("", `## In Progress (${inProgress.length})`);
+	for (const c of inProgress) {
+		const done = c.checklists.filter((i) => i.completed).length;
+		const total = c.checklists.length;
+		lines.push(`- #${c.number} ${c.title}${total > 0 ? ` [${done}/${total}]` : ""} (${c.priority})`);
+	}
+
+	if (todo.length > 0) {
+		lines.push("", `## Ready (${todo.length})`);
+		for (const c of todo.slice(0, 5)) lines.push(`- #${c.number} ${c.title} (${c.priority})`);
+		if (todo.length > 5) lines.push(`  ...and ${todo.length - 5} more`);
+	}
+
+	if (blocked.length > 0) {
+		lines.push("", `## Blocked (${blocked.length})`);
+		for (const c of blocked) lines.push(`- #${c.number} ${c.title}`);
+	}
+
+	const text = lines.join("\n");
+	const tokens = Math.ceil(text.length / 4);
+	lines.push("", `---`, `~${tokens} tokens | Use \`getFocusContext\` for deep work. Call \`end-session\` before wrapping up.`);
+
+	return {
+		messages: [{
+			role: "user" as const,
+			content: { type: "text" as const, text: lines.join("\n") },
+		}],
+	};
+});
+
+server.registerPrompt("end-session", {
+	title: "End Session",
+	description: "Review board accuracy, save handoff, and clean up before ending a conversation.",
+	argsSchema: {
+		boardId: z.string().describe("Board ID"),
+	},
+}, async ({ boardId }) => {
+	const board = await db.board.findUnique({
+		where: { id: boardId },
+		include: {
+			project: { select: { name: true } },
+			columns: {
+				orderBy: { position: "asc" },
+				include: {
+					cards: {
+						orderBy: { position: "asc" },
+						include: { checklists: { select: { text: true, completed: true } } },
+					},
+				},
+			},
+		},
+	});
+
+	if (!board) {
+		return { messages: [{ role: "user" as const, content: { type: "text" as const, text: "Board not found." } }] };
+	}
+
+	const inProgress = board.columns.find((c) => c.name === "In Progress")?.cards ?? [];
+
+	const prompt = [
+		`# End Session — ${board.project.name} / ${board.name}`,
+		"",
+		"Before wrapping up, complete this checklist:",
+		"",
+		"## 1. Review board accuracy",
+		"Check each In Progress card — is it still accurate?",
+		...inProgress.map((c) => {
+			const done = c.checklists.filter((i) => i.completed).length;
+			const total = c.checklists.length;
+			return `- #${c.number} ${c.title}${total > 0 ? ` [${done}/${total}]` : ""}`;
+		}),
+		"",
+		"## 2. Move completed cards",
+		"Any cards fully done? → `moveCard` to Done",
+		"",
+		"## 3. Update checklists",
+		"Mark completed items → `runTool('toggleChecklistItem', ...)`",
+		"",
+		"## 4. Save handoff",
+		"```",
+		`runTool('saveHandoff', {`,
+		`  boardId: '${boardId}',`,
+		`  workingOn: ['what you worked on'],`,
+		`  findings: ['key findings'],`,
+		`  nextSteps: ['what to do next'],`,
+		`  blockers: ['any blockers'],`,
+		`  summary: 'Brief summary of this session'`,
+		`})`,
+		"```",
+		"",
+		"## 5. Add context comments",
+		"Add comments on cards with important context for the next session.",
+		"",
+		"## 6. Report summary",
+		"Tell the user what was accomplished.",
+	];
+
+	return {
+		messages: [{
+			role: "user" as const,
+			content: { type: "text" as const, text: prompt.join("\n") },
+		}],
+	};
+});
+
+server.registerPrompt("deep-dive", {
+	title: "Deep Dive",
+	description: "Load focused context for deep work on a specific card. Returns card + relations + decisions + related cards.",
+	argsSchema: {
+		boardId: z.string().describe("Board ID"),
+		cardId: z.string().describe("Card ID or #number"),
+	},
+}, async ({ boardId, cardId: cardRef }) => {
+	const board = await db.board.findUnique({ where: { id: boardId }, select: { projectId: true, name: true } });
+	if (!board) return { messages: [{ role: "user" as const, content: { type: "text" as const, text: "Board not found." } }] };
+
+	const cardId = await resolveCardId(cardRef, board.projectId);
+	if (!cardId) return { messages: [{ role: "user" as const, content: { type: "text" as const, text: `Card "${cardRef}" not found.` } }] };
+
+	const prompt = [
+		`# Deep Dive — ${board.name}`,
+		"",
+		`Load full context for card \`${cardRef}\`:`,
+		"```",
+		`runTool('getFocusContext', { boardId: '${boardId}', cardId: '${cardRef}' })`,
+		"```",
+		"",
+		"Then work on the card. When done, update checklist items, add comments with findings, and move the card if complete.",
+	];
+
+	return {
+		messages: [{
+			role: "user" as const,
+			content: { type: "text" as const, text: prompt.join("\n") },
+		}],
+	};
+});
+
+server.registerPrompt("sprint-review", {
+	title: "Sprint Review",
+	description: "Review board progress: velocity, milestone status, stale cards, blockers.",
+	argsSchema: {
+		boardId: z.string().describe("Board ID"),
+		since: z.string().describe("ISO datetime or relative (e.g. '7 days ago')").default(new Date(Date.now() - 7 * 86400000).toISOString()),
+	},
+}, async ({ boardId, since }) => {
+	const board = await db.board.findUnique({
+		where: { id: boardId },
+		include: {
+			project: {
+				include: { milestones: { orderBy: { position: "asc" }, include: { _count: { select: { cards: true } } } } },
+			},
+			columns: {
+				orderBy: { position: "asc" },
+				include: {
+					cards: {
+						include: {
+							checklists: { select: { completed: true } },
+							relationsTo: { where: { type: "blocks" }, select: { fromCard: { select: { number: true, title: true } } } },
+						},
+					},
+				},
+			},
+		},
+	});
+
+	if (!board) return { messages: [{ role: "user" as const, content: { type: "text" as const, text: "Board not found." } }] };
+
+	const sinceDate = new Date(since);
+	const allCards = board.columns.flatMap((c) => c.cards);
+	const cardIds = allCards.map((c) => c.id);
+
+	// Completed since
+	const completedActivities = await db.activity.findMany({
+		where: { cardId: { in: cardIds }, action: "moved", details: { contains: '"Done"' }, createdAt: { gt: sinceDate } },
+		select: { cardId: true },
+	});
+	const completedCount = new Set(completedActivities.map((a) => a.cardId)).size;
+
+	// Stale cards (not updated in 7+ days, not in Done)
+	const staleThreshold = new Date(Date.now() - 7 * 86400000);
+	const doneCol = board.columns.find((c) => c.name === "Done");
+	const stale = allCards.filter((c) => c.columnId !== doneCol?.id && new Date(c.updatedAt) < staleThreshold);
+
+	// Blocked cards
+	const blocked = allCards.filter((c) => c.relationsTo.length > 0);
+
+	const daysDiff = Math.max(1, Math.ceil((Date.now() - sinceDate.getTime()) / 86400000));
+
+	const lines = [
+		`# Sprint Review — ${board.project.name} / ${board.name}`,
+		`Period: ${sinceDate.toLocaleDateString()} → now (${daysDiff} days)`,
+		"",
+		`## Velocity`,
+		`Cards completed: ${completedCount} (~${(completedCount / daysDiff).toFixed(1)}/day)`,
+		"",
+		`## Milestones`,
+		...board.project.milestones.map((ms) => {
+			return `- ${ms.name}: ${ms._count.cards} cards${ms.targetDate ? ` (target: ${ms.targetDate.toLocaleDateString()})` : ""}`;
+		}),
+		"",
+	];
+
+	if (blocked.length > 0) {
+		lines.push(`## Blocked (${blocked.length})`);
+		for (const c of blocked) {
+			const blockers = c.relationsTo.map((r) => `#${r.fromCard.number}`).join(", ");
+			lines.push(`- #${c.number} ${c.title} ← blocked by ${blockers}`);
+		}
+		lines.push("");
+	}
+
+	if (stale.length > 0) {
+		lines.push(`## Stale Cards (${stale.length})`);
+		for (const c of stale.slice(0, 10)) {
+			const days = Math.floor((Date.now() - new Date(c.updatedAt).getTime()) / 86400000);
+			lines.push(`- #${c.number} ${c.title} (${days}d stale)`);
+		}
+		if (stale.length > 10) lines.push(`  ...and ${stale.length - 10} more`);
+		lines.push("");
+	}
+
+	lines.push(
+		"## Actions",
+		"Review stale cards — move to Parking Lot or update. Unblock blocked cards. Check milestone progress.",
+	);
+
+	return {
+		messages: [{
+			role: "user" as const,
+			content: { type: "text" as const, text: lines.join("\n") },
+		}],
+	};
+});
+
+server.registerPrompt("plan-work", {
+	title: "Plan Work",
+	description: "Create a structured plan for upcoming work. Returns a template you can fill in and execute with bulkCreateCards.",
+	argsSchema: {
+		boardId: z.string().describe("Board ID to plan for"),
+	},
+}, async ({ boardId }) => {
+	const board = await db.board.findUnique({
+		where: { id: boardId },
+		include: {
+			project: true,
+			columns: { select: { name: true } },
+		},
+	});
+
+	if (!board) {
+		return { messages: [{ role: "user" as const, content: { type: "text" as const, text: "Board not found." } }] };
+	}
+
+	const columnNames = board.columns.map((c) => c.name).join(", ");
+
+	const template = [
+		`# Planning — ${board.project.name} / ${board.name}`,
+		"",
+		`Columns: ${columnNames}`,
+		`Board ID: \`${boardId}\` | Project ID: \`${board.project.id}\``,
+		"",
+		"Use `runTool('bulkCreateCards', {...})` to batch-create cards.",
+		"Use `runTool('addChecklistItem', {...})` to add sub-tasks.",
+		"",
+		"Templates via `runTool('createCardFromTemplate', {...})`:",
+		"Bug Report, Feature, Spike / Research, Tech Debt, Epic",
+	];
+
+	return {
+		messages: [{
+			role: "user" as const,
+			content: { type: "text" as const, text: template.join("\n") },
+		}],
+	};
+});
+
+server.registerPrompt("setup-project", {
+	title: "Setup Project",
+	description: "Guide for setting up a new project on the tracker board. Use this when connecting a project for the first time.",
+	argsSchema: {
 		projectName: z.string().describe("Name of the project to set up"),
 	},
-	async ({ projectName }) => {
-		// Check if project already exists
-		const existing = await db.project.findFirst({
-			where: { name: { equals: projectName } },
-			include: { boards: { include: { columns: true } } },
-		});
+}, async ({ projectName }) => {
+	const existing = await db.project.findFirst({
+		where: { name: { equals: projectName } },
+		include: { boards: { include: { columns: true } } },
+	});
 
-		const instructions = [
-			`# Project Setup — ${projectName}`,
-			"",
-		];
+	const instructions = [
+		`# Project Setup — ${projectName}`,
+		"",
+	];
 
-		if (existing) {
-			instructions.push(
-				`Project "${projectName}" already exists (ID: ${existing.id}).`,
-				existing.boards.length > 0
-					? `It has ${existing.boards.length} board(s): ${existing.boards.map((b) => `"${b.name}" (${b.id})`).join(", ")}`
-					: "It has no boards yet — create one with a descriptive name.",
-				"",
-				"Skip to Step 3 below to populate the board.",
-			);
-		} else {
-			instructions.push(
-				"## Step 1: Create the project",
-				"",
-				`Use \`createProject\` with name "${projectName}" and a brief description.`,
-				"This will create a default board with standard columns (Backlog, To Do, In Progress, Review, Done, Parking Lot).",
-				"",
-			);
-		}
-
+	if (existing) {
 		instructions.push(
+			`Project "${projectName}" already exists (ID: \`${existing.id}\`).`,
+			existing.boards.length > 0
+				? `It has ${existing.boards.length} board(s): ${existing.boards.map((b) => `"${b.name}" (\`${b.id}\`)`).join(", ")}`
+				: "It has no boards yet — create one with a descriptive name.",
 			"",
-			"## Step 2: Understand the columns",
-			"",
-			"| Column | Purpose |",
-			"|---|---|",
-			"| **Backlog** | Known work, not yet prioritized. \"We should do this eventually.\" |",
-			"| **To Do** | Prioritized and ready to pick up. The active work queue. |",
-			"| **In Progress** | Actively being worked on. Limit to 2-3 cards. |",
-			"| **Review** | Code written, needs human review or testing. |",
-			"| **Done** | Shipped, merged, verified. |",
-			"| **Parking Lot** | Ideas and maybes. Low-cost storage for future possibilities. |",
-			"",
-			"## Step 3: Populate the board",
-			"",
-			"Read the project's docs to understand current state:",
-			"- README, CLAUDE.md, STATUS.md, PHASES.md, or similar planning docs",
-			"- Recent git history (`git log --oneline -20`)",
-			"- Any ADRs or decision records",
-			"",
-			"Then create cards based on what you find:",
-			"",
-			"1. **Completed work** → Done column (so the board reflects history)",
-			"2. **Current/active work** → In Progress",
-			"3. **Next priorities** → To Do (limit to what's realistically next)",
-			"4. **Future work** → Backlog (organized by phase or area)",
-			"5. **Ideas and open questions** → Parking Lot",
-			"",
-			"Use `bulkCreateCards` to create them efficiently. Add checklist items for sub-tasks on larger cards.",
-			"",
-			"## Step 4: Set up the project's CLAUDE.md",
-			"",
-			"Add this section to the project's CLAUDE.md so future conversations use the board:",
-			"",
-			"```",
-			"## Project Tracking",
-			"",
-			"This project is tracked in the Project Tracker board.",
-			"Use the `project-tracker` MCP tools to read and update the board.",
-			`At the start of each conversation, use the \`start-session\` prompt with the board ID.`,
-			"Reference cards by #number in conversation (e.g. \"working on #7\").",
-			"```",
-			"",
-			"## Tips",
-			"",
-			"- Each card should be roughly one work session or PR in size",
-			"- Use tags for cross-cutting concerns: `feature:auth`, `epic:v2`, `bug`, `debt`",
-			"- Set priority on cards: URGENT and HIGH get attention first",
-			"- Add checklist items for sub-tasks on larger cards",
-			"- Use `createCardFromTemplate` for standard card types (Bug, Feature, Spike, Tech Debt, Epic)",
-			"- Ask the user questions before creating cards — they may have context about priorities and scope",
+			"Skip to Step 3 below to populate the board.",
 		);
+	} else {
+		instructions.push(
+			"## Step 1: Create the project",
+			"",
+			`Use \`runTool('createProject', { name: "${projectName}", description: "..." })\``,
+			"This creates a default board with standard columns (Backlog, To Do, In Progress, Review, Done, Parking Lot).",
+			"",
+		);
+	}
 
-		return {
-			messages: [{
-				role: "user" as const,
-				content: { type: "text" as const, text: instructions.join("\n") },
-			}],
-		};
+	instructions.push(
+		"",
+		"## Step 2: Populate the board",
+		"",
+		"Read the project's README, CLAUDE.md, and `git log --oneline -20` to understand state.",
+		"Then create cards: Completed→Done, Active→In Progress, Next→To Do, Future→Backlog, Ideas→Parking Lot.",
+		"Use `runTool('bulkCreateCards', {...})` to batch-create.",
+		"",
+		"## Step 3: Add to the project's CLAUDE.md",
+		"",
+		"```",
+		"## Project Tracking",
+		"This project uses the `project-tracker` MCP tools.",
+		"Use the `resume-session` prompt with the board ID at the start of each conversation.",
+		"Use `end-session` before wrapping up to save handoff for the next session.",
+		"Reference cards by #number (e.g. \"working on #7\").",
+		"```",
+		"",
+		"Keep cards PR-sized. Use tags (`feature:X`, `bug`, `debt`). Use `getTools()` to discover all tools.",
+	);
+
+	return {
+		messages: [{
+			role: "user" as const,
+			content: { type: "text" as const, text: instructions.join("\n") },
+		}],
+	};
+});
+
+server.registerPrompt("holistic-review", {
+	title: "Holistic Review",
+	description: "Review the entire board against the actual codebase. Syncs board state with reality.",
+	argsSchema: {
+		boardId: z.string().describe("Board ID to review"),
 	},
-);
+}, async ({ boardId }) => {
+	const board = await db.board.findUnique({
+		where: { id: boardId },
+		include: {
+			project: {
+				include: { milestones: { orderBy: { position: "asc" } } },
+			},
+			columns: {
+				orderBy: { position: "asc" },
+				include: {
+					cards: {
+						orderBy: { position: "asc" },
+						include: {
+							checklists: true,
+							milestone: { select: { id: true, name: true } },
+							_count: { select: { comments: true } },
+						},
+					},
+				},
+			},
+		},
+	});
+
+	if (!board) {
+		return { messages: [{ role: "user" as const, content: { type: "text" as const, text: "Board not found." } }] };
+	}
+
+	const boardState = board.columns.map((col) => ({
+		column: col.name,
+		cards: col.cards.map((c) => ({
+			ref: `#${c.number}`,
+			title: c.title,
+			description: c.description?.substring(0, 200),
+			priority: c.priority,
+			tags: JSON.parse(c.tags),
+			milestone: c.milestone?.name ?? null,
+			checklist: `${c.checklists.filter((i) => i.completed).length}/${c.checklists.length}`,
+			assignee: c.assignee,
+		})),
+	}));
+
+	const milestones = board.project.milestones.map((m) => ({
+		name: m.name,
+		targetDate: m.targetDate,
+		description: m.description,
+	}));
+
+	// TOON encoding for compact board state (~40% token savings)
+	const boardStateToon = toToon(boardState);
+
+	const prompt = [
+		`# Holistic Board Review — ${board.project.name} / ${board.name}`,
+		"",
+		`Board ID: \`${boardId}\` | Project ID: \`${board.project.id}\``,
+		"",
+		"## Current Board State (TOON encoded)",
+		"```",
+		boardStateToon,
+		"```",
+		"",
+		milestones.length > 0 ? `## Milestones\n${JSON.stringify(milestones, null, 2)}\n` : "",
+		"## Instructions",
+		"",
+		"Review the codebase thoroughly and compare it against the board state above. For each finding, take action:",
+		"",
+		"1. **Untracked work**: If you find code not represented by any card → `createCard`",
+		"2. **Stale cards**: If a card is clearly done in code but not in Done column → `moveCard`",
+		"3. **Outdated descriptions**: If a card doesn't match code reality → `updateCard`",
+		"4. **Missing context**: Architecture decisions or important context → `addComment`",
+		"5. **Priority misalignment**: If priorities don't reflect codebase needs → `updateCard`",
+		"6. **Milestone alignment**: Ungrouped cards that belong to a milestone → `runTool('setMilestone', ...)`",
+		"7. **Checklist updates**: Items completed in code → `runTool('toggleChecklistItem', ...)`",
+		"",
+		"Explore codebase structure and key files, compare against board, take corrective actions, then summarize changes.",
+	];
+
+	return {
+		messages: [{
+			role: "user" as const,
+			content: { type: "text" as const, text: prompt.join("\n") },
+		}],
+	};
+});
+
+// ─── Resources ────────────────────────────────────────────────────
+registerResources(server);
 
 // ─── Start ──────────────────────────────────────────────────────────
 
 async function main() {
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
-	console.error("Project Tracker MCP server running on stdio");
+	console.error(`Project Tracker MCP v2.0 — 9 essential tools + ${getRegistrySize()} extended tools via getTools/runTool`);
 }
 
 main().catch((error) => {

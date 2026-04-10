@@ -1,13 +1,19 @@
 "use client";
 
 import {
+	Ban,
 	Bot,
 	CheckSquare,
 	Clock,
+	FileText,
+	GitCommit,
+	Link2,
+	Milestone as MilestoneIcon,
 	MessageSquare,
 	Plus,
 	Trash2,
 	User,
+	X,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -193,6 +199,9 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 						</div>
 					</div>
 
+					{/* Milestone */}
+					<MilestoneSelector cardId={card.id} projectId={card.projectId} currentMilestoneId={card.milestoneId} boardId={boardId} />
+
 					{/* Description */}
 					<div className="space-y-2">
 						<Label>Description</Label>
@@ -246,6 +255,9 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 							</Button>
 						</div>
 					</div>
+
+					{/* Dependencies */}
+					<DependenciesSection cardId={card.id} boardId={boardId} />
 
 					<Separator />
 
@@ -393,6 +405,49 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 						</form>
 					</div>
 
+					{/* Decisions */}
+					<DecisionsSection cardId={card.id} projectId={card.projectId} />
+
+					{/* Commits */}
+					{card.gitLinks && card.gitLinks.length > 0 && (
+						<>
+							<Separator />
+							<div className="space-y-3">
+								<div className="flex items-center gap-2">
+									<GitCommit className="h-4 w-4 text-muted-foreground" />
+									<Label className="text-muted-foreground">
+										Commits ({card.gitLinks.length})
+									</Label>
+								</div>
+								<div className="space-y-2">
+									{card.gitLinks.map((link) => {
+										const filePaths: string[] = JSON.parse(link.filePaths);
+										return (
+											<div
+												key={link.id}
+												className="rounded-md border p-2 text-xs space-y-1"
+											>
+												<div className="flex items-center gap-2">
+													<code className="rounded bg-muted px-1 py-0.5 text-[10px] font-mono">
+														{link.commitHash.slice(0, 8)}
+													</code>
+													<span className="truncate font-medium">{link.message}</span>
+												</div>
+												<div className="flex items-center gap-3 text-muted-foreground">
+													<span>{link.author}</span>
+													<span>{new Date(link.commitDate).toLocaleDateString()}</span>
+													{filePaths.length > 0 && (
+														<span>{filePaths.length} file{filePaths.length !== 1 ? "s" : ""}</span>
+													)}
+												</div>
+											</div>
+										);
+									})}
+								</div>
+							</div>
+						</>
+					)}
+
 					<Separator />
 
 					{/* Activity log */}
@@ -452,6 +507,142 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 	);
 }
 
+// ─── Dependencies Section ──────────────────────────────────────────
+
+const RELATION_LABELS: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+	blocks: { icon: <Ban className="h-3 w-3" />, label: "Blocks", color: "text-red-500" },
+	blockedBy: { icon: <Ban className="h-3 w-3" />, label: "Blocked by", color: "text-orange-500" },
+	relatedTo: { icon: <Link2 className="h-3 w-3" />, label: "Related", color: "text-blue-500" },
+	parentOf: { icon: <Link2 className="h-3 w-3" />, label: "Parent of", color: "text-violet-500" },
+	childOf: { icon: <Link2 className="h-3 w-3" />, label: "Child of", color: "text-violet-500" },
+};
+
+function DependenciesSection({ cardId, boardId }: { cardId: string; boardId: string }) {
+	const utils = api.useUtils();
+	const { data: relations } = api.relation.getForCard.useQuery(
+		{ cardId },
+		{ enabled: !!cardId },
+	);
+
+	const unlinkMutation = api.relation.unlink.useMutation({
+		onSuccess: () => {
+			utils.relation.getForCard.invalidate({ cardId });
+			utils.board.getFull.invalidate({ id: boardId });
+		},
+		onError: (error) => toast.error(error.message),
+	});
+
+	if (!relations) return null;
+
+	const groups = [
+		{ key: "blocks", items: relations.blocks },
+		{ key: "blockedBy", items: relations.blockedBy },
+		{ key: "relatedTo", items: relations.relatedTo },
+		{ key: "parentOf", items: relations.parentOf },
+		{ key: "childOf", items: relations.childOf },
+	].filter((g) => g.items.length > 0);
+
+	if (groups.length === 0) return null;
+
+	return (
+		<div className="space-y-2">
+			<div className="flex items-center gap-2">
+				<Link2 className="h-4 w-4 text-muted-foreground" />
+				<Label>Dependencies</Label>
+			</div>
+			<div className="space-y-2">
+				{groups.map((group) => {
+					const meta = RELATION_LABELS[group.key];
+					if (!meta) return null;
+					return (
+						<div key={group.key} className="space-y-1">
+							<span className={`text-xs font-medium ${meta.color}`}>
+								{meta.label}
+							</span>
+							<div className="flex flex-wrap gap-1">
+								{group.items.map((item: { id: string; number: number; title: string }) => {
+									const typeMap: Record<string, string> = {
+										blocks: "blocks", blockedBy: "blocks",
+										relatedTo: "related", parentOf: "parent", childOf: "parent",
+									};
+									const relType = typeMap[group.key] ?? "related";
+									const isFrom = group.key === "blocks" || group.key === "relatedTo" || group.key === "parentOf";
+									return (
+										<Badge
+											key={item.id}
+											variant="outline"
+											className="cursor-pointer gap-1 pr-1"
+										>
+											<span className="font-mono text-[10px]">#{item.number}</span>
+											<span className="max-w-[120px] truncate text-xs">{item.title}</span>
+											<button
+												type="button"
+												className="ml-0.5 rounded-sm p-0.5 hover:bg-muted"
+												onClick={() => {
+													unlinkMutation.mutate({
+														fromCardId: isFrom ? cardId : item.id,
+														toCardId: isFrom ? item.id : cardId,
+														type: relType,
+													});
+												}}
+											>
+												<X className="h-2.5 w-2.5" />
+											</button>
+										</Badge>
+									);
+								})}
+							</div>
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
+// ─── Decisions Section ─────────────────────────────────────────────
+
+const STATUS_COLORS: Record<string, string> = {
+	proposed: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
+	accepted: "bg-green-500/10 text-green-600 border-green-500/20",
+	rejected: "bg-red-500/10 text-red-600 border-red-500/20",
+	superseded: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+};
+
+function DecisionsSection({ cardId, projectId }: { cardId: string; projectId: string }) {
+	const { data: decisions } = api.decision.list.useQuery(
+		{ projectId, cardId },
+		{ enabled: !!cardId },
+	);
+
+	if (!decisions || decisions.length === 0) return null;
+
+	return (
+		<div className="space-y-2">
+			<div className="flex items-center gap-2">
+				<FileText className="h-4 w-4 text-muted-foreground" />
+				<Label>Decisions</Label>
+				<span className="text-xs text-muted-foreground">{decisions.length}</span>
+			</div>
+			<div className="space-y-2">
+				{decisions.map((d: { id: string; title: string; status: string; decision: string }) => (
+					<div key={d.id} className="rounded-md border p-2.5">
+						<div className="flex items-center gap-2">
+							<Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[d.status] ?? ""}`}>
+								{d.status}
+							</Badge>
+							<span className="text-sm font-medium">{d.title}</span>
+						</div>
+						<p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+							{d.decision}
+						</p>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
 function ActivityDescription({ action, details }: { action: string; details: string | null }) {
 	switch (action) {
 		case "created":
@@ -467,6 +658,98 @@ function ActivityDescription({ action, details }: { action: string; details: str
 		default:
 			return <span>{details ?? action}</span>;
 	}
+}
+
+function MilestoneSelector({
+	cardId,
+	projectId,
+	currentMilestoneId,
+	boardId,
+}: {
+	cardId: string;
+	projectId: string;
+	currentMilestoneId: string | null;
+	boardId: string;
+}) {
+	const utils = api.useUtils();
+	const [creating, setCreating] = useState(false);
+	const [newName, setNewName] = useState("");
+
+	const { data: milestones } = api.milestone.list.useQuery({ projectId });
+
+	const updateCard = api.card.update.useMutation({
+		onSuccess: () => {
+			utils.card.getById.invalidate({ id: cardId });
+			utils.board.getFull.invalidate({ id: boardId });
+		},
+		onError: (error) => toast.error(error.message),
+	});
+
+	const createMilestone = api.milestone.create.useMutation({
+		onSuccess: (ms) => {
+			utils.milestone.list.invalidate({ projectId });
+			updateCard.mutate({ id: cardId, data: { milestoneId: ms.id } });
+			setCreating(false);
+			setNewName("");
+		},
+		onError: (error) => toast.error(error.message),
+	});
+
+	return (
+		<div className="space-y-2">
+			<div className="flex items-center gap-2">
+				<MilestoneIcon className="h-4 w-4 text-muted-foreground" />
+				<Label>Milestone</Label>
+			</div>
+			<Select
+				value={currentMilestoneId ?? "__none__"}
+				onValueChange={(value) => {
+					if (value === "__create__") {
+						setCreating(true);
+						return;
+					}
+					updateCard.mutate({
+						id: cardId,
+						data: { milestoneId: value === "__none__" ? null : value },
+					});
+				}}
+			>
+				<SelectTrigger>
+					<SelectValue placeholder="No milestone" />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="__none__">No milestone</SelectItem>
+					{milestones?.map((ms) => (
+						<SelectItem key={ms.id} value={ms.id}>
+							{ms.name}
+						</SelectItem>
+					))}
+					<SelectItem value="__create__">+ Create new...</SelectItem>
+				</SelectContent>
+			</Select>
+			{creating && (
+				<form
+					className="flex gap-2"
+					onSubmit={(e) => {
+						e.preventDefault();
+						if (!newName.trim()) return;
+						createMilestone.mutate({ projectId, name: newName.trim() });
+					}}
+				>
+					<Input
+						value={newName}
+						onChange={(e) => setNewName(e.target.value)}
+						placeholder="Milestone name..."
+						autoFocus
+						className="text-sm"
+					/>
+					<Button type="submit" variant="outline" size="sm" disabled={!newName.trim()}>
+						Create
+					</Button>
+				</form>
+			)}
+		</div>
+	);
 }
 
 function formatRelativeTime(date: Date): string {

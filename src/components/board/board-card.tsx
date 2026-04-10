@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, CheckSquare, Clock, MessageSquare, User } from "lucide-react";
+import { Ban, Bot, CheckSquare, Clock, MessageSquare, User } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import type { Priority } from "@/lib/schemas/card-schemas";
@@ -25,6 +25,7 @@ type BoardCardProps = {
 		updatedAt: Date;
 		checklists: Array<{ completed: boolean }>;
 		_count: { comments: number };
+		_blockedByCount?: number;
 	};
 	onClick: () => void;
 };
@@ -44,6 +45,7 @@ export function BoardCard({ card, onClick }: BoardCardProps) {
 	const priority = card.priority as Priority;
 	const checklistTotal = card.checklists.length;
 	const checklistDone = card.checklists.filter((c) => c.completed).length;
+	const blockedByCount = card._blockedByCount ?? 0;
 	const ageDays = getAgeDays(card.updatedAt);
 	const aging = getAgeIndicator(ageDays);
 
@@ -73,8 +75,14 @@ export function BoardCard({ card, onClick }: BoardCardProps) {
 					</div>
 				)}
 
-				{(checklistTotal > 0 || card._count.comments > 0 || card.assignee || aging) && (
+				{(checklistTotal > 0 || card._count.comments > 0 || card.assignee || aging || blockedByCount > 0) && (
 					<div className="flex items-center gap-3 text-xs text-muted-foreground">
+						{blockedByCount > 0 && (
+							<span className="flex items-center gap-0.5 text-red-500" title={`Blocked by ${blockedByCount} card${blockedByCount > 1 ? "s" : ""}`}>
+								<Ban className="h-3 w-3" />
+								{blockedByCount}
+							</span>
+						)}
 						{aging && (
 							<span className={`flex items-center gap-0.5 ${aging.className}`} title={`Last updated ${ageDays} days ago`}>
 								<Clock className="h-3 w-3" />

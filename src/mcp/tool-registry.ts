@@ -1,0 +1,262 @@
+import type { z } from "zod";
+import type { ToolResult } from "./utils.js";
+
+// ─── Types ──────────────────────────────────────────────────────────
+
+export type ToolCategory =
+	| "discovery"
+	| "cards"
+	| "checklist"
+	| "comments"
+	| "milestones"
+	| "notes"
+	| "activity"
+	| "setup"
+	| "relations"
+	| "session"
+	| "decisions"
+	| "scratch"
+	| "git"
+	| "context";
+
+export type ToolAnnotations = {
+	readOnlyHint?: boolean;
+	destructiveHint?: boolean;
+	idempotentHint?: boolean;
+};
+
+export type ExtendedToolDef = {
+	category: ToolCategory;
+	description: string;
+	parameters: z.ZodObject<z.ZodRawShape>;
+	annotations?: ToolAnnotations;
+	handler: (params: Record<string, unknown>) => Promise<ToolResult>;
+};
+
+// ─── Registry ───────────────────────────────────────────────────────
+
+const registry = new Map<string, ExtendedToolDef>();
+
+export function registerExtendedTool(name: string, def: ExtendedToolDef) {
+	registry.set(name, def);
+}
+
+export function getRegistrySize(): number {
+	return registry.size;
+}
+
+// ─── getTools: Catalog Discovery ────────────────────────────────────
+
+type ToolSummary = {
+	name: string;
+	category: string;
+	description: string;
+	readOnly?: boolean;
+	destructive?: boolean;
+};
+
+type ToolDetail = ToolSummary & {
+	parameters: Record<string, {
+		type: string;
+		required: boolean;
+		description: string;
+		default?: unknown;
+		enum?: string[];
+	}>;
+};
+
+// biome-ignore lint: Zod internals require unsafe casts for schema introspection
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getDef(schema: z.ZodTypeAny): Record<string, any> {
+	return schema._def as unknown as Record<string, any>;
+}
+
+function zodTypeToString(schema: z.ZodTypeAny): string {
+	const desc = schema.description;
+	let inner = schema;
+	const def = getDef(inner);
+	if (def.typeName === "ZodOptional" || def.typeName === "ZodDefault") {
+		inner = def.innerType as z.ZodTypeAny;
+	}
+	const innerDef = getDef(inner);
+	if (innerDef.typeName === "ZodNullable") {
+		inner = innerDef.innerType as z.ZodTypeAny;
+		return `${zodTypeToString(inner)} | null`;
+	}
+	if (innerDef.typeName === "ZodArray") return "array";
+	if (innerDef.typeName === "ZodEnum") return "enum";
+	if (innerDef.typeName === "ZodString") return "string";
+	if (innerDef.typeName === "ZodNumber") return "number";
+	if (innerDef.typeName === "ZodBoolean") return "boolean";
+	return desc ?? "unknown";
+}
+
+function extractParamInfo(schema: z.ZodObject<z.ZodRawShape>): ToolDetail["parameters"] {
+	const shape = schema.shape;
+	const result: ToolDetail["parameters"] = {};
+
+	for (const [key, value] of Object.entries(shape)) {
+		const zodField = value as z.ZodTypeAny;
+		const isOptional = zodField.isOptional();
+		const def = getDef(zodField);
+
+		let enumValues: string[] | undefined;
+		let defaultValue: unknown;
+
+		// Extract enum values
+		let inner = zodField;
+		if (def.typeName === "ZodDefault") {
+			defaultValue = def.defaultValue?.();
+			inner = def.innerType as z.ZodTypeAny;
+		}
+		const innerDef = getDef(inner);
+		if (innerDef.typeName === "ZodOptional") {
+			inner = innerDef.innerType as z.ZodTypeAny;
+		}
+		const unwrappedDef = getDef(inner);
+		if (unwrappedDef.typeName === "ZodEnum") {
+			enumValues = unwrappedDef.values as string[];
+		}
+
+		result[key] = {
+			type: zodTypeToString(zodField),
+			required: !isOptional && defaultValue === undefined,
+			description: zodField.description ?? "",
+			...(defaultValue !== undefined && { default: defaultValue }),
+			...(enumValues && { enum: enumValues }),
+		};
+	}
+
+	return result;
+}
+
+/**
+ * Get the tool catalog. Supports three modes:
+ * - No args: returns all categories with tool counts
+ * - category: returns tool summaries for that category
+ * - tool: returns full detail for a specific tool including parameter schema
+ */
+export function getToolCatalog(opts?: { category?: string; tool?: string }): {
+	type: "categories";
+	categories: Array<{ name: string; tools: number; description: string }>;
+} | {
+	type: "tools";
+	category: string;
+	tools: ToolSummary[];
+} | {
+	type: "detail";
+	tool: ToolDetail;
+} | null {
+	// Specific tool detail
+	if (opts?.tool) {
+		const def = registry.get(opts.tool);
+		if (!def) return null;
+		return {
+			type: "detail",
+			tool: {
+				name: opts.tool,
+				category: def.category,
+				description: def.description,
+				readOnly: def.annotations?.readOnlyHint,
+				destructive: def.annotations?.destructiveHint,
+				parameters: extractParamInfo(def.parameters),
+			},
+		};
+	}
+
+	// Category listing
+	if (opts?.category) {
+		const tools: ToolSummary[] = [];
+		for (const [name, def] of registry) {
+			if (def.category === opts.category) {
+				tools.push({
+					name,
+					category: def.category,
+					description: def.description,
+					readOnly: def.annotations?.readOnlyHint,
+					destructive: def.annotations?.destructiveHint,
+				});
+			}
+		}
+		return { type: "tools", category: opts.category, tools };
+	}
+
+	// All categories overview
+	const categoryMap = new Map<string, number>();
+	for (const [, def] of registry) {
+		categoryMap.set(def.category, (categoryMap.get(def.category) ?? 0) + 1);
+	}
+
+	const CATEGORY_DESCRIPTIONS: Record<string, string> = {
+		discovery: "Find projects, boards, cards, and stats",
+		cards: "Bulk operations, templates, and card deletion",
+		checklist: "Add, toggle, and delete checklist sub-tasks",
+		comments: "List and delete comments on cards",
+		milestones: "Create, update, and manage roadmap milestones",
+		notes: "Create and manage project notes",
+		activity: "View recent changes and activity history",
+		setup: "Create projects, columns, and configure boards",
+		relations: "Card dependencies — blocks, related, parent/child",
+		session: "Session handoff and board diff between conversations",
+		decisions: "Structured architectural decision records",
+		scratch: "Ephemeral agent working memory (auto-expires)",
+		git: "Git commit linking and code mapping",
+		context: "Focused context bundles for efficient loading",
+	};
+
+	return {
+		type: "categories",
+		categories: Array.from(categoryMap.entries())
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([name, count]) => ({
+				name,
+				tools: count,
+				description: CATEGORY_DESCRIPTIONS[name] ?? "",
+			})),
+	};
+}
+
+// ─── runTool: Execute Extended Tools ────────────────────────────────
+
+/**
+ * Execute an extended tool by name with parameter validation.
+ */
+export async function executeTool(
+	name: string,
+	params: Record<string, unknown>,
+): Promise<ToolResult> {
+	const def = registry.get(name);
+	if (!def) {
+		// Suggest similar tool names
+		const allNames = Array.from(registry.keys());
+		const suggestions = allNames
+			.filter((n) => n.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(n.toLowerCase()))
+			.slice(0, 3);
+
+		const hint = suggestions.length > 0
+			? `Did you mean: ${suggestions.join(", ")}? Use getTools to see all available tools.`
+			: "Use getTools to see all available tools.";
+
+		return {
+			content: [{ type: "text" as const, text: `Tool "${name}" not found. ${hint}` }],
+			isError: true,
+		};
+	}
+
+	// Validate parameters
+	const parsed = def.parameters.safeParse(params);
+	if (!parsed.success) {
+		const issues = parsed.error.issues
+			.map((i) => `  - ${i.path.join(".")}: ${i.message}`)
+			.join("\n");
+		return {
+			content: [{
+				type: "text" as const,
+				text: `Invalid parameters for "${name}":\n${issues}\n\nUse getTools({ tool: "${name}" }) to see the full parameter schema.`,
+			}],
+			isError: true,
+		};
+	}
+
+	return def.handler(parsed.data as Record<string, unknown>);
+}

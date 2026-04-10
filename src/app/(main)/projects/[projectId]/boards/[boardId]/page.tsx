@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowLeft, Check, Clock, NotebookPen, Pencil, X } from "lucide-react";
+import { ArrowLeft, Bot, Check, Clock, Map, NotebookPen, Pencil, Users, X } from "lucide-react";
 import Link from "next/link";
 import { use, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ActivityFeedToggle } from "@/components/board/activity-feed";
 import { BoardView } from "@/components/board/board-view";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,6 +87,8 @@ export default function BoardPage({
 }) {
 	const { projectId, boardId } = use(params);
 
+	const [showHandoffs, setShowHandoffs] = useState(false);
+
 	const { data: board, isLoading } = api.board.getFull.useQuery(
 		{ id: boardId },
 		{ refetchInterval: 3000 },
@@ -135,15 +138,97 @@ export default function BoardPage({
 						Notes
 					</Button>
 				</Link>
+				<Link href={`/projects/${projectId}/boards/${boardId}/roadmap`}>
+					<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+						<Map className="h-3.5 w-3.5" />
+						Roadmap
+					</Button>
+				</Link>
 				<Link href={`/projects/${projectId}/boards/${boardId}/timeline`}>
 					<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
 						<Clock className="h-3.5 w-3.5" />
 						Timeline
 					</Button>
 				</Link>
+				<Button
+					variant={showHandoffs ? "secondary" : "outline"}
+					size="sm"
+					className="h-8 gap-1.5 text-xs"
+					onClick={() => setShowHandoffs(!showHandoffs)}
+				>
+					<Users className="h-3.5 w-3.5" />
+					Sessions
+				</Button>
 				<ActivityFeedToggle boardId={board.id} onCardClick={() => {}} />
 			</div>
+			{showHandoffs && <SessionHistoryPanel boardId={board.id} />}
 			<BoardView board={board} />
+		</div>
+	);
+}
+
+// ─── Session History Panel ────────────────────────────────────────
+
+function SessionHistoryPanel({ boardId }: { boardId: string }) {
+	const { data: handoffs } = api.handoff.list.useQuery(
+		{ boardId, limit: 10 },
+		{ refetchInterval: 5000 },
+	);
+
+	if (!handoffs || handoffs.length === 0) {
+		return (
+			<div className="border-b bg-muted/30 px-4 py-3 text-center text-xs text-muted-foreground">
+				No agent sessions recorded yet.
+			</div>
+		);
+	}
+
+	return (
+		<div className="max-h-48 overflow-y-auto border-b bg-muted/30">
+			<div className="space-y-0 divide-y">
+				{handoffs.map((h: {
+					id: string;
+					agentName: string;
+					summary: string;
+					workingOn: string[];
+					findings: string[];
+					nextSteps: string[];
+					blockers: string[];
+					createdAt: Date;
+				}) => (
+					<div key={h.id} className="px-4 py-2">
+						<div className="flex items-center gap-2">
+							<Bot className="h-3.5 w-3.5 text-violet-500" />
+							<span className="text-xs font-medium">{h.agentName}</span>
+							<span className="text-[10px] text-muted-foreground">
+								{new Date(h.createdAt).toLocaleString(undefined, {
+									month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+								})}
+							</span>
+						</div>
+						{h.summary && (
+							<p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{h.summary}</p>
+						)}
+						<div className="mt-1 flex flex-wrap gap-1">
+							{h.workingOn.length > 0 && (
+								<Badge variant="outline" className="text-[9px] px-1 py-0">
+									{h.workingOn.length} worked on
+								</Badge>
+							)}
+							{h.nextSteps.length > 0 && (
+								<Badge variant="outline" className="text-[9px] px-1 py-0">
+									{h.nextSteps.length} next steps
+								</Badge>
+							)}
+							{h.blockers.length > 0 && (
+								<Badge variant="outline" className="text-[9px] px-1 py-0 text-red-500 border-red-500/20">
+									{h.blockers.length} blockers
+								</Badge>
+							)}
+						</div>
+					</div>
+				))}
+			</div>
 		</div>
 	);
 }

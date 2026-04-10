@@ -6,6 +6,7 @@ import {
 	Bold,
 	Code,
 	Eye,
+	FileText,
 	Heading2,
 	Italic,
 	LayoutGrid,
@@ -215,9 +216,10 @@ export default function ProjectPage({
 }) {
 	const { projectId } = use(params);
 	const searchParams = useSearchParams();
-	const initialTab = searchParams.get("tab") === "notes" ? "notes" : "boards";
+	const tabParam = searchParams.get("tab");
+	const initialTab = tabParam === "notes" ? "notes" : tabParam === "decisions" ? "decisions" : "boards";
 	const fromBoardId = searchParams.get("from");
-	const [tab, setTab] = useState<"boards" | "notes">(initialTab);
+	const [tab, setTab] = useState<"boards" | "notes" | "decisions">(initialTab);
 	const [noteCreateOpen, setNoteCreateOpen] = useState(false);
 
 	const { data: project } = api.project.getById.useQuery({ id: projectId });
@@ -254,9 +256,10 @@ export default function ProjectPage({
 							)}
 						</div>
 					</div>
-					{tab === "boards" ? (
+					{tab === "boards" && (
 						<CreateBoardDialog projectId={projectId} />
-					) : (
+					)}
+					{tab === "notes" && (
 						<Button onClick={() => setNoteCreateOpen(true)}>
 							<Plus className="mr-2 h-4 w-4" />
 							New Note
@@ -295,16 +298,34 @@ export default function ProjectPage({
 						Notes
 					</span>
 				</button>
+				<button
+					type="button"
+					onClick={() => setTab("decisions")}
+					className={`px-4 py-2 text-sm font-medium transition-colors ${
+						tab === "decisions"
+							? "border-b-2 border-primary text-foreground"
+							: "text-muted-foreground hover:text-foreground"
+					}`}
+				>
+					<span className="flex items-center gap-2">
+						<FileText className="h-4 w-4" />
+						Decisions
+					</span>
+				</button>
 			</div>
 
-			{tab === "boards" ? (
+			{tab === "boards" && (
 				<BoardsTab
 					projectId={projectId}
 					boards={boards}
 					isLoading={boardsLoading}
 				/>
-			) : (
+			)}
+			{tab === "notes" && (
 				<ProjectNotesTab projectId={projectId} createOpen={noteCreateOpen} setCreateOpen={setNoteCreateOpen} />
+			)}
+			{tab === "decisions" && (
+				<ProjectDecisionsTab projectId={projectId} />
 			)}
 		</div>
 	);
@@ -840,5 +861,138 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 				</DialogContent>
 			</Dialog>
 		</>
+	);
+}
+
+// ─── Project Decisions Tab ────────────────────────────────────────
+
+const DECISION_STATUS_COLORS: Record<string, string> = {
+	proposed: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
+	accepted: "bg-green-500/10 text-green-600 border-green-500/20",
+	rejected: "bg-red-500/10 text-red-600 border-red-500/20",
+	superseded: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+};
+
+function ProjectDecisionsTab({ projectId }: { projectId: string }) {
+	const [statusFilter, setStatusFilter] = useState<string>("all");
+	const [expandedId, setExpandedId] = useState<string | null>(null);
+
+	const { data: decisions, isLoading } = api.decision.list.useQuery(
+		{ projectId, ...(statusFilter !== "all" ? { status: statusFilter } : {}) },
+		{ refetchInterval: 5000 },
+	);
+
+	if (isLoading) {
+		return <p className="text-sm text-muted-foreground">Loading decisions...</p>;
+	}
+
+	return (
+		<div className="space-y-4">
+			<div className="flex items-center gap-3">
+				<Select value={statusFilter} onValueChange={setStatusFilter}>
+					<SelectTrigger className="w-40">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All statuses</SelectItem>
+						<SelectItem value="proposed">Proposed</SelectItem>
+						<SelectItem value="accepted">Accepted</SelectItem>
+						<SelectItem value="rejected">Rejected</SelectItem>
+						<SelectItem value="superseded">Superseded</SelectItem>
+					</SelectContent>
+				</Select>
+				<span className="text-sm text-muted-foreground">
+					{decisions?.length ?? 0} decision{decisions?.length !== 1 ? "s" : ""}
+				</span>
+			</div>
+
+			{!decisions || decisions.length === 0 ? (
+				<div className="flex flex-col items-center gap-3 py-16 text-center">
+					<FileText className="h-10 w-10 text-muted-foreground/40" />
+					<p className="text-muted-foreground">No decisions recorded yet.</p>
+					<p className="text-xs text-muted-foreground">
+						Agents record decisions automatically, or use the MCP tools to add them.
+					</p>
+				</div>
+			) : (
+				<div className="space-y-3">
+					{decisions.map((d: {
+						id: string;
+						title: string;
+						status: string;
+						decision: string;
+						alternatives: string[];
+						rationale: string;
+						author: string;
+						card: { id: string; number: number; title: string } | null;
+						createdAt: Date;
+					}) => {
+						const isExpanded = expandedId === d.id;
+						return (
+							<div
+								key={d.id}
+								className="rounded-lg border bg-card transition-colors hover:bg-muted/30"
+							>
+								<button
+									type="button"
+									className="w-full px-4 py-3 text-left"
+									onClick={() => setExpandedId(isExpanded ? null : d.id)}
+								>
+									<div className="flex items-center gap-2">
+										<Badge variant="outline" className={`text-[10px] ${DECISION_STATUS_COLORS[d.status] ?? ""}`}>
+											{d.status}
+										</Badge>
+										<span className="flex-1 text-sm font-medium">{d.title}</span>
+										{d.card && (
+											<span className="text-xs font-mono text-muted-foreground">
+												#{d.card.number}
+											</span>
+										)}
+										<span className="text-xs text-muted-foreground">
+											{new Date(d.createdAt).toLocaleDateString()}
+										</span>
+									</div>
+									{!isExpanded && (
+										<p className="mt-1 text-xs text-muted-foreground line-clamp-1">
+											{d.decision}
+										</p>
+									)}
+								</button>
+								{isExpanded && (
+									<div className="border-t px-4 py-3 space-y-3">
+										<div>
+											<Label className="text-xs text-muted-foreground">Decision</Label>
+											<p className="mt-0.5 text-sm">{d.decision}</p>
+										</div>
+										{d.rationale && (
+											<div>
+												<Label className="text-xs text-muted-foreground">Rationale</Label>
+												<p className="mt-0.5 text-sm">{d.rationale}</p>
+											</div>
+										)}
+										{d.alternatives.length > 0 && (
+											<div>
+												<Label className="text-xs text-muted-foreground">Alternatives considered</Label>
+												<ul className="mt-0.5 space-y-1">
+													{d.alternatives.map((alt, i) => (
+														<li key={i} className="text-sm text-muted-foreground">
+															&bull; {alt}
+														</li>
+													))}
+												</ul>
+											</div>
+										)}
+										<div className="flex items-center gap-3 text-xs text-muted-foreground">
+											<span>By {d.author}</span>
+											{d.card && <span>Linked to #{d.card.number} {d.card.title}</span>}
+										</div>
+									</div>
+								)}
+							</div>
+						);
+					})}
+				</div>
+			)}
+		</div>
 	);
 }

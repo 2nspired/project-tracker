@@ -6,8 +6,12 @@ import { cardRouter } from "@/server/api/routers/card";
 import { checklistRouter } from "@/server/api/routers/checklist";
 import { columnRouter } from "@/server/api/routers/column";
 import { commentRouter } from "@/server/api/routers/comment";
+import { decisionRouter } from "@/server/api/routers/decision";
+import { handoffRouter } from "@/server/api/routers/handoff";
+import { milestoneRouter } from "@/server/api/routers/milestone";
 import { noteRouter } from "@/server/api/routers/note";
 import { projectRouter } from "@/server/api/routers/project";
+import { relationRouter } from "@/server/api/routers/relation";
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 
 export const appRouter = createTRPCRouter({
@@ -19,6 +23,10 @@ export const appRouter = createTRPCRouter({
 	checklist: checklistRouter,
 	activity: activityRouter,
 	note: noteRouter,
+	milestone: milestoneRouter,
+	relation: relationRouter,
+	handoff: handoffRouter,
+	decision: decisionRouter,
 });
 
 export type AppRouter = typeof appRouter;
