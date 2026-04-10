@@ -188,7 +188,7 @@ export function getToolCatalog(opts?: { category?: string; tool?: string }): {
 	}
 
 	const CATEGORY_DESCRIPTIONS: Record<string, string> = {
-		discovery: "Find projects, boards, cards, and stats",
+		discovery: "Find projects, boards, cards, stats, board audit, and smart queries",
 		cards: "Bulk operations, templates, and card deletion",
 		checklist: "Add, toggle, and delete checklist sub-tasks",
 		comments: "List and delete comments on cards",

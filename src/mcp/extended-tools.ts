@@ -385,6 +385,107 @@ registerExtendedTool("bulkMoveCards", {
 	}),
 });
 
+registerExtendedTool("bulkUpdateCards", {
+	category: "cards",
+	description: "Update multiple cards in one call. Each entry can set priority, tags, assignee, and/or milestone. Omitted fields are unchanged.",
+	parameters: z.object({
+		cards: z.array(z.object({
+			cardId: z.string().describe("Card UUID or #number"),
+			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+			tags: z.array(z.string()).optional().describe("Replaces all tags"),
+			assignee: z.enum(["HUMAN", "AGENT"]).nullable().optional().describe("null to unassign"),
+			milestoneName: z.string().nullable().optional().describe("null to unassign; auto-creates if new"),
+		})),
+	}),
+	handler: ({ cards }) => safeExecute(async () => {
+		const updated: Array<{ ref: string; title: string }> = [];
+		const errors: string[] = [];
+
+		for (const input of cards as Array<Record<string, unknown>>) {
+			const id = await resolveCardId(input.cardId as string);
+			if (!id) { errors.push(`Card "${input.cardId}" not found`); continue; }
+
+			const existing = await db.card.findUnique({ where: { id } });
+			if (!existing) { errors.push(`Card "${input.cardId}" not found`); continue; }
+
+			let milestoneId: string | null | undefined;
+			if (input.milestoneName !== undefined) {
+				milestoneId = input.milestoneName
+					? await resolveOrCreateMilestone(existing.projectId, input.milestoneName as string)
+					: null;
+			}
+
+			await db.card.update({
+				where: { id },
+				data: {
+					priority: input.priority as string | undefined,
+					tags: input.tags ? JSON.stringify(input.tags) : undefined,
+					assignee: input.assignee as string | null | undefined,
+					milestoneId: milestoneId !== undefined ? milestoneId : undefined,
+				},
+			});
+
+			updated.push({ ref: `#${existing.number}`, title: existing.title });
+		}
+
+		return ok({ updated, errors: errors.length > 0 ? errors : undefined });
+	}),
+});
+
+registerExtendedTool("bulkAddChecklistItems", {
+	category: "checklist",
+	description: "Add multiple checklist items to a card in one call.",
+	parameters: z.object({
+		cardId: z.string().describe("Card UUID or #number"),
+		items: z.array(z.string()).min(1).describe("Checklist item texts"),
+	}),
+	handler: ({ cardId, items }) => safeExecute(async () => {
+		const id = await resolveCardId(cardId as string);
+		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs.");
+
+		const maxPos = await db.checklistItem.aggregate({ where: { cardId: id }, _max: { position: true } });
+		let pos = (maxPos._max.position ?? -1) + 1;
+
+		const created: Array<{ id: string; text: string }> = [];
+		for (const text of items as string[]) {
+			const item = await db.checklistItem.create({
+				data: { cardId: id, text, position: pos++ },
+			});
+			created.push({ id: item.id, text: item.text });
+		}
+
+		return ok({ cardRef: cardId, added: created.length, items: created });
+	}),
+});
+
+registerExtendedTool("bulkSetMilestone", {
+	category: "milestones",
+	description: "Assign a milestone to multiple cards at once. Auto-creates milestone if name is new.",
+	parameters: z.object({
+		milestoneName: z.string().describe("Milestone name to assign"),
+		cardIds: z.array(z.string()).min(1).describe("Card UUIDs or #numbers"),
+	}),
+	annotations: { idempotentHint: true },
+	handler: ({ milestoneName, cardIds }) => safeExecute(async () => {
+		const assigned: string[] = [];
+		const errors: string[] = [];
+
+		for (const ref of cardIds as string[]) {
+			const id = await resolveCardId(ref);
+			if (!id) { errors.push(`Card "${ref}" not found`); continue; }
+
+			const card = await db.card.findUnique({ where: { id } });
+			if (!card) { errors.push(`Card "${ref}" not found`); continue; }
+
+			const milestoneId = await resolveOrCreateMilestone(card.projectId, milestoneName as string);
+			await db.card.update({ where: { id }, data: { milestoneId } });
+			assigned.push(`#${card.number}`);
+		}
+
+		return ok({ milestone: milestoneName, assigned, errors: errors.length > 0 ? errors : undefined });
+	}),
+});
+
 // ─── Checklist ──────────────────────────────────────────────────────
 
 registerExtendedTool("addChecklistItem", {
@@ -547,32 +648,55 @@ registerExtendedTool("updateMilestone", {
 
 registerExtendedTool("setMilestone", {
 	category: "milestones",
-	description: "Assign/unassign a card's milestone by name. Auto-creates if name is new — typos create duplicates.",
+	description: "Assign/unassign a card's milestone. Use milestoneId (precise) or milestoneName (auto-creates if new). Pass null to unassign.",
 	parameters: z.object({
 		cardId: z.string().describe("Card UUID or #number"),
-		milestoneName: z.string().nullable().describe("Name to assign, null to unassign"),
+		milestoneId: z.string().nullable().optional().describe("Milestone UUID — precise, no typo risk. null to unassign."),
+		milestoneName: z.string().nullable().optional().describe("Milestone name — auto-creates if new. null to unassign."),
 	}),
 	annotations: { idempotentHint: true },
-	handler: ({ cardId, milestoneName }) => safeExecute(async () => {
+	handler: ({ cardId, milestoneId: msId, milestoneName }) => safeExecute(async () => {
+		if (msId === undefined && milestoneName === undefined) {
+			return err("Provide either milestoneId or milestoneName.", "Use milestoneId for precision, milestoneName for convenience.");
+		}
+
 		const id = await resolveCardId(cardId as string);
 		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs.");
 
 		const card = await db.card.findUnique({ where: { id } });
 		if (!card) return err("Card not found.");
 
-		let milestoneId: string | null = null;
-		if (milestoneName) {
-			milestoneId = await resolveOrCreateMilestone(card.projectId, milestoneName as string);
+		let resolvedMilestoneId: string | null = null;
+		let resolvedName: string | null = null;
+
+		if (msId !== undefined) {
+			// ID-based: precise lookup
+			if (msId === null) {
+				resolvedMilestoneId = null;
+			} else {
+				const milestone = await db.milestone.findUnique({ where: { id: msId as string } });
+				if (!milestone) return err(`Milestone "${msId}" not found.`, "Use listMilestones to find valid milestone IDs.");
+				resolvedMilestoneId = milestone.id;
+				resolvedName = milestone.name;
+			}
+		} else if (milestoneName !== undefined) {
+			// Name-based: auto-create
+			if (milestoneName === null) {
+				resolvedMilestoneId = null;
+			} else {
+				resolvedMilestoneId = await resolveOrCreateMilestone(card.projectId, milestoneName as string);
+				resolvedName = milestoneName as string;
+			}
 		}
 
-		await db.card.update({ where: { id }, data: { milestoneId } });
-		return ok({ ref: `#${card.number}`, milestone: milestoneName, action: milestoneName ? "assigned" : "unassigned" });
+		await db.card.update({ where: { id }, data: { milestoneId: resolvedMilestoneId } });
+		return ok({ ref: `#${card.number}`, milestone: resolvedName, action: resolvedMilestoneId ? "assigned" : "unassigned" });
 	}),
 });
 
 registerExtendedTool("listMilestones", {
 	category: "milestones",
-	description: "List milestones for a project with card counts.",
+	description: "List milestones for a project with card counts, done/total breakdown, and completion percentage.",
 	parameters: z.object({
 		projectId: z.string().describe("Project UUID"),
 	}),
@@ -581,16 +705,28 @@ registerExtendedTool("listMilestones", {
 		const milestones = await db.milestone.findMany({
 			where: { projectId: projectId as string },
 			orderBy: { position: "asc" },
-			include: { _count: { select: { cards: true } } },
+			include: {
+				_count: { select: { cards: true } },
+				cards: {
+					select: { column: { select: { role: true } } },
+				},
+			},
 		});
-		return ok(milestones.map((m) => ({
-			id: m.id,
-			name: m.name,
-			description: m.description,
-			targetDate: m.targetDate,
-			cardCount: m._count.cards,
-			position: m.position,
-		})));
+		return ok(milestones.map((m) => {
+			const total = m._count.cards;
+			const done = m.cards.filter((c) => c.column.role === "done").length;
+			const { cards: _, ...rest } = m;
+			return {
+				id: rest.id,
+				name: rest.name,
+				description: rest.description,
+				targetDate: rest.targetDate,
+				cardCount: total,
+				done,
+				progress: total > 0 ? `${Math.round((done / total) * 100)}%` : "0%",
+				position: rest.position,
+			};
+		}));
 	}),
 });
 

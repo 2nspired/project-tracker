@@ -84,15 +84,15 @@ export function BoardPulse({ boardId }: { boardId: string }) {
 	if (!hasAnyData) return null;
 
 	return (
-		<div className="flex items-center gap-4 border-b bg-muted/20 px-4 py-1.5 text-[11px]">
-			<span className="flex items-center gap-1.5 text-muted-foreground">
+		<div className="flex items-center gap-5 bg-muted/20 px-4 py-2.5 text-[11px]">
+			<span className="flex items-center gap-2 text-muted-foreground">
 				<Activity className="h-3 w-3" />
 				Pulse
 			</span>
 
 			{/* Throughput sparkline */}
 			<div
-				className="flex items-center gap-1.5"
+				className="flex items-center gap-2"
 				title={`${totalCompleted} cards completed this week`}
 			>
 				<Sparkline data={metrics.throughput} />
@@ -104,7 +104,7 @@ export function BoardPulse({ boardId }: { boardId: string }) {
 			{/* Flow balance */}
 			<div className="flex items-center gap-2 text-muted-foreground">
 				<span
-					className="flex items-center gap-0.5 text-emerald-500"
+					className="flex items-center gap-1 text-emerald-500"
 					title={`${metrics.forwardMoves} forward moves`}
 				>
 					<ArrowRight className="h-3 w-3" />
@@ -112,7 +112,7 @@ export function BoardPulse({ boardId }: { boardId: string }) {
 				</span>
 				{metrics.backwardMoves > 0 && (
 					<span
-						className="flex items-center gap-0.5 text-orange-500"
+						className="flex items-center gap-1 text-orange-500"
 						title={`${metrics.backwardMoves} regressions`}
 					>
 						<ArrowLeft className="h-3 w-3" />
@@ -124,7 +124,7 @@ export function BoardPulse({ boardId }: { boardId: string }) {
 			{/* Bottleneck */}
 			{metrics.bottleneck && (
 				<div
-					className="flex items-center gap-1 text-muted-foreground"
+					className="flex items-center gap-1.5 text-muted-foreground"
 					title={`Cards spend an average of ${formatHours(metrics.bottleneck.avgHours)} in ${metrics.bottleneck.column}`}
 				>
 					<AlertTriangle className="h-3 w-3 text-amber-500" />

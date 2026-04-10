@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpDown, Bot, Search, Sparkles, User, X } from "lucide-react";
+import { Bot, Search, Sparkles, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -61,9 +61,7 @@ export function BoardToolbar({
 				<Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
 				<Input
 					value={filters.search}
-					onChange={(e) =>
-						onFiltersChange({ ...filters, search: e.target.value })
-					}
+					onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
 					placeholder="Search cards..."
 					className="h-8 pl-8 text-sm"
 				/>
@@ -72,9 +70,7 @@ export function BoardToolbar({
 			{/* Priority filter */}
 			<Select
 				value={filters.priority}
-				onValueChange={(value) =>
-					onFiltersChange({ ...filters, priority: value })
-				}
+				onValueChange={(value) => onFiltersChange({ ...filters, priority: value })}
 			>
 				<SelectTrigger className="h-8 w-32 text-xs">
 					<SelectValue placeholder="Priority" />
@@ -92,9 +88,7 @@ export function BoardToolbar({
 			{/* Assignee filter */}
 			<Select
 				value={filters.assignee}
-				onValueChange={(value) =>
-					onFiltersChange({ ...filters, assignee: value })
-				}
+				onValueChange={(value) => onFiltersChange({ ...filters, assignee: value })}
 			>
 				<SelectTrigger className="h-8 w-32 text-xs">
 					<SelectValue placeholder="Assignee" />
@@ -119,9 +113,7 @@ export function BoardToolbar({
 			{availableTags.length > 0 && (
 				<Select
 					value={filters.tag}
-					onValueChange={(value) =>
-						onFiltersChange({ ...filters, tag: value })
-					}
+					onValueChange={(value) => onFiltersChange({ ...filters, tag: value })}
 				>
 					<SelectTrigger className="h-8 w-36 text-xs">
 						<SelectValue placeholder="Tag" />
@@ -143,14 +135,16 @@ export function BoardToolbar({
 				size="sm"
 				className="h-8 gap-1.5 px-2.5 text-xs"
 				onClick={() => onSortModeChange(sortMode === "manual" ? "smart" : "manual")}
-				title={sortMode === "smart" ? "Smart sort: cards ranked by work-next score" : "Manual sort: cards in drag order"}
+				title={
+					sortMode === "smart"
+						? "Smart sort: cards ranked by work-next score"
+						: "Manual sort: cards in drag order"
+				}
 			>
-				{sortMode === "smart" ? (
-					<Sparkles className="h-3.5 w-3.5 text-amber-500" />
-				) : (
-					<ArrowUpDown className="h-3.5 w-3.5" />
-				)}
-				{sortMode === "smart" ? "Smart" : "Sort"}
+				<Sparkles
+					className={`h-3.5 w-3.5 ${sortMode === "smart" ? "text-amber-500" : "text-muted-foreground"}`}
+				/>
+				Smart
 			</Button>
 
 			{/* Clear + count */}

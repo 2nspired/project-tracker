@@ -203,6 +203,66 @@ registerExtendedTool("queryCards", {
 	}),
 });
 
+// ─── Board Audit ────────────────────────────────────────────────
+
+registerExtendedTool("auditBoard", {
+	category: "discovery",
+	description: "Board health check: find cards missing priority, tags, milestones, or checklists. Groups by issue type for quick triage.",
+	parameters: z.object({
+		boardId: z.string().describe("Board UUID"),
+		excludeDone: z.boolean().default(true).describe("Skip Done/Parking columns (default true)"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: ({ boardId, excludeDone }) => safeExecute(async () => {
+		const board = await db.board.findUnique({
+			where: { id: boardId as string },
+			include: {
+				columns: {
+					orderBy: { position: "asc" },
+					include: {
+						cards: {
+							include: {
+								checklists: { select: { id: true } },
+								milestone: { select: { name: true } },
+							},
+						},
+					},
+				},
+			},
+		});
+		if (!board) return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
+
+		let columns = board.columns;
+		if (excludeDone) {
+			columns = columns.filter((col) => col.role !== "done" && col.role !== "parking");
+		}
+
+		const allCards = columns.flatMap((col) =>
+			col.cards.map((c) => ({ ...c, column: col.name })),
+		);
+
+		const missingPriority = allCards.filter((c) => c.priority === "NONE").map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
+		const missingTags = allCards.filter((c) => { try { const t = JSON.parse(c.tags); return !Array.isArray(t) || t.length === 0; } catch { return true; } }).map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
+		const noMilestone = allCards.filter((c) => !c.milestone).map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
+		const emptyChecklist = allCards.filter((c) => c.checklists.length === 0).map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
+		const noAssignee = allCards.filter((c) => !c.assignee).map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
+
+		const totalCards = allCards.length;
+		const issues = missingPriority.length + missingTags.length + noMilestone.length + emptyChecklist.length + noAssignee.length;
+
+		return ok({
+			totalCards,
+			totalIssues: issues,
+			healthScore: totalCards > 0 ? `${Math.round(((totalCards * 5 - issues) / (totalCards * 5)) * 100)}%` : "N/A",
+			missingPriority: { count: missingPriority.length, cards: missingPriority },
+			missingTags: { count: missingTags.length, cards: missingTags },
+			noMilestone: { count: noMilestone.length, cards: noMilestone },
+			emptyChecklist: { count: emptyChecklist.length, cards: emptyChecklist },
+			noAssignee: { count: noAssignee.length, cards: noAssignee },
+		});
+	}),
+});
+
 // ─── Similarity Search ───────────────────────────────────────────
 
 registerExtendedTool("findSimilar", {

@@ -26,6 +26,9 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 - Real-time updates via SSE — board refreshes instantly when agents make changes (falls back to polling)
 - Multi-agent support (Claude, Codex, etc.) via `AGENT_NAME` env var
 - TOON encoding for ~40% token savings in agent responses
+- Board filtering — fetch specific columns, exclude Done, summary mode for lightweight views
+- Bulk operations — update cards, add checklists, set milestones in batch
+- Board audit — find cards missing priority, tags, milestones, or checklists
 - Schema version detection with migration hints
 
 ## Quick Start
@@ -134,26 +137,26 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 
 | Tool | What it does |
 | --- | --- |
-| `getBoard` | Full board state — columns, cards, checklists (supports TOON format) |
+| `getBoard` | Board state with filtering — `columns` to fetch specific columns, `excludeDone` to skip Done/Parking, `summary` for lightweight view. TOON format by default. |
 | `createCard` | Create a card in a column (by name); auto-creates milestones |
 | `updateCard` | Update any card fields |
 | `moveCard` | Move to column by name (e.g. "In Progress") |
 | `addComment` | Add a comment — decisions, blockers, context |
 | `searchCards` | Search across all projects by text or tag |
 | `getRoadmap` | Cards grouped by milestone and horizon (now/next/later/done) |
-| `checkOnboarding` | Detect setup state (empty/existing/returning) and suggest next steps |
-| `getTools` | Browse 45 extended tools by category |
+| `checkOnboarding` | Detect setup state + return project/board list inline — one call to get started |
+| `getTools` | Browse 51 extended tools by category |
 | `runTool` | Execute any extended tool by name |
 
-### Extended Tool Categories (45 tools)
+### Extended Tool Categories (51 tools)
 
 | Category | Tools | What they do |
 | --- | --- | --- |
-| `discovery` | 5 | List projects, boards, cards, stats, compound queries |
-| `cards` | 4 | Bulk create, templates, bulk move, delete |
-| `checklist` | 3 | Add, toggle, delete checklist items |
+| `discovery` | 8 | List projects/boards/cards, stats, smart queries, board audit, similarity search, work-next suggestions |
+| `cards` | 5 | Bulk create, bulk update, templates, bulk move, delete |
+| `checklist` | 4 | Add, bulk add, toggle, delete checklist items |
 | `comments` | 2 | List and delete comments |
-| `milestones` | 4 | Create, update, set, list milestones |
+| `milestones` | 5 | Create, update, set (by ID or name), bulk set, list with completion % |
 | `notes` | 4 | Create, update, list, delete project notes |
 | `activity` | 1 | View recent activity history |
 | `setup` | 4 | Create projects, columns, set repo path, seed tutorial |
@@ -340,7 +343,7 @@ src/
 │   └── api/routers/               # tRPC routers
 ├── mcp/
 │   ├── server.ts                  # MCP server (10 essential tools, 8 prompts)
-│   ├── tool-registry.ts           # Extended tool catalog (45 tools, 14 categories)
+│   ├── tool-registry.ts           # Extended tool catalog (51 tools, 14 categories)
 │   ├── extended-tools.ts          # Core extended tools
 │   ├── tools/                     # Domain-split tool files
 │   │   ├── relation-tools.ts      # Card dependencies

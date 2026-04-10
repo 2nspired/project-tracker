@@ -11,13 +11,13 @@ When this MCP is connected to a project, use the board as your shared workspace 
 | **Backlog** | Known work that hasn't been prioritized yet. Dumping ground for "we should do this eventually." | When identifying future work during planning or conversation |
 | **To Do** | Prioritized and ready to pick up. This is the active work queue. | When the user or agent agrees this should happen next |
 | **In Progress** | Actively being worked on right now. Limit to 2-3 cards to stay focused. | When you start writing code or doing real work on it |
-| **Review** | Code is written, needs human review, testing, or verification. | When the agent finishes implementation and wants the user to check |
+| **Review** | Code is written, needs human review, testing, or verification. Not present on all boards. | When the agent finishes implementation and wants the user to check |
 | **Done** | Shipped, merged, verified. No more work needed. | After human confirms it's good, or after merging |
 | **Parking Lot** | Ideas, maybes, "what if we..." — not committed to. Low-cost storage for thoughts that might become real work later. | When someone has an idea but it's not actionable yet |
 
 ## When to Use the Board
 
-**Start of conversation** — Call `getBoard` once to understand current state. This replaces re-reading files and git logs to figure out where things stand. If there are checklist items or cards in "To Do", that's your work queue.
+**Start of conversation** — Call `getBoard` once to understand current state. For large boards (50+ cards), use `getBoard` with `summary: true` or `excludeDone: true` to reduce payload. You can also filter to specific columns with `columns: ["Backlog", "To Do", "In Progress"]`. This replaces re-reading files and git logs to figure out where things stand. If there are checklist items or cards in "To Do", that's your work queue.
 
 **Planning phase** — Use `bulkCreateCards` (not individual createCard calls) to lay out planned work. Add checklist items for sub-tasks. This is where the user sees your plan before you start coding.
 
@@ -58,12 +58,29 @@ This keeps the card's history connected to the code without needing a formal mod
 
 ## Efficiency Tips
 
+### Reducing Token Usage
+- Use `getBoard` with `summary: true` for lightweight views (no descriptions or checklist items)
+- Use `getBoard` with `excludeDone: true` to skip Done/Parking columns — often the bulk of payload
+- Use `getBoard` with `columns: ["To Do", "In Progress"]` to fetch only the columns you need
+- One `getBoard` call at conversation start gives you everything — don't call it repeatedly
+
+### Bulk Operations
 - Use `bulkCreateCards` instead of multiple `createCard` calls
+- Use `bulkUpdateCards` to set priority, tags, assignee, or milestone on multiple cards at once
+- Use `bulkAddChecklistItems` to add multiple checklist items to a card in one call
+- Use `bulkSetMilestone` to assign a milestone to multiple cards at once
+- Batch your board updates — don't interleave code work with constant board updates
+
+### Board Health
+- Use `auditBoard` to find cards missing priority, tags, milestones, or checklists
+- Use `setMilestone` with `milestoneId` (from `listMilestones`) for precision — `milestoneName` auto-creates on typos
+- Use `listMilestones` to see completion percentage per milestone
+
+### General
 - Reference cards by `#number` (e.g. `#7`) instead of UUIDs — the agent and human both use this
 - Use `createCardFromTemplate` for common patterns (Bug Report, Feature, Spike, Tech Debt, Epic)
-- Use the `start-session` prompt at conversation start for a structured overview
-- One `getBoard` call at conversation start gives you everything
-- Batch your board updates — don't interleave code work with constant board updates
+- Use the `resume-session` prompt at conversation start for a structured overview
+- `checkOnboarding` returns project and board lists inline — no need for follow-up `listProjects`/`listBoards` calls
 
 ## Connecting to a Project
 

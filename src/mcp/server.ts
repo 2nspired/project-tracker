@@ -41,14 +41,17 @@ server.registerTool(
 	{
 		title: "Get Board",
 		description:
-			"Full board state: columns, cards with #refs, checklists, milestones. TOON by default (~40% fewer tokens).",
+			"Board state with filtering. Use 'columns' to fetch specific columns, 'excludeDone' to skip Done/Parking, 'summary' for lightweight view (no descriptions/checklists). TOON by default (~40% fewer tokens).",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
 			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
+			columns: z.array(z.string()).optional().describe("Only include these columns by name (e.g. ['Backlog', 'To Do', 'In Progress'])"),
+			excludeDone: z.boolean().default(false).describe("Exclude columns with role 'done' or 'parking' — great for reducing payload"),
+			summary: z.boolean().default(false).describe("Lightweight mode: returns only ref, title, priority, tags, milestone, checklist counts — no descriptions or checklist items"),
 		},
 		annotations: { readOnlyHint: true },
 	},
-	async ({ boardId, format }) => {
+	async ({ boardId, format, columns: columnFilter, excludeDone, summary: summaryMode }) => {
 		return safeExecute(async () => {
 			const board = await db.board.findUnique({
 				where: { id: boardId },
@@ -76,41 +79,69 @@ server.registerTool(
 					"Use getTools({ category: 'discovery' }) → runTool('listProjects') → runTool('listBoards') to find a valid boardId."
 				);
 
-			const summary = {
+			// Filter columns
+			let filteredColumns = board.columns;
+			if (columnFilter && columnFilter.length > 0) {
+				const lowerFilter = (columnFilter as string[]).map((n) => n.toLowerCase());
+				filteredColumns = filteredColumns.filter((col) => lowerFilter.includes(col.name.toLowerCase()));
+				if (filteredColumns.length === 0) {
+					const available = board.columns.map((c) => c.name).join(", ");
+					return err(`No matching columns found.`, `Available: ${available}`);
+				}
+			}
+			if (excludeDone) {
+				filteredColumns = filteredColumns.filter((col) => !hasRole(col, "done") && !hasRole(col, "parking"));
+			}
+
+			const result = {
 				id: board.id,
 				name: board.name,
 				project: { id: board.project.id, name: board.project.name },
-				columns: board.columns.map((col) => ({
+				columns: filteredColumns.map((col) => ({
 					id: col.id,
 					name: col.name,
-					description: col.description,
+					description: summaryMode ? undefined : col.description,
 					isParking: col.isParking,
-					cards: col.cards.map((card) => ({
-						id: card.id,
-						number: card.number,
-						ref: `#${card.number}`,
-						title: card.title,
-						description: card.description,
-						priority: card.priority,
-						tags: JSON.parse(card.tags),
-						assignee: card.assignee,
-						createdBy: card.createdBy,
-						milestone: card.milestone ? { id: card.milestone.id, name: card.milestone.name } : null,
-						checklist: {
-							total: card.checklists.length,
-							done: card.checklists.filter((c) => c.completed).length,
-							items: card.checklists.map((c) => ({
-								id: c.id,
-								text: c.text,
-								completed: c.completed,
-							})),
-						},
-						commentCount: card._count.comments,
-					})),
+					cards: col.cards.map((card) => {
+						if (summaryMode) {
+							return {
+								number: card.number,
+								ref: `#${card.number}`,
+								title: card.title,
+								priority: card.priority,
+								tags: JSON.parse(card.tags),
+								milestone: card.milestone?.name ?? null,
+								checklist: { total: card.checklists.length, done: card.checklists.filter((c) => c.completed).length },
+								assignee: card.assignee,
+							};
+						}
+						return {
+							id: card.id,
+							number: card.number,
+							ref: `#${card.number}`,
+							title: card.title,
+							description: card.description,
+							priority: card.priority,
+							tags: JSON.parse(card.tags),
+							assignee: card.assignee,
+							createdBy: card.createdBy,
+							milestone: card.milestone ? { id: card.milestone.id, name: card.milestone.name } : null,
+							checklist: {
+								total: card.checklists.length,
+								done: card.checklists.filter((c) => c.completed).length,
+								items: card.checklists.map((c) => ({
+									id: c.id,
+									text: c.text,
+									completed: c.completed,
+								})),
+							},
+							commentCount: card._count.comments,
+						};
+					}),
 				})),
 			};
 
-			return ok(summary, format as "json" | "toon");
+			return ok(result, format as "json" | "toon");
 		});
 	}
 );
@@ -507,11 +538,26 @@ server.registerTool(
 		annotations: { readOnlyHint: true },
 	},
 	async () => {
-		const [projectCount, boardCount, cardCount, handoffCount] = await Promise.all([
+		const [projectCount, boardCount, cardCount, handoffCount, projects] = await Promise.all([
 			db.project.count(),
 			db.board.count(),
 			db.card.count(),
 			db.sessionHandoff.count(),
+			db.project.findMany({
+				orderBy: { createdAt: "desc" },
+				include: {
+					boards: {
+						select: {
+							id: true,
+							name: true,
+							columns: {
+								select: { name: true, _count: { select: { cards: true } } },
+								orderBy: { position: "asc" },
+							},
+						},
+					},
+				},
+			}),
 		]);
 
 		let state: "empty" | "existing" | "returning";
@@ -536,12 +582,10 @@ server.registerTool(
 		if (state === "returning") {
 			options.push(
 				{ action: "resume-session prompt with boardId", description: "Continue where you left off" },
-				{ action: "runTool({ tool: 'listBoards' })", description: "Browse boards" },
 			);
 		} else if (state === "existing") {
 			options.push(
 				{ action: "resume-session prompt with boardId", description: "Start working on a board" },
-				{ action: "runTool({ tool: 'listBoards' })", description: "Browse boards" },
 			);
 		}
 
@@ -549,6 +593,15 @@ server.registerTool(
 			state,
 			stats: { projects: projectCount, boards: boardCount, cards: cardCount, handoffs: handoffCount },
 			offerSampleProject,
+			projects: projects.map((p) => ({
+				id: p.id,
+				name: p.name,
+				boards: p.boards.map((b) => ({
+					id: b.id,
+					name: b.name,
+					columns: b.columns.map((c) => ({ name: c.name, cards: c._count.cards })),
+				})),
+			})),
 			options,
 		});
 	}
