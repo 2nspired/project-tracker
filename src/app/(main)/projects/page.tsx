@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Bot, FolderOpen, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { BookOpen, Bot, FolderOpen, Loader2, MoreHorizontal, Pencil, Star, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Dialog,
 	DialogContent,
@@ -104,6 +105,21 @@ export default function ProjectsPage() {
 		onError: (e) => toast.error(e.message),
 	});
 
+	const toggleFavorite = api.project.toggleFavorite.useMutation({
+		onMutate: async ({ id }) => {
+			await utils.project.list.cancel();
+			const prev = utils.project.list.getData();
+			utils.project.list.setData(undefined, (old) =>
+				old?.map((p) => (p.id === id ? { ...p, favorite: !p.favorite } : p)),
+			);
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.prev) utils.project.list.setData(undefined, ctx.prev);
+		},
+		onSettled: () => utils.project.list.invalidate(),
+	});
+
 	const projectToDelete = projects?.find((p) => p.id === deleteId);
 
 	const startEdit = (project: {
@@ -135,8 +151,8 @@ export default function ProjectsPage() {
 		<div className="container mx-auto px-4 py-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Projects</h1>
-					<p className="text-muted-foreground">Manage your projects and boards.</p>
+					<h1 className="text-2xl font-bold tracking-tight">Projects</h1>
+					<p className="text-sm text-muted-foreground">Manage your projects and boards.</p>
 				</div>
 				<CreateProjectDialog />
 			</div>
@@ -152,14 +168,13 @@ export default function ProjectsPage() {
 						</Card>
 					))
 				) : projects?.length === 0 ? (
-					<div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
-						<FolderOpen className="mb-4 h-12 w-12 text-muted-foreground" />
-						<h2 className="text-lg font-semibold">Welcome to Project Tracker</h2>
-						<p className="mt-1 max-w-md text-sm text-muted-foreground">
-							Create your first project, or explore the tutorial project to learn how everything
-							works.
-						</p>
-						<div className="mt-6 flex items-center gap-3">
+					<EmptyState
+						icon={FolderOpen}
+						title="Welcome to Project Tracker"
+						description="Create your first project, or explore the tutorial project to learn how everything works."
+						className="col-span-full py-16"
+					>
+						<div className="mt-3 flex items-center gap-3">
 							<CreateProjectDialog />
 							<Button
 								variant="outline"
@@ -174,7 +189,7 @@ export default function ProjectsPage() {
 								Create Tutorial Project
 							</Button>
 						</div>
-					</div>
+					</EmptyState>
 				) : (
 					projects?.map((project) => {
 						const colorKey = (project.color as ProjectColor) || "slate";
@@ -182,12 +197,12 @@ export default function ProjectsPage() {
 							<div key={project.id} className="group relative">
 								<Link href={`/projects/${project.id}`}>
 									<Card
-										className={`border-l-[4px] ${COLOR_CLASSES[colorKey].border} transition-colors hover:bg-muted/50`}
+										className={`h-full border-l-[4px] ${COLOR_CLASSES[colorKey].border} transition-colors hover:bg-muted/50`}
 									>
 										<CardHeader className="pb-3">
 											<CardTitle className="text-lg">{project.name}</CardTitle>
 											{project.description && (
-												<CardDescription>{project.description}</CardDescription>
+												<CardDescription className="line-clamp-2">{project.description}</CardDescription>
 											)}
 										</CardHeader>
 										<div className="flex items-center gap-3 px-6 pb-4 text-xs text-muted-foreground">
@@ -215,13 +230,27 @@ export default function ProjectsPage() {
 										</div>
 									</Card>
 								</Link>
-								<div className="absolute top-3 right-3 opacity-0 transition-opacity group-hover:opacity-100">
+								<div className="absolute top-3 right-3 flex items-center gap-0.5">
+									<button
+										type="button"
+										onClick={(e) => {
+											e.preventDefault();
+											toggleFavorite.mutate({ id: project.id });
+										}}
+										className={`h-7 w-7 flex items-center justify-center rounded-md transition-opacity ${
+											project.favorite
+												? "opacity-100 text-amber-400"
+												: "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-400"
+										}`}
+									>
+										<Star className={`h-4 w-4 ${project.favorite ? "fill-current" : ""}`} />
+									</button>
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
 												variant="ghost"
 												size="icon"
-												className="h-7 w-7"
+												className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
 												onClick={(e) => e.preventDefault()}
 											>
 												<MoreHorizontal className="h-4 w-4" />

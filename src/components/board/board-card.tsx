@@ -4,15 +4,8 @@ import { Ban, Bot, CheckSquare, Clock, MessageSquare, Sparkles, User } from "luc
 
 import { Badge } from "@/components/ui/badge";
 import type { Priority } from "@/lib/schemas/card-schemas";
+import { PRIORITY_BORDER, STATUS_TEXT } from "@/lib/priority-colors";
 import { formatScore, scoreColor } from "@/lib/work-next-score";
-
-const priorityBorders: Record<Priority, string> = {
-	NONE: "border-l-border",
-	LOW: "border-l-blue-400",
-	MEDIUM: "border-l-yellow-400",
-	HIGH: "border-l-orange-400",
-	URGENT: "border-l-red-500",
-};
 
 type BoardCardProps = {
 	card: {
@@ -54,8 +47,16 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 
 	return (
 		<div
-			className={`cursor-pointer rounded-md border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-ring/20 ${priority !== "NONE" ? `border-l-[3px] ${priorityBorders[priority]}` : ""}`}
+			role="button"
+			tabIndex={0}
+			className={`cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-ring/20 ${priority !== "NONE" ? `border-l-[3px] ${PRIORITY_BORDER[priority]}` : ""}`}
 			onClick={onClick}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					onClick();
+				}
+			}}
 		>
 			<div className="space-y-2">
 				<div className="flex items-start justify-between gap-2">
@@ -63,26 +64,26 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 					<div className="flex shrink-0 items-center gap-1.5">
 						{showScore && card._workNextScore !== undefined && (
 							<span
-								className={`flex items-center gap-0.5 text-[10px] font-mono tabular-nums ${scoreColor(card._workNextScore)}`}
+								className={`flex items-center gap-0.5 text-2xs font-mono tabular-nums ${scoreColor(card._workNextScore)}`}
 								title={`Work-next score: ${card._workNextScore}`}
 							>
 								<Sparkles className="h-2.5 w-2.5" />
 								{formatScore(card._workNextScore)}
 							</span>
 						)}
-						<span className="text-[10px] font-mono text-muted-foreground">#{card.number}</span>
+						<span className="text-2xs font-mono text-muted-foreground">#{card.number}</span>
 					</div>
 				</div>
 
 				{tags.length > 0 && (
 					<div className="flex flex-wrap gap-1">
 						{tags.slice(0, 3).map((tag) => (
-							<Badge key={tag} variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
+							<Badge key={tag} variant="outline" className="px-1.5 py-0 text-2xs font-normal">
 								{tag}
 							</Badge>
 						))}
 						{tags.length > 3 && (
-							<Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
+							<Badge variant="outline" className="px-1.5 py-0 text-2xs font-normal">
 								+{tags.length - 3}
 							</Badge>
 						)}
@@ -92,7 +93,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 				{(checklistTotal > 0 || card._count.comments > 0 || card.assignee || aging || blockedByCount > 0) && (
 					<div className="flex items-center gap-3 text-xs text-muted-foreground">
 						{blockedByCount > 0 && (
-							<span className="flex items-center gap-0.5 text-red-500" title={`Blocked by ${blockedByCount} card${blockedByCount > 1 ? "s" : ""}`}>
+							<span className={`flex items-center gap-0.5 ${STATUS_TEXT.blocked}`} title={`Blocked by ${blockedByCount} card${blockedByCount > 1 ? "s" : ""}`}>
 								<Ban className="h-3 w-3" />
 								{blockedByCount}
 							</span>
@@ -104,7 +105,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 							</span>
 						)}
 						{checklistTotal > 0 && (
-							<span className={`flex items-center gap-1 ${checklistDone === checklistTotal ? "text-green-500" : ""}`}>
+							<span className={`flex items-center gap-1 ${checklistDone === checklistTotal ? STATUS_TEXT.done : ""}`}>
 								<CheckSquare className="h-3 w-3" />
 								{checklistDone}/{checklistTotal}
 							</span>

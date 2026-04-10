@@ -46,7 +46,7 @@ export function BoardColumn({ column, boardId, sortMode, onCardClick }: BoardCol
 	return (
 		<div
 			className={`flex w-72 shrink-0 flex-col rounded-lg border border-transparent p-2 transition-colors ${
-				isOver ? "border-primary/30 bg-primary/5" : "bg-muted/30"
+				isOver ? "border-primary/50 bg-primary/10 shadow-sm" : "bg-muted/30"
 			}`}
 		>
 			<ColumnHeader column={column} boardId={boardId} />

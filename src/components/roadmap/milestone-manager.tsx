@@ -16,6 +16,8 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { EmptyState } from "@/components/ui/empty-state";
+import { formatDate } from "@/lib/format-date";
 import { api } from "@/trpc/react";
 
 export function MilestoneManager({
@@ -165,7 +167,7 @@ export function MilestoneManager({
 												{ms.targetDate && (
 													<span className="flex items-center gap-1">
 														<Calendar className="h-3 w-3" />
-														{new Date(ms.targetDate).toLocaleDateString()}
+														{formatDate(ms.targetDate)}
 													</span>
 												)}
 											</div>
@@ -176,7 +178,7 @@ export function MilestoneManager({
 											)}
 										</div>
 										<div className="flex items-center gap-1">
-											<Badge variant="outline" className="text-[10px]">
+											<Badge variant="outline" className="text-2xs">
 												{ms.cardsByStatus.done}/{ms._count.cards} done
 											</Badge>
 											<Button
@@ -206,9 +208,7 @@ export function MilestoneManager({
 						))}
 
 						{milestones?.length === 0 && (
-							<p className="py-6 text-center text-sm text-muted-foreground">
-								No milestones yet. Create one above.
-							</p>
+							<EmptyState icon={Calendar} title="No milestones yet" description="Create one above to organize your roadmap." className="py-6" />
 						)}
 					</div>
 				</div>

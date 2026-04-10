@@ -18,7 +18,7 @@ type ProjectListItem = Project & {
 async function list(): Promise<ServiceResult<ProjectListItem[]>> {
 	try {
 		const projects = await db.project.findMany({
-			orderBy: { createdAt: "desc" },
+			orderBy: [{ favorite: "desc" }, { createdAt: "desc" }],
 			include: {
 				_count: { select: { boards: true, cards: true } },
 			},

@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -52,7 +52,7 @@ export function CreateBoardDialog({ projectId }: { projectId: string }) {
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
-				<Button variant="outline" size="sm">
+				<Button variant="default" size="sm">
 					<Plus className="mr-2 h-4 w-4" />
 					New Board
 				</Button>
@@ -89,6 +89,7 @@ export function CreateBoardDialog({ projectId }: { projectId: string }) {
 					</div>
 					<DialogFooter className="mt-6">
 						<Button type="submit" disabled={createBoard.isPending || !name.trim()}>
+							{createBoard.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
 							Create
 						</Button>
 					</DialogFooter>

@@ -249,7 +249,11 @@ async function listAll(filters?: {
 	assignee?: string;
 	tag?: string;
 	search?: string;
-}): Promise<ServiceResult<Array<Card & { column: { name: string; board: { name: string; id: string; project: { name: string; id: string } } } }>>> {
+}): Promise<ServiceResult<Array<Card & {
+	column: { name: string; role: string | null; board: { name: string; id: string; project: { name: string; id: string } } };
+	milestone: { id: string; name: string } | null;
+	checklists: Array<{ completed: boolean }>;
+}>>> {
 	try {
 		const where: Record<string, unknown> = {};
 
@@ -285,6 +289,8 @@ async function listAll(filters?: {
 						},
 					},
 				},
+				milestone: { select: { id: true, name: true } },
+				checklists: { select: { completed: true } },
 			},
 			orderBy: { updatedAt: "desc" },
 			take: 200,

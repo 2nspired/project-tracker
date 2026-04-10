@@ -48,6 +48,20 @@ export const projectRouter = createTRPCRouter({
 		return result.data;
 	}),
 
+	toggleFavorite: publicProcedure
+		.input(z.object({ id: z.string().uuid() }))
+		.mutation(async ({ input }) => {
+			const result = await projectService.getById(input.id);
+			if (!result.success) {
+				throw new TRPCError({ code: "NOT_FOUND", message: result.error.message });
+			}
+			const updated = await projectService.update(input.id, { favorite: !result.data.favorite });
+			if (!updated.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: updated.error.message });
+			}
+			return updated.data;
+		}),
+
 	seedTutorial: publicProcedure.mutation(async () => {
 		const result = await onboardingService.seedTutorial();
 		if (!result.success) {

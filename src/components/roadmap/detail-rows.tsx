@@ -1,28 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Ban, Bot, User } from "lucide-react";
+import { Ban, Bot, LayoutList, User } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { CardDetailSheet } from "@/components/board/card-detail-sheet";
+import { EmptyState } from "@/components/ui/empty-state";
+import { HORIZON_DOT, PRIORITY_BADGE, STATUS_BG, STATUS_TEXT } from "@/lib/priority-colors";
+import type { Priority } from "@/lib/schemas/card-schemas";
 import type { MilestoneGroup, RoadmapCard } from "./roadmap-view";
 
-const PRIORITY_BADGE_VARIANT: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
-	URGENT: "destructive",
-	HIGH: "destructive",
-	MEDIUM: "secondary",
-	LOW: "outline",
-	NONE: "outline",
-};
-
 function StatusDot({ horizon }: { horizon: string }) {
-	const colors: Record<string, string> = {
-		now: "bg-blue-500",
-		next: "bg-amber-400",
-		later: "bg-muted-foreground/30",
-		done: "bg-emerald-500",
-	};
-	return <div className={`h-2 w-2 rounded-full ${colors[horizon] ?? colors.later}`} />;
+	return <div className={`h-2 w-2 rounded-full ${HORIZON_DOT[horizon] ?? HORIZON_DOT.later}`} />;
 }
 
 export function DetailRows({
@@ -36,9 +25,7 @@ export function DetailRows({
 
 	if (milestones.length === 0) {
 		return (
-			<p className="py-8 text-center text-sm text-muted-foreground">
-				No cards on this board yet.
-			</p>
+			<EmptyState icon={LayoutList} title="No cards on this board yet" description="Create cards on your board to see them in the roadmap." className="py-8" />
 		);
 	}
 
@@ -62,7 +49,7 @@ export function DetailRows({
 							<div className="flex items-center justify-between border-b px-4 py-2.5">
 								<div className="flex items-center gap-2">
 									<h3 className="text-sm font-semibold">{milestone.name}</h3>
-									<Badge variant="outline" className="text-[10px] font-normal">
+									<Badge variant="outline" className="text-2xs font-normal">
 										{milestone.total} cards
 									</Badge>
 								</div>
@@ -83,7 +70,7 @@ export function DetailRows({
 							<div className="overflow-x-auto">
 								<table className="w-full text-xs">
 									<thead>
-										<tr className="border-b text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+										<tr className="border-b text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
 											<th className="px-4 py-2 w-8">#</th>
 											<th className="px-2 py-2">Title</th>
 											<th className="px-2 py-2 w-28">Status</th>
@@ -104,7 +91,7 @@ export function DetailRows({
 													key={card.id}
 													onClick={() => setSelectedCardId(card.id)}
 													className={`cursor-pointer border-b last:border-0 transition-colors hover:bg-muted/50 ${
-														isBlocked ? "bg-red-500/5" : isDone ? "bg-emerald-500/5" : ""
+														isBlocked ? STATUS_BG.blocked : isDone ? STATUS_BG.done : ""
 													}`}
 												>
 													<td className="px-4 py-2 font-mono text-muted-foreground">
@@ -112,7 +99,7 @@ export function DetailRows({
 													</td>
 													<td className={`px-2 py-2 font-medium ${isDone ? "text-muted-foreground line-through" : ""}`}>
 														<span className="flex items-center gap-1.5">
-															{isBlocked && <Ban className="h-3 w-3 shrink-0 text-red-500" />}
+															{isBlocked && <Ban className={`h-3 w-3 shrink-0 ${STATUS_TEXT.blocked}`} />}
 															{card.title}
 														</span>
 													</td>
@@ -125,8 +112,8 @@ export function DetailRows({
 													<td className="px-2 py-2">
 														{card.priority !== "NONE" && (
 															<Badge
-																variant={PRIORITY_BADGE_VARIANT[card.priority]}
-																className="px-1.5 py-0 text-[10px] font-normal"
+																variant="outline"
+																className={`px-1.5 py-0 text-2xs font-normal ${PRIORITY_BADGE[card.priority as Priority] ?? PRIORITY_BADGE.NONE}`}
 															>
 																{card.priority}
 															</Badge>
@@ -136,7 +123,7 @@ export function DetailRows({
 														{card.assignee && (
 															<div className="flex items-center gap-1 text-muted-foreground">
 																{card.assignee === "AGENT" ? (
-																	<Bot className="h-3 w-3 text-purple-500" />
+																	<Bot className="h-3.5 w-3.5 text-violet-500" />
 																) : (
 																	<User className="h-3 w-3" />
 																)}
@@ -146,7 +133,7 @@ export function DetailRows({
 													</td>
 													<td className="px-2 py-2 text-muted-foreground">
 														{checkTotal > 0 && (
-															<span className={checkDone === checkTotal ? "text-emerald-500" : ""}>
+															<span className={checkDone === checkTotal ? STATUS_TEXT.done : ""}>
 																{checkDone}/{checkTotal}
 															</span>
 														)}

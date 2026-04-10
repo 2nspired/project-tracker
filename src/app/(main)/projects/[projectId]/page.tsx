@@ -49,6 +49,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Dialog,
 	DialogContent,
@@ -78,6 +79,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { hasRole } from "@/lib/column-roles";
 import { COLOR_CLASSES } from "@/lib/project-colors";
 import type { ProjectColor } from "@/lib/schemas/project-schemas";
+import { formatDate } from "@/lib/format-date";
 import { api } from "@/trpc/react";
 
 // ─── Markdown toolbar (shared logic) ──────────────────────────────
@@ -257,9 +259,9 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 						className={`flex items-center gap-3 border-l-[4px] pl-3 ${COLOR_CLASSES[projectColor].border}`}
 					>
 						<div>
-							<h1 className="text-3xl font-bold tracking-tight">{project?.name ?? "..."}</h1>
+							<h1 className="text-2xl font-bold tracking-tight">{project?.name ?? "..."}</h1>
 							{project?.description && (
-								<p className="text-muted-foreground">{project.description}</p>
+								<p className="text-sm text-muted-foreground">{project.description}</p>
 							)}
 						</div>
 					</div>
@@ -403,11 +405,12 @@ function BoardsTab({
 						</Card>
 					))
 				) : boards?.length === 0 ? (
-					<div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
-						<LayoutGrid className="mb-4 h-12 w-12 text-muted-foreground" />
-						<h2 className="text-lg font-semibold">No boards yet</h2>
-						<p className="text-sm text-muted-foreground">Create a board to start tracking work.</p>
-					</div>
+					<EmptyState
+						icon={LayoutGrid}
+						title="No boards yet"
+						description="Create a board to start tracking work."
+						className="col-span-full py-16"
+					/>
 				) : (
 					boards?.map((board) => {
 						const totalCards = board.columns.reduce((sum, col) => sum + col._count.cards, 0);
@@ -457,7 +460,7 @@ function BoardsTab({
 																style={{ width: `${pct}%` }}
 															/>
 														</div>
-														<span className="text-[10px] text-muted-foreground">
+														<span className="text-2xs text-muted-foreground">
 															{totalCards} cards
 														</span>
 													</div>
@@ -685,12 +688,21 @@ function ProjectNotesTab({
 	return (
 		<>
 			{isLoading ? (
-				<p className="text-sm text-muted-foreground">Loading...</p>
-			) : !notes || notes.length === 0 ? (
-				<div className="flex flex-col items-center gap-3 py-16 text-center">
-					<NotebookPen className="h-10 w-10 text-muted-foreground/40" />
-					<p className="text-muted-foreground">No notes for this project yet.</p>
+				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					{Array.from({ length: 3 }).map((_, i) => (
+						<div key={i} className="rounded-lg border bg-card p-4">
+							<Skeleton className="h-5 w-3/4" />
+							<Skeleton className="mt-2 h-4 w-full" />
+							<Skeleton className="mt-1 h-4 w-2/3" />
+						</div>
+					))}
 				</div>
+			) : !notes || notes.length === 0 ? (
+				<EmptyState
+					icon={NotebookPen}
+					title="No notes for this project yet."
+					className="py-16"
+				/>
 			) : (
 				<div className="space-y-4">
 					<div className="flex items-center justify-between">
@@ -727,13 +739,7 @@ function ProjectNotesTab({
 							<DialogHeader>
 								<DialogTitle className="text-xl">{viewNote.title}</DialogTitle>
 								<p className="text-xs text-muted-foreground">
-									{new Date(viewNote.updatedAt).toLocaleDateString("en-US", {
-										month: "short",
-										day: "numeric",
-										year: "numeric",
-										hour: "2-digit",
-										minute: "2-digit",
-									})}
+									{formatDate(viewNote.updatedAt, { includeTime: true })}
 								</p>
 							</DialogHeader>
 							{JSON.parse(viewNote.tags).length > 0 && (
@@ -946,7 +952,20 @@ function ProjectDecisionsTab({ projectId }: { projectId: string }) {
 	});
 
 	if (isLoading) {
-		return <p className="text-sm text-muted-foreground">Loading decisions...</p>;
+		return (
+			<div className="space-y-3">
+				{Array.from({ length: 3 }).map((_, i) => (
+					<div key={i} className="rounded-lg border bg-card px-4 py-3">
+						<div className="flex items-center gap-2">
+							<Skeleton className="h-5 w-16" />
+							<Skeleton className="h-4 flex-1 max-w-[200px]" />
+							<Skeleton className="ml-auto h-4 w-20" />
+						</div>
+						<Skeleton className="mt-2 h-3 w-3/4" />
+					</div>
+				))}
+			</div>
+		);
 	}
 
 	return (
@@ -970,13 +989,12 @@ function ProjectDecisionsTab({ projectId }: { projectId: string }) {
 			</div>
 
 			{!decisions || decisions.length === 0 ? (
-				<div className="flex flex-col items-center gap-3 py-16 text-center">
-					<FileText className="h-10 w-10 text-muted-foreground/40" />
-					<p className="text-muted-foreground">No decisions recorded yet.</p>
-					<p className="text-xs text-muted-foreground">
-						Agents record decisions automatically, or use the MCP tools to add them.
-					</p>
-				</div>
+				<EmptyState
+					icon={FileText}
+					title="No decisions recorded yet."
+					description="Agents record decisions automatically, or use the MCP tools to add them."
+					className="py-16"
+				/>
 			) : (
 				<div className="space-y-3">
 					{decisions.map(
@@ -1005,7 +1023,7 @@ function ProjectDecisionsTab({ projectId }: { projectId: string }) {
 										<div className="flex items-center gap-2">
 											<Badge
 												variant="outline"
-												className={`text-[10px] ${DECISION_STATUS_COLORS[d.status] ?? ""}`}
+												className={`text-2xs ${DECISION_STATUS_COLORS[d.status] ?? ""}`}
 											>
 												{d.status}
 											</Badge>
@@ -1016,7 +1034,7 @@ function ProjectDecisionsTab({ projectId }: { projectId: string }) {
 												</span>
 											)}
 											<span className="text-xs text-muted-foreground">
-												{new Date(d.createdAt).toLocaleDateString()}
+												{formatDate(d.createdAt)}
 											</span>
 										</div>
 										{!isExpanded && (

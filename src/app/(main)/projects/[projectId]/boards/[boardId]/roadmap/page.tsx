@@ -27,7 +27,7 @@ export default function RoadmapPage({
 
 	if (isLoading) {
 		return (
-			<div className="mx-auto max-w-5xl px-4 py-6">
+			<div className="container mx-auto px-4 py-6">
 				<Skeleton className="mb-6 h-8 w-64" />
 				<Skeleton className="mb-4 h-40 w-full" />
 				<div className="space-y-4">
@@ -44,7 +44,7 @@ export default function RoadmapPage({
 	}
 
 	return (
-		<div className="mx-auto max-w-5xl px-4 py-6">
+		<div className="container mx-auto px-4 py-6">
 			<div className="mb-6 flex items-center gap-3">
 				<Link href={`/projects/${projectId}/boards/${boardId}`}>
 					<Button variant="ghost" size="sm">

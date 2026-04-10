@@ -1,9 +1,10 @@
 "use client";
 
-import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/trpc/react";
 
 type ColumnHeaderProps = {
@@ -76,16 +78,19 @@ export function ColumnHeader({ column, boardId }: ColumnHeaderProps) {
 			<div className="group mb-1 flex items-center justify-between px-1">
 				<div className="flex items-center gap-2">
 					<h3 className="text-sm font-semibold">{column.name}</h3>
-					<span className="rounded-full bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-						{column.cards.length}
-					</span>
+					<Badge variant="secondary" className="text-xs">{column.cards.length}</Badge>
 				</div>
 				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100">
-							<MoreHorizontal className="h-4 w-4" />
-						</Button>
-					</DropdownMenuTrigger>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<DropdownMenuTrigger asChild>
+								<Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100">
+									<MoreHorizontal className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+						</TooltipTrigger>
+						<TooltipContent>Column options</TooltipContent>
+					</Tooltip>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem
 							onClick={() => {
@@ -153,6 +158,7 @@ export function ColumnHeader({ column, boardId }: ColumnHeaderProps) {
 						</div>
 						<DialogFooter className="mt-6">
 							<Button type="submit" disabled={updateColumn.isPending || !name.trim()}>
+								{updateColumn.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
 								Save
 							</Button>
 						</DialogFooter>
@@ -193,15 +199,19 @@ export function AddColumnButton({ boardId }: { boardId: string }) {
 
 	return (
 		<>
-			<Button
-				variant="ghost"
-				size="icon"
-				className="h-8 w-8 shrink-0"
-				onClick={() => setOpen(true)}
-				title="Add column"
-			>
-				<Plus className="h-4 w-4" />
-			</Button>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8 shrink-0"
+						onClick={() => setOpen(true)}
+					>
+						<Plus className="h-4 w-4" />
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>Add column</TooltipContent>
+			</Tooltip>
 
 			<Dialog open={open} onOpenChange={setOpen}>
 				<DialogContent>
@@ -233,6 +243,7 @@ export function AddColumnButton({ boardId }: { boardId: string }) {
 						</div>
 						<DialogFooter className="mt-6">
 							<Button type="submit" disabled={createColumn.isPending || !name.trim()}>
+								{createColumn.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
 								Add
 							</Button>
 						</DialogFooter>

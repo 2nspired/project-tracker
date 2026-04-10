@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -111,6 +111,7 @@ export function CreateProjectDialog() {
 					</div>
 					<DialogFooter className="mt-6">
 						<Button type="submit" disabled={createProject.isPending || !name.trim()}>
+							{createProject.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
 							Create
 						</Button>
 					</DialogFooter>

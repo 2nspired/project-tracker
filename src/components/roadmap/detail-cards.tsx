@@ -2,18 +2,13 @@
 
 import { useState } from "react";
 
-import { Ban } from "lucide-react";
+import { Ban, LayoutGrid } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CardDetailSheet } from "@/components/board/card-detail-sheet";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PRIORITY_DOT, STATUS_BG, STATUS_BORDER, STATUS_DOT, STATUS_TEXT } from "@/lib/priority-colors";
+import type { Priority } from "@/lib/schemas/card-schemas";
 import type { MilestoneGroup, RoadmapCard } from "./roadmap-view";
-
-const PRIORITY_DOT: Record<string, string> = {
-	URGENT: "bg-red-500",
-	HIGH: "bg-orange-500",
-	MEDIUM: "bg-amber-400",
-	LOW: "bg-blue-400",
-	NONE: "bg-muted-foreground/30",
-};
 
 const HORIZON_ICON: Record<string, string> = {
 	now: "\u25cf",   // filled circle
@@ -33,22 +28,22 @@ function CardChip({ card, onClick }: { card: RoadmapCard; onClick: () => void })
 			type="button"
 			onClick={onClick}
 			className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-left transition-colors hover:bg-muted/50 ${
-				isBlocked ? "border-red-500/30 bg-red-500/5" : isDone ? "border-emerald-500/20 bg-emerald-500/5" : "bg-card"
+				isBlocked ? `${STATUS_BORDER.blocked} ${STATUS_BG.blocked}` : isDone ? `${STATUS_BORDER.done} ${STATUS_BG.done}` : "bg-card"
 			}`}
 		>
-			<div className={`h-1.5 w-1.5 shrink-0 rounded-full ${isBlocked ? "bg-red-500" : (PRIORITY_DOT[card.priority] ?? PRIORITY_DOT.NONE)}`} />
-			{isBlocked && <Ban className="h-2.5 w-2.5 shrink-0 text-red-500" />}
-			<span className={`text-[10px] ${isDone ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+			<div className={`h-1.5 w-1.5 shrink-0 rounded-full ${isBlocked ? STATUS_DOT.blocked : (PRIORITY_DOT[card.priority as Priority] ?? PRIORITY_DOT.NONE)}`} />
+			{isBlocked && <Ban className={`h-2.5 w-2.5 shrink-0 ${STATUS_TEXT.blocked}`} />}
+			<span className={`text-2xs ${isDone ? STATUS_TEXT.done : "text-muted-foreground"}`}>
 				{HORIZON_ICON[card.horizon]}
 			</span>
-			<span className="font-mono text-[10px] text-muted-foreground">
+			<span className="font-mono text-2xs text-muted-foreground">
 				#{card.number}
 			</span>
 			<span className={`max-w-32 truncate text-xs ${isDone ? "text-muted-foreground line-through" : ""}`}>
 				{card.title}
 			</span>
 			{checkTotal > 0 && (
-				<span className={`text-[10px] ${checkDone === checkTotal ? "text-emerald-500" : "text-muted-foreground"}`}>
+				<span className={`text-2xs ${checkDone === checkTotal ? STATUS_TEXT.done : "text-muted-foreground"}`}>
 					{checkDone}/{checkTotal}
 				</span>
 			)}
@@ -67,9 +62,7 @@ export function DetailCards({
 
 	if (milestones.length === 0) {
 		return (
-			<p className="py-8 text-center text-sm text-muted-foreground">
-				No cards on this board yet.
-			</p>
+			<EmptyState icon={LayoutGrid} title="No cards on this board yet" description="Create cards on your board to see them in the roadmap." className="py-8" />
 		);
 	}
 
@@ -94,7 +87,7 @@ export function DetailCards({
 							<div className="flex items-center justify-between border-b px-4 py-2.5">
 								<div className="flex items-center gap-2">
 									<h3 className="text-sm font-semibold">{milestone.name}</h3>
-									<Badge variant="outline" className="text-[10px] font-normal">
+									<Badge variant="outline" className="text-2xs font-normal">
 										{milestone.total} cards
 									</Badge>
 								</div>

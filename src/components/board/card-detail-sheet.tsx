@@ -19,8 +19,10 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { formatDate, formatRelativeCompact } from "@/lib/format-date";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/ui/markdown";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
@@ -32,23 +34,27 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
 	Sheet,
 	SheetContent,
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { SectionHeader } from "@/components/ui/section-header";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PRIORITY_BADGE } from "@/lib/priority-colors";
 import { priorityValues, type Priority } from "@/lib/schemas/card-schemas";
 import { api } from "@/trpc/react";
-
-// ─── Constants ────────────────────────────────────────────────────
-
-const PRIORITY_BADGE_STYLES: Record<Priority, string> = {
-	NONE: "border-border text-muted-foreground",
-	LOW: "border-blue-400/50 bg-blue-400/10 text-blue-600 dark:text-blue-400",
-	MEDIUM: "border-yellow-400/50 bg-yellow-400/10 text-yellow-600 dark:text-yellow-400",
-	HIGH: "border-orange-400/50 bg-orange-400/10 text-orange-600 dark:text-orange-400",
-	URGENT: "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-500",
-};
 
 const PRIORITY_LABELS: Record<Priority, string> = {
 	NONE: "No priority",
@@ -192,25 +198,47 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 		}
 	}, [card?.description, handleDescriptionSave]);
 
-	if (!card) return null;
-
-	const tags: string[] = JSON.parse(card.tags);
+	const tags: string[] = card ? JSON.parse(card.tags) : [];
 
 	const handleAddTag = () => {
-		if (!tagInput.trim()) return;
+		if (!card || !tagInput.trim()) return;
 		const newTags = [...tags, tagInput.trim()];
 		updateCard.mutate({ id: card.id, data: { tags: newTags } });
 		setTagInput("");
 	};
 
 	const handleRemoveTag = (tag: string) => {
+		if (!card) return;
 		const newTags = tags.filter((t) => t !== tag);
 		updateCard.mutate({ id: card.id, data: { tags: newTags } });
 	};
 
 	return (
-		<Sheet open={!!cardId} onOpenChange={() => onClose()}>
+		<Sheet open={!!cardId} onOpenChange={(open) => { if (!open) onClose(); }}>
 			<SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+				{!card ? (
+					<div className="space-y-6 pt-6">
+						<SheetHeader>
+							<SheetTitle>
+								<Skeleton className="h-6 w-48" />
+							</SheetTitle>
+						</SheetHeader>
+						<div className="space-y-4">
+							<div className="flex gap-3">
+								<Skeleton className="h-8 w-24" />
+								<Skeleton className="h-8 w-24" />
+							</div>
+							<Skeleton className="h-24 w-full" />
+							<Skeleton className="h-4 w-32" />
+							<div className="space-y-2">
+								<Skeleton className="h-4 w-full" />
+								<Skeleton className="h-4 w-3/4" />
+								<Skeleton className="h-4 w-1/2" />
+							</div>
+						</div>
+					</div>
+				) : (
+				<>
 				<SheetHeader className="px-6">
 					<SheetTitle className="pr-6">
 						<div className="flex items-center gap-2">
@@ -271,7 +299,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 						>
 							<SelectTrigger
 								className={`h-7 w-fit gap-1 rounded-full border px-2.5 text-xs font-medium shadow-none ${
-									PRIORITY_BADGE_STYLES[card.priority as Priority]
+									PRIORITY_BADGE[card.priority as Priority]
 								}`}
 							>
 								<SelectValue />
@@ -444,7 +472,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 						<div className="flex items-center justify-between">
 							<SectionHeader>Checklist</SectionHeader>
 							{card.checklists.length > 0 && (
-								<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+								<Badge variant="secondary" className="h-5 px-1.5 text-2xs">
 									{card.checklists.filter((c) => c.completed).length}/{card.checklists.length}
 								</Badge>
 							)}
@@ -452,16 +480,14 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 						<div className="space-y-1">
 							{card.checklists.map((item) => (
 								<div key={item.id} className="flex items-center gap-2 py-0.5">
-									<input
-										type="checkbox"
+									<Checkbox
 										checked={item.completed}
-										onChange={() =>
+										onCheckedChange={() =>
 											updateChecklist.mutate({
 												id: item.id,
 												data: { completed: !item.completed },
 											})
 										}
-										className="h-4 w-4 rounded"
 									/>
 									<span
 										className={`flex-1 text-sm ${item.completed ? "text-muted-foreground line-through" : ""}`}
@@ -514,7 +540,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 						<div className="flex items-center justify-between">
 							<SectionHeader>Comments</SectionHeader>
 							{card.comments.length > 0 && (
-								<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+								<Badge variant="secondary" className="h-5 px-1.5 text-2xs">
 									{card.comments.length}
 								</Badge>
 							)}
@@ -525,13 +551,13 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 									key={comment.id}
 									className={`rounded-lg border p-3 ${
 										comment.authorType === "AGENT"
-											? "border-purple-500/20 bg-purple-500/5"
+											? "border-violet-500/20 bg-violet-500/5"
 											: "border-border bg-muted/50"
 									}`}
 								>
 									<div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
 										{comment.authorType === "AGENT" ? (
-											<Bot className="h-3.5 w-3.5 text-purple-500" />
+											<Bot className="h-3.5 w-3.5 text-violet-500" />
 										) : (
 											<User className="h-3.5 w-3.5" />
 										)}
@@ -540,7 +566,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 												(comment.authorType === "AGENT" ? "Claude" : "You")}
 										</span>
 										<span className="opacity-60">
-											{formatRelativeTime(new Date(comment.createdAt))}
+											{formatRelativeCompact(new Date(comment.createdAt))}
 										</span>
 									</div>
 									<div className="text-sm">
@@ -589,7 +615,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 							<div className="space-y-3">
 								<div className="flex items-center justify-between">
 									<SectionHeader>Commits</SectionHeader>
-									<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+									<Badge variant="secondary" className="h-5 px-1.5 text-2xs">
 										{card.gitLinks.length}
 									</Badge>
 								</div>
@@ -602,14 +628,14 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 												className="rounded-md border p-2.5 text-xs space-y-1"
 											>
 												<div className="flex items-center gap-2">
-													<code className="rounded bg-muted px-1 py-0.5 text-[10px] font-mono">
+													<code className="rounded bg-muted px-1 py-0.5 text-2xs font-mono">
 														{link.commitHash.slice(0, 8)}
 													</code>
 													<span className="truncate font-medium">{link.message}</span>
 												</div>
 												<div className="flex items-center gap-3 text-muted-foreground">
 													<span>{link.author}</span>
-													<span>{new Date(link.commitDate).toLocaleDateString()}</span>
+													<span>{formatDate(link.commitDate)}</span>
 													{filePaths.length > 0 && (
 														<span>{filePaths.length} file{filePaths.length !== 1 ? "s" : ""}</span>
 													)}
@@ -636,7 +662,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 										>
 											<div className="mt-0.5 shrink-0">
 												{activity.actorType === "AGENT" ? (
-													<Bot className="h-3.5 w-3.5 text-purple-500" />
+													<Bot className="h-3.5 w-3.5 text-violet-500" />
 												) : (
 													<User className="h-3.5 w-3.5" />
 												)}
@@ -648,7 +674,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 												</span>{" "}
 												<ActivityDescription action={activity.action} details={activity.details} />
 												<span className="ml-1.5 opacity-50">
-													{formatRelativeTime(new Date(activity.createdAt))}
+													{formatRelativeCompact(new Date(activity.createdAt))}
 												</span>
 											</div>
 										</div>
@@ -660,32 +686,36 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 
 					{/* Delete */}
 					<div className="pt-4">
-						<Button
-							variant="destructive"
-							size="sm"
-							onClick={() => {
-								if (confirm("Delete this card?")) {
-									deleteCard.mutate({ id: card.id });
-								}
-							}}
-						>
-							<Trash2 className="mr-2 h-4 w-4" />
-							Delete Card
-						</Button>
+						<AlertDialog>
+							<AlertDialogTrigger asChild>
+								<Button variant="destructive" size="sm">
+									<Trash2 className="mr-2 h-4 w-4" />
+									Delete Card
+								</Button>
+							</AlertDialogTrigger>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>Delete card?</AlertDialogTitle>
+									<AlertDialogDescription>
+										This will permanently delete card #{card.number} and all its comments, checklist items, and activity history.
+									</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel>Cancel</AlertDialogCancel>
+									<AlertDialogAction
+										onClick={() => deleteCard.mutate({ id: card.id })}
+									>
+										Delete
+									</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
 					</div>
 				</div>
+				</>
+				)}
 			</SheetContent>
 		</Sheet>
-	);
-}
-
-// ─── Section Header ───────────────────────────────────────────────
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-	return (
-		<span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-			{children}
-		</span>
 	);
 }
 
@@ -752,7 +782,7 @@ function DependenciesSection({ cardId, boardId }: { cardId: string; boardId: str
 											variant="outline"
 											className="cursor-pointer gap-1 pr-1"
 										>
-											<span className="font-mono text-[10px]">#{item.number}</span>
+											<span className="font-mono text-2xs">#{item.number}</span>
 											<span className="max-w-[120px] truncate text-xs">{item.title}</span>
 											<button
 												type="button"
@@ -800,7 +830,7 @@ function DecisionsSection({ cardId, projectId }: { cardId: string; projectId: st
 		<div className="space-y-2">
 			<div className="flex items-center justify-between">
 				<SectionHeader>Decisions</SectionHeader>
-				<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+				<Badge variant="secondary" className="h-5 px-1.5 text-2xs">
 					{decisions.length}
 				</Badge>
 			</div>
@@ -808,7 +838,7 @@ function DecisionsSection({ cardId, projectId }: { cardId: string; projectId: st
 				{decisions.map((d: { id: string; title: string; status: string; decision: string }) => (
 					<div key={d.id} className="rounded-md border p-2.5">
 						<div className="flex items-center gap-2">
-							<Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[d.status] ?? ""}`}>
+							<Badge variant="outline" className={`text-2xs ${STATUS_COLORS[d.status] ?? ""}`}>
 								{d.status}
 							</Badge>
 							<span className="text-sm font-medium">{d.title}</span>
@@ -931,19 +961,4 @@ function ActivityDescription({ action, details }: { action: string; details: str
 		default:
 			return <span>{details ?? action}</span>;
 	}
-}
-
-function formatRelativeTime(date: Date): string {
-	const now = new Date();
-	const diffMs = now.getTime() - date.getTime();
-	const diffSec = Math.floor(diffMs / 1000);
-	const diffMin = Math.floor(diffSec / 60);
-	const diffHr = Math.floor(diffMin / 60);
-	const diffDay = Math.floor(diffHr / 24);
-
-	if (diffSec < 60) return "just now";
-	if (diffMin < 60) return `${diffMin}m ago`;
-	if (diffHr < 24) return `${diffHr}h ago`;
-	if (diffDay < 7) return `${diffDay}d ago`;
-	return date.toLocaleDateString();
 }

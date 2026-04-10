@@ -4,6 +4,8 @@ import { ArrowLeft, Bot, Clock, User } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
 
+import { EmptyState } from "@/components/ui/empty-state";
+import { formatDate } from "@/lib/format-date";
 import { hasRole } from "@/lib/column-roles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +28,7 @@ export default function TimelinePage({
 
 	if (isLoading) {
 		return (
-			<div className="mx-auto max-w-4xl px-4 py-6">
+			<div className="container mx-auto px-4 py-6">
 				<Skeleton className="mb-6 h-8 w-64" />
 				<div className="space-y-4">
 					{Array.from({ length: 5 }).map((_, i) => (
@@ -55,11 +57,7 @@ export default function TimelinePage({
 	// Group by date
 	const grouped = new Map<string, typeof allCards>();
 	for (const card of allCards) {
-		const date = new Date(card.createdAt).toLocaleDateString("en-US", {
-			weekday: "long",
-			month: "short",
-			day: "numeric",
-		});
+		const date = formatDate(card.createdAt);
 		if (!grouped.has(date)) grouped.set(date, []);
 		grouped.get(date)!.push(card);
 	}
@@ -68,7 +66,7 @@ export default function TimelinePage({
 	const doneCardIds = new Set(doneColumn?.cards.map((c) => c.id) ?? []);
 
 	return (
-		<div className="mx-auto max-w-4xl px-4 py-6">
+		<div className="container mx-auto px-4 py-6">
 			<div className="mb-6 flex items-center gap-3">
 				<Link href={`/projects/${projectId}/boards/${boardId}`}>
 					<Button variant="ghost" size="sm">
@@ -85,7 +83,7 @@ export default function TimelinePage({
 			</div>
 
 			{allCards.length === 0 ? (
-				<p className="py-12 text-center text-muted-foreground">No cards yet.</p>
+				<EmptyState icon={Clock} title="No cards yet" description="Add cards to your board to see them on the timeline." />
 			) : (
 				<div className="relative">
 					{/* Vertical line */}
@@ -115,7 +113,7 @@ export default function TimelinePage({
 												<div className="flex items-start justify-between gap-2">
 													<div className="min-w-0 flex-1">
 														<div className="flex items-center gap-2">
-															<span className="text-[10px] font-mono text-muted-foreground">
+															<span className="text-2xs font-mono text-muted-foreground">
 																#{card.number}
 															</span>
 															<span
@@ -124,10 +122,10 @@ export default function TimelinePage({
 																{card.title}
 															</span>
 														</div>
-														<div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+														<div className="mt-1 flex items-center gap-2 text-2xs text-muted-foreground">
 															<Badge
 																variant={isDone ? "default" : "outline"}
-																className="px-1.5 py-0 text-[10px] font-normal"
+																className="px-1.5 py-0 text-2xs font-normal"
 															>
 																{card.columnName}
 															</Badge>
@@ -161,7 +159,7 @@ export default function TimelinePage({
 																<Badge
 																	key={tag}
 																	variant="outline"
-																	className="px-1.5 py-0 text-[10px] font-normal"
+																	className="px-1.5 py-0 text-2xs font-normal"
 																>
 																	{tag}
 																</Badge>

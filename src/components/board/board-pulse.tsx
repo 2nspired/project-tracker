@@ -2,6 +2,7 @@
 
 import { Activity, AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 
+import { STATUS_TEXT } from "@/lib/priority-colors";
 import { api } from "@/trpc/react";
 
 function Sparkline({ data }: { data: number[] }) {
@@ -84,7 +85,7 @@ export function BoardPulse({ boardId }: { boardId: string }) {
 	if (!hasAnyData) return null;
 
 	return (
-		<div className="flex items-center gap-5 bg-muted/20 px-4 py-2.5 text-[11px]">
+		<div className="flex items-center gap-5 bg-muted/20 px-4 py-2.5 text-xs">
 			<span className="flex items-center gap-2 text-muted-foreground">
 				<Activity className="h-3 w-3" />
 				Pulse
@@ -104,7 +105,7 @@ export function BoardPulse({ boardId }: { boardId: string }) {
 			{/* Flow balance */}
 			<div className="flex items-center gap-2 text-muted-foreground">
 				<span
-					className="flex items-center gap-1 text-emerald-500"
+					className={`flex items-center gap-1 ${STATUS_TEXT.done}`}
 					title={`${metrics.forwardMoves} forward moves`}
 				>
 					<ArrowRight className="h-3 w-3" />
@@ -112,7 +113,7 @@ export function BoardPulse({ boardId }: { boardId: string }) {
 				</span>
 				{metrics.backwardMoves > 0 && (
 					<span
-						className="flex items-center gap-1 text-orange-500"
+						className={`flex items-center gap-1 ${STATUS_TEXT.warning}`}
 						title={`${metrics.backwardMoves} regressions`}
 					>
 						<ArrowLeft className="h-3 w-3" />
@@ -127,10 +128,10 @@ export function BoardPulse({ boardId }: { boardId: string }) {
 					className="flex items-center gap-1.5 text-muted-foreground"
 					title={`Cards spend an average of ${formatHours(metrics.bottleneck.avgHours)} in ${metrics.bottleneck.column}`}
 				>
-					<AlertTriangle className="h-3 w-3 text-amber-500" />
+					<AlertTriangle className={`h-3 w-3 ${STATUS_TEXT.warning}`} />
 					<span>
 						{metrics.bottleneck.column}{" "}
-						<span className="font-medium text-amber-500 tabular-nums">
+						<span className={`font-medium ${STATUS_TEXT.warning} tabular-nums`}>
 							~{formatHours(metrics.bottleneck.avgHours)}
 						</span>{" "}
 						avg

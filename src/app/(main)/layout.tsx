@@ -1,8 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Kanban } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
+	const pathname = usePathname();
+
 	return (
 		<div className="flex min-h-dvh flex-col">
 			<header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -12,13 +17,34 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 						Project Tracker
 					</Link>
 					<nav className="flex flex-1 items-center gap-4 text-sm">
-						<Link href="/projects" className="text-muted-foreground transition-colors hover:text-foreground">
+						<Link
+							href="/projects"
+							className={
+								pathname.startsWith("/projects")
+									? "text-foreground font-medium transition-colors"
+									: "text-muted-foreground transition-colors hover:text-foreground"
+							}
+						>
 							Projects
 						</Link>
-						<Link href="/dashboard" className="text-muted-foreground transition-colors hover:text-foreground">
+						<Link
+							href="/dashboard"
+							className={
+								pathname.startsWith("/dashboard")
+									? "text-foreground font-medium transition-colors"
+									: "text-muted-foreground transition-colors hover:text-foreground"
+							}
+						>
 							Dashboard
 						</Link>
-						<Link href="/notes" className="text-muted-foreground transition-colors hover:text-foreground">
+						<Link
+							href="/notes"
+							className={
+								pathname.startsWith("/notes")
+									? "text-foreground font-medium transition-colors"
+									: "text-muted-foreground transition-colors hover:text-foreground"
+							}
+						>
 							Notes
 						</Link>
 					</nav>

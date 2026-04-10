@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Markdown } from "@/components/ui/markdown";
+import { formatDate } from "@/lib/format-date";
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -233,8 +234,8 @@ function NoteActionButtons({
 		<div className={`flex shrink-0 gap-1 ${className ?? ""}`}>
 			<Button
 				variant="ghost"
-				size="icon"
-				className="h-7 w-7"
+				size="sm"
+				className="h-8 w-8 p-0"
 				title="Promote to card"
 				onClick={(e) => {
 					e.stopPropagation();
@@ -245,8 +246,8 @@ function NoteActionButtons({
 			</Button>
 			<Button
 				variant="ghost"
-				size="icon"
-				className="h-7 w-7"
+				size="sm"
+				className="h-8 w-8 p-0"
 				onClick={(e) => {
 					e.stopPropagation();
 					actions.onEdit(note);
@@ -256,8 +257,8 @@ function NoteActionButtons({
 			</Button>
 			<Button
 				variant="ghost"
-				size="icon"
-				className="h-7 w-7 text-destructive"
+				size="sm"
+				className="h-8 w-8 p-0 text-destructive"
 				onClick={(e) => {
 					e.stopPropagation();
 					if (confirm("Delete this note?")) actions.onDelete(note.id);
@@ -282,14 +283,6 @@ function NoteTags({ tags }: { tags: string[] }) {
 	);
 }
 
-function formatDate(date: Date) {
-	return new Date(date).toLocaleDateString("en-US", {
-		month: "short",
-		day: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
-}
 
 // ─── Card View ────────────────────────────────────────────────────
 
@@ -312,7 +305,7 @@ function NoteCard({
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") actions.onView(note.id);
 			}}
-			className="group flex cursor-pointer flex-col rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted/30"
+			className="group flex cursor-pointer flex-col rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted/50"
 		>
 			<div className="mb-2 flex w-full items-start justify-between">
 				<div className="min-w-0 flex-1">
@@ -341,8 +334,8 @@ function NoteCard({
 					</div>
 				</div>
 			)}
-			<p className="mt-2 text-[10px] text-muted-foreground/60">
-				{formatDate(note.updatedAt)}
+			<p className="mt-2 text-2xs text-muted-foreground/60">
+				{formatDate(note.updatedAt, { includeTime: true })}
 			</p>
 		</div>
 	);
@@ -369,7 +362,7 @@ function NoteListItem({
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") actions.onView(note.id);
 			}}
-			className="group flex cursor-pointer items-center gap-4 rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/30"
+			className="group flex cursor-pointer items-center gap-4 rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50"
 		>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">
@@ -391,8 +384,8 @@ function NoteListItem({
 					</div>
 				)}
 			</div>
-			<span className="shrink-0 text-[10px] text-muted-foreground/60">
-				{formatDate(note.updatedAt)}
+			<span className="shrink-0 text-2xs text-muted-foreground/60">
+				{formatDate(note.updatedAt, { includeTime: true })}
 			</span>
 			<NoteActionButtons
 				note={note}

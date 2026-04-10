@@ -2,10 +2,12 @@
 
 import {
 	ArrowUpRight,
+	Loader2,
 	NotebookPen,
 	Pencil,
 	Plus,
 } from "lucide-react";
+
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -21,6 +23,7 @@ import {
 } from "@/components/notes/note-views";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Dialog,
 	DialogContent,
@@ -33,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Markdown } from "@/components/ui/markdown";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Select,
 	SelectContent,
@@ -40,6 +44,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { formatDate } from "@/lib/format-date";
 import { api } from "@/trpc/react";
 
 // ─── Page ──────────────────────────────────────────────────────────
@@ -178,7 +183,7 @@ export default function NotesPage() {
 		<div className="container mx-auto px-4 py-6">
 			<div className="mb-6 flex items-center justify-between">
 				<div>
-					<h1 className="text-2xl font-bold">Notes</h1>
+					<h1 className="text-2xl font-bold tracking-tight">Notes</h1>
 					<p className="text-sm text-muted-foreground">Quick thoughts, ideas, and scratch space</p>
 				</div>
 				<div className="flex items-center gap-3">
@@ -216,15 +221,22 @@ export default function NotesPage() {
 			</div>
 
 			{isLoading ? (
-				<p className="text-sm text-muted-foreground">Loading...</p>
-			) : !notes || notes.length === 0 ? (
-				<div className="flex flex-col items-center gap-3 py-16 text-center">
-					<NotebookPen className="h-10 w-10 text-muted-foreground/40" />
-					<p className="text-muted-foreground">No notes yet.</p>
-					<p className="text-sm text-muted-foreground">
-						Jot down ideas, questions, or thoughts. Promote them to cards when they're ready.
-					</p>
+				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					{Array.from({ length: 6 }).map((_, i) => (
+						<div key={i} className="rounded-lg border bg-card p-4">
+							<Skeleton className="h-5 w-3/4" />
+							<Skeleton className="mt-2 h-4 w-full" />
+							<Skeleton className="mt-1 h-4 w-2/3" />
+						</div>
+					))}
 				</div>
+			) : !notes || notes.length === 0 ? (
+				<EmptyState
+					icon={NotebookPen}
+					title="No notes yet."
+					description="Jot down ideas, questions, or thoughts. Promote them to cards when they're ready."
+					className="py-16"
+				/>
 			) : (
 				<div className="space-y-3">
 					<NoteTagFilter notes={notes} selectedTags={filterTags} setSelectedTags={setFilterTags} />
@@ -256,13 +268,7 @@ export default function NotesPage() {
 										<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
 											{viewNote.project && <span>{viewNote.project.name}</span>}
 											<span>
-												{new Date(viewNote.updatedAt).toLocaleDateString("en-US", {
-													month: "short",
-													day: "numeric",
-													year: "numeric",
-													hour: "2-digit",
-													minute: "2-digit",
-												})}
+												{formatDate(viewNote.updatedAt, { includeTime: true })}
 											</span>
 										</div>
 									</div>
@@ -372,6 +378,7 @@ export default function NotesPage() {
 						</div>
 						<DialogFooter className="mt-6">
 							<Button type="submit" disabled={createNote.isPending || !title.trim()}>
+								{createNote.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
 								Save
 							</Button>
 						</DialogFooter>
@@ -436,6 +443,7 @@ export default function NotesPage() {
 						</div>
 						<DialogFooter className="mt-6">
 							<Button type="submit" disabled={updateNote.isPending || !title.trim()}>
+								{updateNote.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
 								Save
 							</Button>
 						</DialogFooter>
@@ -518,6 +526,7 @@ export default function NotesPage() {
 					</div>
 					<DialogFooter className="mt-6">
 						<Button onClick={handlePromote} disabled={!promoteColumnId || createCard.isPending}>
+							{createCard.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
 							Promote to Card
 						</Button>
 					</DialogFooter>

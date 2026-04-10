@@ -1,46 +1,34 @@
 "use client";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { PRIORITY_DOT, STATUS_DOT } from "@/lib/priority-colors";
+import type { Priority } from "@/lib/schemas/card-schemas";
 import type { MilestoneGroup, RoadmapCard } from "./roadmap-view";
-
-const PRIORITY_COLORS: Record<string, string> = {
-	URGENT: "bg-red-500",
-	HIGH: "bg-orange-500",
-	MEDIUM: "bg-amber-400",
-	LOW: "bg-blue-400",
-	NONE: "bg-muted-foreground/50",
-};
-
-const DONE_COLOR = "bg-emerald-500";
-
-const BLOCKED_COLOR = "bg-red-500";
 
 function DotNode({ card, isDone }: { card: RoadmapCard; isDone: boolean }) {
 	const color = card.isBlocked && !isDone
-		? BLOCKED_COLOR
+		? STATUS_DOT.blocked
 		: isDone
-			? DONE_COLOR
-			: (PRIORITY_COLORS[card.priority] ?? PRIORITY_COLORS.NONE);
+			? STATUS_DOT.done
+			: (PRIORITY_DOT[card.priority as Priority] ?? PRIORITY_DOT.NONE);
 
 	return (
-		<TooltipProvider delayDuration={200}>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<div
-						className={`h-2.5 w-2.5 shrink-0 rounded-full ${color} ${card.isBlocked && !isDone ? "ring-2 ring-red-500/30" : "ring-2 ring-background"} transition-transform hover:scale-150`}
-					/>
-				</TooltipTrigger>
-				<TooltipContent side="top" className="max-w-48">
-					<p className="text-xs font-medium">
-						<span className="font-mono text-muted-foreground">#{card.number}</span>{" "}
-						{card.title}
-					</p>
-					<p className="text-[10px] text-muted-foreground">
-						{card.isBlocked && !isDone ? "Blocked · " : ""}{card.columnName} {card.priority !== "NONE" ? `/ ${card.priority}` : ""}
-					</p>
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<div
+					className={`h-2.5 w-2.5 shrink-0 rounded-full ${color} ${card.isBlocked && !isDone ? "ring-2 ring-red-500/30" : "ring-2 ring-background"} transition-transform hover:scale-150`}
+				/>
+			</TooltipTrigger>
+			<TooltipContent side="top" className="max-w-48">
+				<p className="text-xs font-medium">
+					<span className="font-mono text-muted-foreground">#{card.number}</span>{" "}
+					{card.title}
+				</p>
+				<p className="text-2xs text-muted-foreground">
+					{card.isBlocked && !isDone ? "Blocked · " : ""}{card.columnName} {card.priority !== "NONE" ? `/ ${card.priority}` : ""}
+				</p>
+			</TooltipContent>
+		</Tooltip>
 	);
 }
 
@@ -54,6 +42,7 @@ export function RiverFlow({ milestones, columnOrder, allCards }: RiverFlowProps)
 	if (allCards.length === 0) return null;
 
 	return (
+		<TooltipProvider delayDuration={200}>
 		<div className="rounded-lg border bg-card p-4">
 			<h2 className="mb-4 text-sm font-semibold text-muted-foreground">
 				Flow
@@ -65,7 +54,7 @@ export function RiverFlow({ milestones, columnOrder, allCards }: RiverFlowProps)
 				<div className="flex flex-1 items-center">
 					{columnOrder.map((col, i) => (
 						<div key={col} className="flex-1 text-center">
-							<span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+							<span className="text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
 								{col}
 							</span>
 						</div>
@@ -85,6 +74,7 @@ export function RiverFlow({ milestones, columnOrder, allCards }: RiverFlowProps)
 				))}
 			</div>
 		</div>
+		</TooltipProvider>
 	);
 }
 
@@ -119,7 +109,7 @@ function MilestoneRiver({
 			{/* Milestone label */}
 			<div className="w-28 shrink-0 pr-3">
 				<p className="truncate text-xs font-medium">{milestone.name}</p>
-				<p className="text-[10px] text-muted-foreground">
+				<p className="text-2xs text-muted-foreground">
 					{milestone.done}/{milestone.total}
 				</p>
 			</div>
@@ -159,7 +149,7 @@ function MilestoneRiver({
 						style={{ width: `${pct}%` }}
 					/>
 				</div>
-				<span className="text-[10px] tabular-nums text-muted-foreground">
+				<span className="text-2xs tabular-nums text-muted-foreground">
 					{pct}%
 				</span>
 			</div>

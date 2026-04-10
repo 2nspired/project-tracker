@@ -10,6 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type SortMode = "manual" | "smart";
 
@@ -102,7 +103,7 @@ export function BoardToolbar({
 					</SelectItem>
 					<SelectItem value="AGENT">
 						<span className="flex items-center gap-1.5">
-							<Bot className="h-3 w-3 text-purple-500" /> Agent
+							<Bot className="h-3.5 w-3.5 text-violet-500" /> Agent
 						</span>
 					</SelectItem>
 					<SelectItem value="UNASSIGNED">Unassigned</SelectItem>
@@ -130,35 +131,40 @@ export function BoardToolbar({
 			)}
 
 			{/* Sort mode toggle */}
-			<Button
-				variant={sortMode === "smart" ? "secondary" : "ghost"}
-				size="sm"
-				className="h-8 gap-1.5 px-2.5 text-xs"
-				onClick={() => onSortModeChange(sortMode === "manual" ? "smart" : "manual")}
-				title={
-					sortMode === "smart"
-						? "Smart sort: cards ranked by work-next score"
-						: "Manual sort: cards in drag order"
-				}
-			>
-				<Sparkles
-					className={`h-3.5 w-3.5 ${sortMode === "smart" ? "text-amber-500" : "text-muted-foreground"}`}
-				/>
-				Smart
-			</Button>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						variant={sortMode === "smart" ? "secondary" : "ghost"}
+						size="sm"
+						className="h-8 gap-1.5 px-2.5 text-xs"
+						onClick={() => onSortModeChange(sortMode === "manual" ? "smart" : "manual")}
+					>
+						<Sparkles
+							className={`h-3.5 w-3.5 ${sortMode === "smart" ? "text-amber-500" : "text-muted-foreground"}`}
+						/>
+						Smart
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>Sort cards by work-next score</TooltipContent>
+			</Tooltip>
 
 			{/* Clear + count */}
 			{hasActiveFilters && (
 				<>
-					<Button
-						variant="ghost"
-						size="sm"
-						className="h-8 px-2 text-xs"
-						onClick={() => onFiltersChange(emptyFilters)}
-					>
-						<X className="mr-1 h-3 w-3" />
-						Clear
-					</Button>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-8 px-2 text-xs"
+								onClick={() => onFiltersChange(emptyFilters)}
+							>
+								<X className="mr-1 h-3 w-3" />
+								Clear
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Clear all filters</TooltipContent>
+					</Tooltip>
 					{isFiltered && (
 						<span className="text-xs text-muted-foreground">
 							{visibleCards} of {totalCards} cards

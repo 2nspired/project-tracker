@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Info, Plus, X } from "lucide-react";
+import { FileText, Info, Loader2, Plus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -13,6 +13,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { findSimilarCards } from "@/lib/card-similarity";
 import { type CardTemplate, cardTemplates } from "@/lib/card-templates";
 import { api } from "@/trpc/react";
@@ -87,26 +88,35 @@ export function CardCreateInline({ columnId, boardId }: { columnId: string; boar
 	if (!isCreating) {
 		return (
 			<div className="flex gap-1">
-				<Button
-					variant="ghost"
-					size="sm"
-					className="flex-1 justify-start text-muted-foreground"
-					onClick={() => setIsCreating(true)}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					Add card
-				</Button>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
+				<Tooltip>
+					<TooltipTrigger asChild>
 						<Button
 							variant="ghost"
-							size="icon"
-							className="h-8 w-8 text-muted-foreground"
-							title="Create from template"
+							size="sm"
+							className="flex-1 justify-start text-muted-foreground"
+							onClick={() => setIsCreating(true)}
 						>
-							<FileText className="h-3.5 w-3.5" />
+							<Plus className="mr-2 h-4 w-4" />
+							Add card
 						</Button>
-					</DropdownMenuTrigger>
+					</TooltipTrigger>
+					<TooltipContent>Add a new card</TooltipContent>
+				</Tooltip>
+				<DropdownMenu>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									size="icon"
+									className="text-muted-foreground"
+								>
+									<FileText className="h-3.5 w-3.5" />
+								</Button>
+							</DropdownMenuTrigger>
+						</TooltipTrigger>
+						<TooltipContent>Create from template</TooltipContent>
+					</Tooltip>
 					<DropdownMenuContent align="end">
 						{cardTemplates.map((t) => (
 							<DropdownMenuItem key={t.name} onClick={() => handleTemplate(t)}>
@@ -122,7 +132,7 @@ export function CardCreateInline({ columnId, boardId }: { columnId: string; boar
 	return (
 		<form onSubmit={handleSubmit} className="space-y-2">
 			{template && (
-				<div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+				<div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
 					<FileText className="h-3 w-3" />
 					{template.name} template
 				</div>
@@ -142,12 +152,12 @@ export function CardCreateInline({ columnId, boardId }: { columnId: string; boar
 			/>
 			{similarCards.length > 0 && (
 				<div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5">
-					<div className="flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+					<div className="flex items-center gap-1 text-2xs font-medium text-amber-600 dark:text-amber-400">
 						<Info className="h-3 w-3" />
 						Similar card{similarCards.length > 1 ? "s" : ""} found
 					</div>
 					{similarCards.map((match) => (
-						<div key={match.id} className="mt-0.5 text-[10px] text-muted-foreground">
+						<div key={match.id} className="mt-0.5 text-2xs text-muted-foreground">
 							<span className="font-mono">#{match.number}</span> <span>{match.title}</span>
 							<span className="ml-1 opacity-50">({Math.round(match.score * 100)}%)</span>
 						</div>
@@ -156,20 +166,26 @@ export function CardCreateInline({ columnId, boardId }: { columnId: string; boar
 			)}
 			<div className="flex gap-2">
 				<Button type="submit" size="sm" disabled={createCard.isPending || !title.trim()}>
+					{createCard.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
 					Add
 				</Button>
-				<Button
-					type="button"
-					variant="ghost"
-					size="sm"
-					onClick={() => {
-						setIsCreating(false);
-						setTitle("");
-						setTemplate(null);
-					}}
-				>
-					<X className="h-4 w-4" />
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							onClick={() => {
+								setIsCreating(false);
+								setTitle("");
+								setTemplate(null);
+							}}
+						>
+							<X className="h-4 w-4" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Cancel</TooltipContent>
+				</Tooltip>
 			</div>
 		</form>
 	);

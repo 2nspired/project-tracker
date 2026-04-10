@@ -16,6 +16,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { Lightbulb } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/ui/empty-state";
 import { hasRole } from "@/lib/column-roles";
 import { computeWorkNextScore } from "@/lib/work-next-score";
 import type { RouterOutputs } from "@/trpc/react";
@@ -249,13 +250,13 @@ export function BoardView({ board }: { board: FullBoard }) {
 
 				{totalCards === 0 && (
 					<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-						<div className="pointer-events-auto rounded-lg border bg-card/95 px-8 py-6 text-center shadow-lg backdrop-blur-sm">
-							<Lightbulb className="mx-auto mb-3 h-8 w-8 text-yellow-500" />
-							<h3 className="text-base font-semibold">This board is empty</h3>
-							<p className="mt-1 max-w-sm text-sm text-muted-foreground">
-								Click the <strong>+</strong> at the bottom of any column to create your first card,
-								or use an AI agent with the MCP tools to populate the board.
-							</p>
+						<div className="pointer-events-auto rounded-lg border bg-card/95 px-8 py-6 shadow-lg backdrop-blur-sm">
+							<EmptyState
+								icon={Lightbulb}
+								title="This board is empty"
+								description="Click the + at the bottom of any column to create your first card, or use an AI agent with the MCP tools to populate the board."
+								className="py-0"
+							/>
 						</div>
 					</div>
 				)}
