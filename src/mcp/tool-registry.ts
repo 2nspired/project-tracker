@@ -55,14 +55,17 @@ type ToolSummary = {
 	destructive?: boolean;
 };
 
+type ParamInfo = {
+	type: string;
+	required: boolean;
+	description: string;
+	default?: unknown;
+	enum?: string[];
+	items?: Record<string, { type: string; required: boolean; description: string }>;
+};
+
 type ToolDetail = ToolSummary & {
-	parameters: Record<string, {
-		type: string;
-		required: boolean;
-		description: string;
-		default?: unknown;
-		enum?: string[];
-	}>;
+	parameters: Record<string, ParamInfo>;
 };
 
 // biome-ignore lint: Zod internals require unsafe casts for schema introspection
@@ -71,8 +74,15 @@ function getDef(schema: z.ZodTypeAny): Record<string, any> {
 	return schema._def as unknown as Record<string, any>;
 }
 
+function unwrapZod(schema: z.ZodTypeAny): z.ZodTypeAny {
+	const def = getDef(schema);
+	if (def.typeName === "ZodOptional" || def.typeName === "ZodDefault" || def.typeName === "ZodNullable") {
+		return unwrapZod(def.innerType as z.ZodTypeAny);
+	}
+	return schema;
+}
+
 function zodTypeToString(schema: z.ZodTypeAny): string {
-	const desc = schema.description;
 	let inner = schema;
 	const def = getDef(inner);
 	if (def.typeName === "ZodOptional" || def.typeName === "ZodDefault") {
@@ -83,12 +93,36 @@ function zodTypeToString(schema: z.ZodTypeAny): string {
 		inner = innerDef.innerType as z.ZodTypeAny;
 		return `${zodTypeToString(inner)} | null`;
 	}
-	if (innerDef.typeName === "ZodArray") return "array";
+	if (innerDef.typeName === "ZodArray") {
+		const elementType = zodTypeToString(innerDef.type as z.ZodTypeAny);
+		return `array<${elementType}>`;
+	}
 	if (innerDef.typeName === "ZodEnum") return "enum";
 	if (innerDef.typeName === "ZodString") return "string";
 	if (innerDef.typeName === "ZodNumber") return "number";
 	if (innerDef.typeName === "ZodBoolean") return "boolean";
-	return desc ?? "unknown";
+	if (innerDef.typeName === "ZodObject") return "object";
+	if (innerDef.typeName === "ZodRecord") return "record";
+	if (innerDef.typeName === "ZodLiteral") return String(innerDef.value);
+	if (innerDef.typeName === "ZodUnion") {
+		const options = (innerDef.options as z.ZodTypeAny[]).map(zodTypeToString);
+		return options.join(" | ");
+	}
+	if (innerDef.typeName === "ZodAny" || innerDef.typeName === "ZodUnknown") return "any";
+	return schema.description ?? "unknown";
+}
+
+function extractObjectShape(schema: z.ZodObject<z.ZodRawShape>): Record<string, { type: string; required: boolean; description: string }> {
+	const result: Record<string, { type: string; required: boolean; description: string }> = {};
+	for (const [key, value] of Object.entries(schema.shape)) {
+		const field = value as z.ZodTypeAny;
+		result[key] = {
+			type: zodTypeToString(field),
+			required: !field.isOptional(),
+			description: field.description ?? "",
+		};
+	}
+	return result;
 }
 
 function extractParamInfo(schema: z.ZodObject<z.ZodRawShape>): ToolDetail["parameters"] {
@@ -102,6 +136,7 @@ function extractParamInfo(schema: z.ZodObject<z.ZodRawShape>): ToolDetail["param
 
 		let enumValues: string[] | undefined;
 		let defaultValue: unknown;
+		let items: ParamInfo["items"];
 
 		// Extract enum values
 		let inner = zodField;
@@ -118,12 +153,24 @@ function extractParamInfo(schema: z.ZodObject<z.ZodRawShape>): ToolDetail["param
 			enumValues = unwrappedDef.values as string[];
 		}
 
+		// Extract array item shape when element is an object
+		const unwrapped = unwrapZod(zodField);
+		const unwrappedFieldDef = getDef(unwrapped);
+		if (unwrappedFieldDef.typeName === "ZodArray") {
+			const elementSchema = unwrapZod(unwrappedFieldDef.type as z.ZodTypeAny);
+			const elementDef = getDef(elementSchema);
+			if (elementDef.typeName === "ZodObject") {
+				items = extractObjectShape(elementSchema as z.ZodObject<z.ZodRawShape>);
+			}
+		}
+
 		result[key] = {
 			type: zodTypeToString(zodField),
 			required: !isOptional && defaultValue === undefined,
 			description: zodField.description ?? "",
 			...(defaultValue !== undefined && { default: defaultValue }),
 			...(enumValues && { enum: enumValues }),
+			...(items && { items }),
 		};
 	}
 

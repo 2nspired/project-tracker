@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getHorizon } from "../../lib/column-roles.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { AGENT_NAME, resolveCardId, ok, err, safeExecute } from "../utils.js";
+import { AGENT_NAME, resolveCardId, ok, err, errWithToolHint, safeExecute } from "../utils.js";
 
 // ─── Focus Context ─────────────────────────────────────────────────
 
@@ -114,13 +114,17 @@ registerExtendedTool("getFocusContext", {
 				where: { projectId_name: { projectId: board.projectId, name: milestone } },
 				select: { id: true, name: true, description: true, targetDate: true },
 			});
-			if (!ms) return err(`Milestone "${milestone}" not found.`, "Use getRoadmap to see valid milestone names.");
+			if (!ms) return errWithToolHint(`Milestone "${milestone}" not found.`, "getRoadmap", { projectId: '"<projectId>"' });
 
 			const cards = await db.card.findMany({
 				where: { milestoneId: ms.id, column: { boardId } },
 				include: {
 					column: { select: { name: true, role: true } },
 					checklists: { select: { completed: true } },
+					relationsTo: {
+						where: { type: "blocks" },
+						include: { fromCard: { select: { number: true, title: true } } },
+					},
 				},
 				orderBy: { position: "asc" },
 			});
@@ -130,14 +134,17 @@ registerExtendedTool("getFocusContext", {
 				select: { id: true, title: true, status: true },
 			});
 
-			const grouped: Record<string, Array<{ ref: string; title: string; priority: string; checklist: string }>> = { now: [], next: [], later: [], done: [] };
+			type MilestoneCard = { ref: string; title: string; priority: string; checklist: string; blockedBy?: Array<{ ref: string; title: string }> };
+			const grouped: Record<string, MilestoneCard[]> = { now: [], next: [], later: [], done: [] };
 			for (const c of cards) {
 				const horizon = getHorizon(c.column);
 				const done = c.checklists.filter((cl) => cl.completed).length;
 				const total = c.checklists.length;
+				const blockers = c.relationsTo.map((r) => ({ ref: `#${r.fromCard.number}`, title: r.fromCard.title }));
 				grouped[horizon].push({
 					ref: `#${c.number}`, title: c.title, priority: c.priority,
 					checklist: total > 0 ? `${done}/${total}` : "",
+					...(blockers.length > 0 && { blockedBy: blockers }),
 				});
 			}
 

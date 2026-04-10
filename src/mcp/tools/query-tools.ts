@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { hasRole } from "../../lib/column-roles.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { ok, err, safeExecute } from "../utils.js";
+import { ok, err, errWithToolHint, safeExecute } from "../utils.js";
 
 // ─── Similarity utilities (inlined to avoid ESM import issues) ────
 
@@ -110,7 +111,7 @@ registerExtendedTool("queryCards", {
 						name: { equals: milestoneName as string },
 					},
 				});
-				if (!milestone) return err(`Milestone "${milestoneName}" not found.`, "Use getBoard to see available milestones.");
+				if (!milestone) return errWithToolHint(`Milestone "${milestoneName}" not found.`, "getRoadmap", { projectId: '"<projectId>"' });
 				filters.milestoneId = milestone.id;
 			} else {
 				// No cards on board yet — look up milestone via board's project
@@ -125,7 +126,7 @@ registerExtendedTool("queryCards", {
 							name: { equals: milestoneName as string },
 						},
 					});
-					if (!milestone) return err(`Milestone "${milestoneName}" not found.`, "Use getBoard to see available milestones.");
+					if (!milestone) return errWithToolHint(`Milestone "${milestoneName}" not found.`, "getRoadmap", { projectId: '"<projectId>"' });
 					filters.milestoneId = milestone.id;
 				}
 			}
@@ -207,13 +208,23 @@ registerExtendedTool("queryCards", {
 
 registerExtendedTool("auditBoard", {
 	category: "discovery",
-	description: "Board health check: find cards missing priority, tags, milestones, or checklists. Groups by issue type for quick triage.",
+	description: "Board health check: find cards missing priority, tags, milestones, or checklists. Groups by issue type for quick triage. Supports custom weights for health score.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		excludeDone: z.boolean().default(true).describe("Skip Done/Parking columns (default true)"),
+		weights: z.object({
+			priority: z.number().default(1),
+			tags: z.number().default(1),
+			milestone: z.number().default(1),
+			checklist: z.number().default(1),
+			assignee: z.number().default(1),
+		}).default({ priority: 1, tags: 1, milestone: 1, checklist: 1, assignee: 1 }).describe("Custom weights for health score dimensions (default: all 1). Set to 0 to exclude a dimension.").optional(),
 	}),
 	annotations: { readOnlyHint: true },
-	handler: ({ boardId, excludeDone }) => safeExecute(async () => {
+	handler: ({ boardId, excludeDone, weights: rawWeights }) => safeExecute(async () => {
+		const w = (rawWeights ?? { priority: 1, tags: 1, milestone: 1, checklist: 1, assignee: 1 }) as {
+			priority: number; tags: number; milestone: number; checklist: number; assignee: number;
+		};
 		const board = await db.board.findUnique({
 			where: { id: boardId as string },
 			include: {
@@ -234,7 +245,7 @@ registerExtendedTool("auditBoard", {
 
 		let columns = board.columns;
 		if (excludeDone) {
-			columns = columns.filter((col) => col.role !== "done" && col.role !== "parking");
+			columns = columns.filter((col) => !hasRole(col, "done") && !hasRole(col, "parking"));
 		}
 
 		const allCards = columns.flatMap((col) =>
@@ -248,12 +259,29 @@ registerExtendedTool("auditBoard", {
 		const noAssignee = allCards.filter((c) => !c.assignee).map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
 
 		const totalCards = allCards.length;
-		const issues = missingPriority.length + missingTags.length + noMilestone.length + emptyChecklist.length + noAssignee.length;
+		const totalWeight = w.priority + w.tags + w.milestone + w.checklist + w.assignee;
+		const weightedIssues =
+			missingPriority.length * w.priority +
+			missingTags.length * w.tags +
+			noMilestone.length * w.milestone +
+			emptyChecklist.length * w.checklist +
+			noAssignee.length * w.assignee;
+		const maxScore = totalCards * totalWeight;
+		const healthScore = maxScore > 0 ? `${Math.round(((maxScore - weightedIssues) / maxScore) * 100)}%` : "N/A";
 
 		return ok({
 			totalCards,
-			totalIssues: issues,
-			healthScore: totalCards > 0 ? `${Math.round(((totalCards * 5 - issues) / (totalCards * 5)) * 100)}%` : "N/A",
+			healthScore,
+			scoring: {
+				weights: w,
+				perDimension: {
+					priority: { issues: missingPriority.length, weight: w.priority },
+					tags: { issues: missingTags.length, weight: w.tags },
+					milestone: { issues: noMilestone.length, weight: w.milestone },
+					checklist: { issues: emptyChecklist.length, weight: w.checklist },
+					assignee: { issues: noAssignee.length, weight: w.assignee },
+				},
+			},
 			missingPriority: { count: missingPriority.length, cards: missingPriority },
 			missingTags: { count: missingTags.length, cards: missingTags },
 			noMilestone: { count: noMilestone.length, cards: noMilestone },

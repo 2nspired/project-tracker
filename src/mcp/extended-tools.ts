@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "./db.js";
 import { registerExtendedTool } from "./tool-registry.js";
-import { AGENT_NAME, resolveCardId, resolveOrCreateMilestone, ok, err, safeExecute } from "./utils.js";
+import { AGENT_NAME, resolveCardId, resolveOrCreateMilestone, ok, err, errWithToolHint, safeExecute } from "./utils.js";
 import { toToon } from "./toon.js";
 
 // ─── Discovery ──────────────────────────────────────────────────────
@@ -458,6 +458,41 @@ registerExtendedTool("bulkAddChecklistItems", {
 	}),
 });
 
+registerExtendedTool("bulkAddChecklistItemsMulti", {
+	category: "checklist",
+	description: "Add checklist items to multiple cards in one call. Accepts an array of { cardId, items } objects.",
+	parameters: z.object({
+		cards: z.array(z.object({
+			cardId: z.string().describe("Card UUID or #number"),
+			items: z.array(z.string()).min(1).describe("Checklist item texts"),
+		})).min(1).describe("Array of card + items pairs"),
+	}),
+	handler: ({ cards }) => safeExecute(async () => {
+		const results: Array<{ cardRef: string; added: number; items: Array<{ id: string; text: string }> }> = [];
+		const errors: string[] = [];
+
+		for (const entry of cards as Array<{ cardId: string; items: string[] }>) {
+			const id = await resolveCardId(entry.cardId);
+			if (!id) { errors.push(`Card "${entry.cardId}" not found`); continue; }
+
+			const maxPos = await db.checklistItem.aggregate({ where: { cardId: id }, _max: { position: true } });
+			let pos = (maxPos._max.position ?? -1) + 1;
+
+			const created: Array<{ id: string; text: string }> = [];
+			for (const text of entry.items) {
+				const item = await db.checklistItem.create({
+					data: { cardId: id, text, position: pos++ },
+				});
+				created.push({ id: item.id, text: item.text });
+			}
+
+			results.push({ cardRef: entry.cardId, added: created.length, items: created });
+		}
+
+		return ok({ results, errors: errors.length > 0 ? errors : undefined });
+	}),
+});
+
 registerExtendedTool("bulkSetMilestone", {
 	category: "milestones",
 	description: "Assign a milestone to multiple cards at once. Auto-creates milestone if name is new.",
@@ -517,7 +552,7 @@ registerExtendedTool("toggleChecklistItem", {
 	}),
 	handler: ({ checklistItemId, completed }) => safeExecute(async () => {
 		const item = await db.checklistItem.findUnique({ where: { id: checklistItemId as string } });
-		if (!item) return err("Checklist item not found.", "Get item IDs from getBoard or getCard response.");
+		if (!item) return err("Checklist item not found.", "Get item IDs from getBoard (full mode, not summary) or getFocusContext({ boardId, cardRef: '#number' }).");
 
 		const updated = await db.checklistItem.update({
 			where: { id: checklistItemId as string },
@@ -547,6 +582,36 @@ registerExtendedTool("deleteChecklistItem", {
 
 		await db.checklistItem.delete({ where: { id: checklistItemId as string } });
 		return ok({ deleted: true, text: item.text });
+	}),
+});
+
+registerExtendedTool("reorderChecklistItem", {
+	category: "checklist",
+	description: "Move a checklist item to a new position within its card. Other items shift to accommodate.",
+	parameters: z.object({
+		checklistItemId: z.string().describe("UUID of the checklist item to move"),
+		position: z.number().int().min(0).describe("New zero-based position index"),
+	}),
+	handler: ({ checklistItemId, position }) => safeExecute(async () => {
+		const item = await db.checklistItem.findUnique({ where: { id: checklistItemId as string } });
+		if (!item) return err("Checklist item not found.");
+
+		const allItems = await db.checklistItem.findMany({
+			where: { cardId: item.cardId },
+			orderBy: { position: "asc" },
+		});
+
+		const targetPos = Math.min(position as number, allItems.length - 1);
+		const filtered = allItems.filter((i) => i.id !== item.id);
+		filtered.splice(targetPos, 0, item);
+
+		for (let i = 0; i < filtered.length; i++) {
+			if (filtered[i].position !== i) {
+				await db.checklistItem.update({ where: { id: filtered[i].id }, data: { position: i } });
+			}
+		}
+
+		return ok({ id: item.id, text: item.text, newPosition: targetPos });
 	}),
 });
 
@@ -587,7 +652,7 @@ registerExtendedTool("deleteComment", {
 	annotations: { destructiveHint: true },
 	handler: ({ commentId }) => safeExecute(async () => {
 		const comment = await db.comment.findUnique({ where: { id: commentId as string } });
-		if (!comment) return err("Comment not found.", "Use listComments to get valid comment IDs.");
+		if (!comment) return errWithToolHint("Comment not found.", "listComments", { cardId: '"#number"' });
 
 		await db.comment.delete({ where: { id: commentId as string } });
 		return ok({ deleted: true, content: comment.content.substring(0, 50) });
@@ -632,7 +697,7 @@ registerExtendedTool("updateMilestone", {
 	annotations: { idempotentHint: true },
 	handler: ({ milestoneId, name, description, targetDate }) => safeExecute(async () => {
 		const existing = await db.milestone.findUnique({ where: { id: milestoneId as string } });
-		if (!existing) return err("Milestone not found.", "Use getRoadmap or listMilestones to find valid milestone IDs.");
+		if (!existing) return errWithToolHint("Milestone not found.", "listMilestones", { projectId: '"<projectId>"' });
 
 		const milestone = await db.milestone.update({
 			where: { id: milestoneId as string },
@@ -675,7 +740,7 @@ registerExtendedTool("setMilestone", {
 				resolvedMilestoneId = null;
 			} else {
 				const milestone = await db.milestone.findUnique({ where: { id: msId as string } });
-				if (!milestone) return err(`Milestone "${msId}" not found.`, "Use listMilestones to find valid milestone IDs.");
+				if (!milestone) return errWithToolHint(`Milestone "${msId}" not found.`, "listMilestones", { projectId: '"<projectId>"' });
 				resolvedMilestoneId = milestone.id;
 				resolvedName = milestone.name;
 			}
@@ -790,7 +855,7 @@ registerExtendedTool("updateNote", {
 	annotations: { idempotentHint: true },
 	handler: ({ noteId, title, content, tags }) => safeExecute(async () => {
 		const existing = await db.note.findUnique({ where: { id: noteId as string } });
-		if (!existing) return err("Note not found.", "Use listNotes to find valid note IDs.");
+		if (!existing) return errWithToolHint("Note not found.", "listNotes", { projectId: '"<projectId>"' });
 
 		const note = await db.note.update({
 			where: { id: noteId as string },

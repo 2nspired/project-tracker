@@ -47,7 +47,7 @@ server.registerTool(
 			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
 			columns: z.array(z.string()).optional().describe("Only include these columns by name (e.g. ['Backlog', 'To Do', 'In Progress'])"),
 			excludeDone: z.boolean().default(false).describe("Exclude columns with role 'done' or 'parking' — great for reducing payload"),
-			summary: z.boolean().default(false).describe("Lightweight mode: returns only ref, title, priority, tags, milestone, checklist counts — no descriptions or checklist items"),
+			summary: z.boolean().optional().describe("Lightweight mode: returns only ref, title, priority, tags, milestone, checklist counts — no descriptions or checklist items. Auto-enabled when board has >50 cards; pass false to override."),
 		},
 		annotations: { readOnlyHint: true },
 	},
@@ -93,17 +93,41 @@ server.registerTool(
 				filteredColumns = filteredColumns.filter((col) => !hasRole(col, "done") && !hasRole(col, "parking"));
 			}
 
+			// Auto-summary: when summary not explicitly set and board is large
+			const totalCardCount = filteredColumns.reduce((sum, col) => sum + col.cards.length, 0);
+			const autoSummaryApplied = summaryMode === undefined && totalCardCount > 50;
+			const effectiveSummary = summaryMode === true || autoSummaryApplied;
+
+			// Pre-compute milestone progress for summary mode
+			const milestoneProgress = new Map<string, { done: number; total: number }>();
+			if (effectiveSummary) {
+				for (const col of filteredColumns) {
+					for (const card of col.cards) {
+						if (card.milestone) {
+							const entry = milestoneProgress.get(card.milestone.id) ?? { done: 0, total: 0 };
+							entry.total++;
+							if (hasRole(col, "done")) entry.done++;
+							milestoneProgress.set(card.milestone.id, entry);
+						}
+					}
+				}
+			}
+
 			const result = {
 				id: board.id,
 				name: board.name,
 				project: { id: board.project.id, name: board.project.name },
+				...(autoSummaryApplied && {
+					_note: `Auto-summary applied (${totalCardCount} cards). Pass summary: false for full details.`,
+				}),
 				columns: filteredColumns.map((col) => ({
 					id: col.id,
 					name: col.name,
-					description: summaryMode ? undefined : col.description,
+					description: effectiveSummary ? undefined : col.description,
 					isParking: col.isParking,
 					cards: col.cards.map((card) => {
-						if (summaryMode) {
+						if (effectiveSummary) {
+							const msProgress = card.milestone ? milestoneProgress.get(card.milestone.id) : null;
 							return {
 								number: card.number,
 								ref: `#${card.number}`,
@@ -111,6 +135,7 @@ server.registerTool(
 								priority: card.priority,
 								tags: JSON.parse(card.tags),
 								milestone: card.milestone?.name ?? null,
+								...(msProgress && { milestoneProgress: `${Math.round((msProgress.done / msProgress.total) * 100)}%` }),
 								checklist: { total: card.checklists.length, done: card.checklists.filter((c) => c.completed).length },
 								assignee: card.assignee,
 							};
@@ -641,7 +666,7 @@ server.registerTool(
 			params: z
 				.record(z.string(), z.unknown())
 				.default({})
-				.describe("Tool parameters as key-value object"),
+				.describe("Tool parameters — use getTools({ tool: 'toolName' }) to see required params and their types"),
 		},
 	},
 	async ({ tool, params }) => {

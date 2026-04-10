@@ -116,6 +116,14 @@ export function err(message: string, hint?: string): ToolResult {
 	return { content: [{ type: "text" as const, text }], isError: true };
 }
 
+/** Format an error with a runnable tool hint so the agent can fix the issue immediately. */
+export function errWithToolHint(message: string, toolName: string, exampleParams: Record<string, string>): ToolResult {
+	const paramStr = Object.entries(exampleParams)
+		.map(([k, v]) => `${k}: ${v}`)
+		.join(", ");
+	return err(message, `Fix: runTool({ tool: "${toolName}", params: { ${paramStr} } })`);
+}
+
 // ─── Safe Execution Wrapper ─────────────────────────────────────────
 
 /**

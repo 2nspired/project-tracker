@@ -24,6 +24,12 @@ export async function validateRepo(repoPath: string): Promise<boolean> {
 	}
 }
 
+export async function detectGitRepo(): Promise<string | null> {
+	const cwd = process.cwd();
+	const isRepo = await validateRepo(cwd);
+	return isRepo ? cwd : null;
+}
+
 export async function gitLog(repoPath: string, limit: number, since?: string): Promise<GitCommit[]> {
 	const args = ["log", `--max-count=${limit}`, "--format=%H%x00%s%x00%an%x00%aI", "--no-merges"];
 	if (since) args.push(`--since=${since}`);
