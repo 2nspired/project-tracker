@@ -51,6 +51,24 @@ Before calling `saveHandoff` at the end of a session, call `reviewSessionFacts(p
 - **`indexed`** — queryable on demand (default, good for most facts)
 - **`surfaced`** — visible in board UI (reserved for future use)
 
+## Code Facts
+
+Code facts record assertions about specific files or symbols in the codebase. Unlike context entries (which are project-level knowledge), code facts are anchored to file paths and automatically tracked for staleness when their cited file changes.
+
+Use `saveCodeFact` to record facts like:
+- "This module handles all authentication middleware" (`path: "src/auth/middleware.ts"`)
+- "The `processQueue` function is the entry point for background jobs" (`path: "src/workers/queue.ts"`, `symbol: "processQueue"`)
+
+**No line numbers** — they rot too fast across refactors. Use file path + optional symbol name instead.
+
+**`needsRecheck`** — Advisory flag, auto-set when the cited file's latest commit differs from `recordedAtSha`. Use `listCodeFacts` with `needsRecheck: true` to find facts that may need updating.
+
+## Knowledge Search
+
+`queryKnowledge(projectId, topic)` searches across all project knowledge: cards, comments, decisions, notes, handoffs, code facts, context entries, and indexed repo markdown files. Uses SQLite FTS5 with Porter stemming for relevance-ranked results.
+
+Before first use (or after significant changes), call `rebuildKnowledgeIndex(projectId)` to populate the search index. The index covers repo `*.md` files up to 100KB each, max depth 5 directories.
+
 ## Column Definitions
 
 | Column | Purpose | When to move here |

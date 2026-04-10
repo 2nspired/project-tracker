@@ -45,7 +45,7 @@ The smallest intervention that proves the shared-surface principle on one high-v
 
 Deferred to a future release. The `renderStatus` output is MCP-only for now. A dashboard widget or dedicated page rendering the same markdown is a natural v2 addition but is not abandoned.
 
-## Phase 2: Memory Absorption + Staleness Registry (Current)
+## Phase 2: Memory Absorption + Staleness Registry
 
 Move persistent context from scattered files into structured, queryable entries with staleness tracking.
 
@@ -66,13 +66,21 @@ Move persistent context from scattered files into structured, queryable entries 
 - `indexed` — queryable but not surfaced in UI main flow (default)
 - `surfaced` — appears in the board UI main flow
 
-## Phase 3: Code Facts + FTS5 Cross-Source Search
+## Phase 3: Code Facts + FTS5 Cross-Source Search (Current)
 
 Structured code facts and full-text search across all knowledge sources.
 
-- **`CodeFact` model** — `{ path, symbol?, fact, author, recordedAtSha, createdAt, lastVerifiedAt }`. File-level primary, symbol-level optional. No line numbers (they rot too fast). Manual save only in v1, `needs_recheck` advisory flag.
-- **FTS5 `queryKnowledge(topic)`** across cards, comments, decisions, notes, handoffs, code facts, and indexed repo markdown files
-- **Doc indexing** — scan project repo for `*.md`, store in FTS5 virtual table
+### What Shipped
+
+**`CodeFact` model** — `{ path, symbol?, fact, author, recordedAtSha, needsRecheck, lastVerifiedAt }`. File-level primary, symbol-level optional. No line numbers (they rot too fast). Manual save only in v1, `needsRecheck` advisory flag auto-set when the cited file changes.
+
+CRUD via `saveCodeFact`, `listCodeFacts`, `getCodeFact`, `deleteCodeFact` MCP tools. Staleness integrated into the existing `checkStaleness` pipeline — code facts use file-cited staleness on their `path` field.
+
+**FTS5 `queryKnowledge(topic)`** — Full-text search via SQLite FTS5 virtual table with Porter stemming. Searches across cards, comments, decisions, notes, handoffs, code facts, persistent context entries, and indexed repo markdown files. Returns ranked results with source references and highlighted snippets.
+
+**`rebuildKnowledgeIndex(projectId)`** — Rebuilds the FTS5 index from all sources. Scans the project repo for `*.md` files (max depth 5, skips node_modules/dist/.git etc., caps files at 100KB). Reports indexed count by source type.
+
+**Doc indexing** — Repo markdown files are scanned during `rebuildKnowledgeIndex` and indexed in the FTS5 virtual table alongside structured data. File SHA tracked for freshness. Content capped at 50KB per file.
 
 ## Phase 4: Measurement Facts + Multi-Agent Conflict Resolution
 

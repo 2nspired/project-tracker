@@ -7,6 +7,7 @@ import { db } from "./db.js";
 import { registerResources } from "./resources.js";
 import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js";
 import { toToon } from "./toon.js";
+import { initFts5 } from "./fts.js";
 import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
 import {
 	AGENT_NAME,
@@ -32,6 +33,7 @@ import "./tools/onboarding-tools.js";
 import "./tools/status-tools.js";
 import "./tools/context-entry-tools.js";
 import "./tools/codefact-tools.js";
+import "./tools/knowledge-tools.js";
 
 const server = new McpServer({
 	name: "project-tracker",
@@ -1472,10 +1474,13 @@ registerResources(server);
 // ─── Start ──────────────────────────────────────────────────────────
 
 async function main() {
+	// Initialize FTS5 virtual table for cross-source knowledge search
+	await initFts5().catch((e) => console.error("FTS5 init failed (non-fatal):", e));
+
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
 	console.error(
-		`Project Tracker MCP v2.0 — 10 essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
+		`Project Tracker MCP v2.1 — 10 essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
 	);
 }
 
