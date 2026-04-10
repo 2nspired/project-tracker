@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./db.js";
 import { toToon } from "./toon.js";
+import { generateStatusMarkdown } from "./tools/status-tools.js";
 
 /**
  * Register MCP resources — read-only views of tracker data.
@@ -187,6 +188,65 @@ export function registerResources(server: McpServer) {
 					uri: uri.href,
 					text: JSON.stringify(data, null, 2),
 					mimeType: "application/json",
+				}],
+			};
+		},
+	);
+
+	// ─── Status resource ──────────────────────────────────────────────
+	server.registerResource(
+		"status",
+		new ResourceTemplate("status://project/{slug}", {
+			list: async () => {
+				const projects = await db.project.findMany({
+					orderBy: { updatedAt: "desc" },
+					select: { slug: true, name: true },
+				});
+				return {
+					resources: projects.map((p) => ({
+						uri: `status://project/${p.slug}`,
+						name: `${p.name} — Status`,
+						mimeType: "text/markdown",
+					})),
+				};
+			},
+		}),
+		{
+			title: "Project Status",
+			description:
+				"Board-derived STATUS.md equivalent — milestones, components, metrics. Auto-loadable replacement for hand-maintained STATUS.md files.",
+		},
+		async (uri, { slug }) => {
+			const project = await db.project.findUnique({
+				where: { slug: slug as string },
+				select: { id: true },
+			});
+			if (!project) {
+				return {
+					contents: [{
+						uri: uri.href,
+						text: `Project with slug "${slug}" not found.`,
+						mimeType: "text/plain",
+					}],
+				};
+			}
+
+			const result = await generateStatusMarkdown(project.id);
+			if ("error" in result) {
+				return {
+					contents: [{
+						uri: uri.href,
+						text: result.error,
+						mimeType: "text/plain",
+					}],
+				};
+			}
+
+			return {
+				contents: [{
+					uri: uri.href,
+					text: result.markdown,
+					mimeType: "text/markdown",
 				}],
 			};
 		},
