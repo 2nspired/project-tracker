@@ -6,30 +6,43 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 
 **The solution:** A shared workspace with persistent memory. You see cards, columns, and progress in the browser. Your agent sees structured context it can read and write through MCP tools. Session handoffs carry context between conversations — the next session picks up exactly where the last one left off.
 
-## What It Looks Like
+## Features
 
-- Kanban board with drag-and-drop
-- Cards with priority, tags, checklists, comments, and activity log
+**Board**
+- Kanban board with drag-and-drop columns and cards
+- Cards with priority, tags, checklists, markdown descriptions, comments, and activity log
 - Card numbers (`#1`, `#2`) for easy reference in conversation
 - Card templates (Bug Report, Feature, Spike, Tech Debt, Epic)
 - Card dependencies — blocks, related, parent/child relationships with blocked indicators
-- Architectural decision records linked to cards
-- Git commit auto-linking — commits referencing `#N` are linked to cards
-- Session handoffs — agents save context for the next conversation
-- Agent scratchpad — ephemeral working memory that auto-expires
+- Card similarity detection — warns when creating duplicates
+- Column roles — customizable column purposes (backlog, active, done, parking)
+- Board Pulse — real-time health overview (velocity, bottlenecks, stale cards)
+- Work-Next Score — smart card ranking to suggest what to work on next
+
+**Views**
 - Roadmap view with milestone horizons and river flow visualization
-- Cross-project dashboard
+- Timeline view for card history
+- Cross-project dashboard with responsive layout
 - Notes scratch pad with promote-to-card
 - Activity feed showing agent and human actions
-- Parking Lot column for ideas that aren't actionable yet
-- Project colors for quick visual identification
-- Real-time updates via SSE — board refreshes instantly when agents make changes (falls back to polling)
+
+**Project management**
+- Project favorites and color coding for quick identification
+- Architectural decision records linked to cards
+- Git commit auto-linking — commits referencing `#N` are linked to cards
+
+**Agent integration**
+- Session handoffs — agents save context for the next conversation
+- Agent scratchpad — ephemeral working memory that auto-expires
 - Multi-agent support (Claude, Codex, etc.) via `AGENT_NAME` env var
+- Real-time updates via SSE — board refreshes instantly when agents make changes (falls back to polling)
 - TOON encoding for ~40% token savings in agent responses
 - Board filtering — fetch specific columns, exclude Done, summary mode for lightweight views
 - Bulk operations — update cards, add checklists, set milestones in batch
 - Board audit — find cards missing priority, tags, milestones, or checklists
 - Schema version detection with migration hints
+
+For agent workflow conventions and board usage guidelines, see [AGENTS.md](AGENTS.md).
 
 ## Quick Start
 
@@ -99,7 +112,7 @@ Use `end-session` before wrapping up to save handoff for the next session.
 Reference cards by #number in conversation (e.g. "working on #7").
 ```
 
-See [AGENTS.md](AGENTS.md) for the full shared agent guidelines (column definitions, workflow conventions, efficiency tips).
+See [AGENTS.md](AGENTS.md) for the full agent guidelines (column definitions, workflow conventions, efficiency tips).
 
 ## How It Works
 
@@ -129,45 +142,45 @@ Please run the connect script at /path/to/project-tracker/scripts/connect.sh fro
 
 Replace `/path/to/project-tracker` with the actual path where you cloned this repo.
 
-## What the Agent Can Do
+## MCP Tools
 
-The tracker uses an **Essential + Catalog** pattern: 10 essential tools are always loaded in the agent's context. 45 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
+The tracker uses an **Essential + Catalog** pattern: 10 essential tools are always loaded in the agent's context. 51 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
 
-### Essential MCP Tools (10)
+### Essential Tools (10)
 
 | Tool | What it does |
 | --- | --- |
-| `getBoard` | Board state with filtering — `columns` to fetch specific columns, `excludeDone` to skip Done/Parking, `summary` for lightweight view. TOON format by default. |
+| `getBoard` | Board state with filtering — `columns`, `excludeDone`, `summary`. TOON format by default. |
 | `createCard` | Create a card in a column (by name); auto-creates milestones |
 | `updateCard` | Update any card fields |
 | `moveCard` | Move to column by name (e.g. "In Progress") |
 | `addComment` | Add a comment — decisions, blockers, context |
 | `searchCards` | Search across all projects by text or tag |
 | `getRoadmap` | Cards grouped by milestone and horizon (now/next/later/done) |
-| `checkOnboarding` | Detect setup state + return project/board list inline — one call to get started |
-| `getTools` | Browse 51 extended tools by category |
+| `checkOnboarding` | Detect setup state + return project/board list inline |
+| `getTools` | Browse extended tools by category |
 | `runTool` | Execute any extended tool by name |
 
-### Extended Tool Categories (51 tools)
+### Extended Tools (51)
 
-| Category | Tools | What they do |
+| Category | Count | Examples |
 | --- | --- | --- |
-| `discovery` | 8 | List projects/boards/cards, stats, smart queries, board audit, similarity search, work-next suggestions |
+| `discovery` | 8 | List projects/boards, stats, board audit, similarity search, work-next |
 | `cards` | 5 | Bulk create, bulk update, templates, bulk move, delete |
-| `checklist` | 4 | Add, bulk add, toggle, delete checklist items |
-| `comments` | 2 | List and delete comments |
-| `milestones` | 5 | Create, update, set (by ID or name), bulk set, list with completion % |
-| `notes` | 4 | Create, update, list, delete project notes |
-| `activity` | 1 | View recent activity history |
-| `setup` | 4 | Create projects, columns, set repo path, seed tutorial |
+| `checklist` | 4 | Add, bulk add, toggle, delete |
+| `milestones` | 5 | Create, update, set, bulk set, list with completion % |
+| `notes` | 4 | Create, update, list, delete |
 | `relations` | 3 | Link/unlink cards, get blockers |
 | `session` | 3 | Save/load handoffs, board diff |
 | `decisions` | 3 | Record, list, update architectural decisions |
 | `scratch` | 4 | Set, get, list, clear ephemeral agent notes |
 | `git` | 4 | Sync commits, get log, code map, card commits |
+| `comments` | 2 | List and delete comments |
+| `setup` | 4 | Create projects, columns, set repo path, seed tutorial |
+| `activity` | 1 | Recent activity history |
 | `context` | 1 | Focus context bundles (card/milestone/tag scope) |
 
-### MCP Prompts (8)
+### Prompts (8)
 
 | Prompt | Purpose |
 | --- | --- |
@@ -180,7 +193,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `setup-project` | Step-by-step guide for setting up a new project on the tracker. |
 | `holistic-review` | Review board against actual codebase — sync board state with reality. |
 
-### MCP Resources (4)
+### Resources (4)
 
 | Resource URI | What it provides |
 | --- | --- |
@@ -189,15 +202,9 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `tracker://board/{boardId}/handoff` | Latest session handoff |
 | `tracker://project/{projectId}/decisions` | All project decisions |
 
-### Card References
+Cards get sequential numbers per project (`#1`, `#2`, `#3`). Reference them in conversation — "working on #7", "move #12 to Done" — the agent resolves them automatically.
 
-Cards get sequential numbers per project (`#1`, `#2`, `#3`). Use these in conversation:
-
-- "Working on #7"
-- "Move #12 to Done"
-- "Add a checklist item to #3"
-
-The agent resolves `#number` references automatically — no UUIDs needed.
+For detailed agent workflow guidelines, see [AGENTS.md](AGENTS.md).
 
 ## Session Lifecycle
 
@@ -328,52 +335,25 @@ No setup required — create tags as you go, like GitHub labels.
 
 ```
 src/
-├── app/(main)/                    # App routes
-│   ├── page.tsx                   # Home (project list)
-│   ├── dashboard/                 # Cross-project dashboard
-│   ├── notes/                     # Notes scratch pad
-│   └── projects/[id]/boards/[id]/ # Kanban board
-│       ├── timeline/              # Card timeline view
-│       └── roadmap/               # Milestone roadmap view
+├── app/(main)/                    # App routes (projects, boards, dashboard, notes)
 ├── components/
 │   ├── board/                     # Board UI (columns, cards, detail sheet, toolbar)
-│   └── roadmap/                   # Roadmap visualization components
+│   ├── roadmap/                   # Roadmap visualization
+│   └── ui/                        # Shared UI components (shadcn/ui)
 ├── server/
 │   ├── services/                  # Business logic (ServiceResult pattern)
 │   └── api/routers/               # tRPC routers
 ├── mcp/
 │   ├── server.ts                  # MCP server (10 essential tools, 8 prompts)
 │   ├── tool-registry.ts           # Extended tool catalog (51 tools, 14 categories)
-│   ├── extended-tools.ts          # Core extended tools
-│   ├── tools/                     # Domain-split tool files
-│   │   ├── relation-tools.ts      # Card dependencies
-│   │   ├── session-tools.ts       # Session handoff + diff
-│   │   ├── decision-tools.ts      # Architectural decisions
-│   │   ├── scratch-tools.ts       # Agent scratchpad
-│   │   ├── git-tools.ts           # Git commit linking
-│   │   ├── query-tools.ts         # Smart queries
-│   │   ├── context-tools.ts       # Focus context bundles
-│   │   └── onboarding-tools.ts    # Tutorial project seeding
-│   ├── resources.ts               # 4 MCP resources
-│   ├── git-utils.ts               # Git child_process wrapper
-│   ├── toon.ts                    # TOON compact encoding
-│   └── utils.ts                   # Shared helpers, version detection
-├── lib/
-│   ├── schemas/                   # Zod validation
-│   ├── onboarding/                # Teaching project data + seed runner
-│   └── card-templates.ts          # Card templates
+│   └── tools/                     # Domain-split tool files
+├── lib/                           # Schemas, utilities, templates
 └── trpc/                          # tRPC React client
-scripts/
-├── connect.sh                     # Connect any project to the tracker
-├── setup.ts                       # Interactive setup wizard
-└── dev.ts                         # Smart dev script (auto-creates DB)
-prisma/
-├── schema.prisma                  # Data model (15 models)
-└── seed.ts                        # CLI seed entry point
-data/tracker.db                    # SQLite database (gitignored)
-AGENTS.md                          # Shared agent guidelines (all agents)
-CLAUDE.md                          # Claude-specific project config
+scripts/                           # Setup wizard, connect script, dev runner
+prisma/schema.prisma               # Data model
 ```
+
+See [CLAUDE.md](CLAUDE.md) for developer-facing project config and commands.
 
 ## Troubleshooting
 
