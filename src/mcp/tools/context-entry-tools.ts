@@ -159,3 +159,136 @@ registerExtendedTool("deleteContextEntry", {
 			return ok({ deleted: true, claim: entry.claim });
 		}),
 });
+
+// ─── Session Review ──────────────────────────────────────────────
+
+const FILE_PATH_REGEX = /`([^`]*\/[^`]*\.[a-zA-Z0-9]+)`/g;
+
+type Candidate = {
+	source: "handoff-finding" | "card-comment" | "existing-entry";
+	sourceRef: string;
+	claim: string;
+	suggestedSurface: "indexed";
+	citedFiles: string[];
+	action: "confirm" | "edit" | "drop";
+};
+
+function extractCitedFiles(text: string): string[] {
+	const matches: string[] = [];
+	let match: RegExpExecArray | null;
+	FILE_PATH_REGEX.lastIndex = 0;
+	while ((match = FILE_PATH_REGEX.exec(text)) !== null) {
+		matches.push(match[1]);
+	}
+	return matches;
+}
+
+registerExtendedTool("reviewSessionFacts", {
+	category: "session",
+	description:
+		"End-of-session review: discover candidate facts from handoff findings, recent card comments, and context entries created this session. Present each to the user for confirm/edit/drop, then call saveContextEntry for accepted facts.",
+	parameters: z.object({
+		projectId: z.string().describe("Project UUID"),
+		boardId: z.string().describe("Board UUID"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: ({ projectId, boardId }) =>
+		safeExecute(async () => {
+			const project = await db.project.findUnique({ where: { id: projectId as string } });
+			if (!project) return err("Project not found.", "Use listProjects to find a valid projectId.");
+
+			const board = await db.board.findUnique({ where: { id: boardId as string } });
+			if (!board) return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
+
+			const lastHandoff = await db.sessionHandoff.findFirst({
+				where: { boardId: boardId as string },
+				orderBy: { createdAt: "desc" },
+			});
+
+			const since = lastHandoff?.createdAt ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
+			const candidates: Candidate[] = [];
+
+			// Source A: Handoff findings
+			if (lastHandoff) {
+				const findings = JSON.parse(lastHandoff.findings) as string[];
+				for (const finding of findings) {
+					candidates.push({
+						source: "handoff-finding",
+						sourceRef: `handoff ${lastHandoff.id}`,
+						claim: finding,
+						suggestedSurface: "indexed",
+						citedFiles: extractCitedFiles(finding),
+						action: "confirm",
+					});
+				}
+			}
+
+			// Source B: Recent card comments
+			const columns = await db.column.findMany({
+				where: { boardId: boardId as string },
+				select: { id: true },
+			});
+			const columnIds = columns.map((c) => c.id);
+
+			const cards = await db.card.findMany({
+				where: {
+					projectId: projectId as string,
+					columnId: { in: columnIds },
+				},
+				select: { id: true, number: true },
+			});
+			const cardMap = new Map(cards.map((c) => [c.id, c.number]));
+			const cardIds = Array.from(cardMap.keys());
+
+			if (cardIds.length > 0) {
+				const comments = await db.comment.findMany({
+					where: {
+						cardId: { in: cardIds },
+						createdAt: { gt: since },
+					},
+					orderBy: { createdAt: "asc" },
+				});
+
+				for (const comment of comments) {
+					const cardNumber = cardMap.get(comment.cardId);
+					const authorLabel = comment.authorName ?? comment.authorType;
+					candidates.push({
+						source: "card-comment",
+						sourceRef: `comment on #${cardNumber} by ${authorLabel}`,
+						claim: comment.content,
+						suggestedSurface: "indexed",
+						citedFiles: extractCitedFiles(comment.content),
+						action: "confirm",
+					});
+				}
+			}
+
+			// Source C: Context entries created this session
+			const entries = await db.persistentContextEntry.findMany({
+				where: {
+					projectId: projectId as string,
+					createdAt: { gt: since },
+				},
+				orderBy: { createdAt: "asc" },
+			});
+
+			for (const entry of entries) {
+				candidates.push({
+					source: "existing-entry",
+					sourceRef: `entry ${entry.id}`,
+					claim: entry.claim,
+					suggestedSurface: "indexed",
+					citedFiles: JSON.parse(entry.citedFiles) as string[],
+					action: "confirm",
+				});
+			}
+
+			return ok({
+				sessionBoundary: since.toISOString(),
+				candidates,
+				totalCandidates: candidates.length,
+				instructions:
+					"Review each candidate with the user. For accepted facts, call saveContextEntry. For rejected facts, simply skip them. Edit claims/rationale before saving if the user suggests changes.",
+			});
+		}),
+});
