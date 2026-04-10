@@ -1,5 +1,7 @@
 # Agent Guidelines for Project Tracker
 
+> If the human can't see it and correct it in the surface where they'd naturally encounter it, the agent shouldn't trust it.
+
 Shared guidelines for any AI agent (Claude, Codex, etc.) using the Project Tracker MCP.
 
 When this MCP is connected to a project, use the board as your shared workspace with the user. These guidelines keep it useful without burning tokens.
@@ -11,6 +13,26 @@ Each project has an optional `projectPrompt` field — a short orientation parag
 **When to use `projectPrompt` vs. repo-side CLAUDE.md:**
 - `projectPrompt` is stored in the tracker DB and shared across all agent accounts. Use it for project-level context that any collaborator (human or agent) needs at session start — current phase, key constraints, what to focus on.
 - `CLAUDE.md` lives in the repo and is scoped to that repo's code. Use it for build commands, code conventions, and repo-specific instructions.
+
+## Project Status
+
+`renderStatus(projectId)` generates a STATUS.md-equivalent markdown snapshot from board data. It replaces hand-maintained STATUS.md files — if your repo has one, you can delete it after adopting renderStatus.
+
+The same output is available as an auto-loadable MCP resource at `status://project/<slug>`.
+
+## Tag Conventions
+
+### `component`
+
+Marks a card whose description anchors a system-component bullet in the "What's Built" section of `renderStatus` output. Component cards can be never-closed description anchors (e.g., "Infrastructure: Mac Mini inference setup") that exist purely to hold description text — they are not work items.
+
+### `metric`
+
+Marks a card whose `metadata` JSON holds metrics read by `renderStatus`. Shape:
+
+```json
+{ "metrics": [{ "key": "latency", "value": 17.5, "unit": "s", "recordedAt": "2026-04-10", "env": "Mac Mini M4" }] }
+```
 
 ## Column Definitions
 

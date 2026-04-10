@@ -28,6 +28,7 @@ import "./tools/context-tools.js";
 import "./tools/query-tools.js";
 import "./tools/git-tools.js";
 import "./tools/onboarding-tools.js";
+import "./tools/status-tools.js";
 
 const server = new McpServer({
 	name: "project-tracker",
