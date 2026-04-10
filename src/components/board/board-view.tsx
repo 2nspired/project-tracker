@@ -16,6 +16,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { Lightbulb } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { hasRole } from "@/lib/column-roles";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
 import { BoardCard } from "./board-card";
@@ -99,7 +100,7 @@ export function BoardView({ board }: { board: FullBoard }) {
 		() =>
 			board.columns.map((col) => {
 				const cards = filterCards(col.cards, filters);
-				if (col.name === "Done") {
+				if (hasRole(col, "done")) {
 					return {
 						...col,
 						cards: [...cards].sort(

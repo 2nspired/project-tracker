@@ -756,12 +756,12 @@ registerExtendedTool("createProject", {
 						name: boardName as string,
 						columns: {
 							create: [
-								{ name: "Backlog", description: "This hasn't been started", position: 0 },
-								{ name: "To Do", description: "This is ready to be picked up", position: 1 },
-								{ name: "In Progress", description: "This is actively being worked on", position: 2 },
-								{ name: "Review", description: "This is in review", position: 3 },
-								{ name: "Done", description: "This has been completed", position: 4 },
-								{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 5, isParking: true },
+								{ name: "Backlog", description: "This hasn't been started", position: 0, role: "backlog" },
+								{ name: "To Do", description: "This is ready to be picked up", position: 1, role: "todo" },
+								{ name: "In Progress", description: "This is actively being worked on", position: 2, role: "active" },
+								{ name: "Review", description: "This is in review", position: 3, role: "review" },
+								{ name: "Done", description: "This has been completed", position: 4, role: "done" },
+								{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 5, role: "parking", isParking: true },
 							],
 						},
 					},

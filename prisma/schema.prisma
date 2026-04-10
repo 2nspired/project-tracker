@@ -85,6 +85,7 @@ model Column {
   name        String
   description String?
   position    Int
+  role        String?  // backlog, todo, active, review, done, parking
   isParking   Boolean  @default(false) @map("is_parking")
   color       String?
   createdAt   DateTime @default(now()) @map("created_at")

@@ -4,18 +4,19 @@ import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
 const DEFAULT_COLUMNS = [
-	{ name: "Backlog", description: "This hasn't been started", position: 0, isParking: false },
-	{ name: "To Do", description: "This is ready to be picked up", position: 1, isParking: false },
-	{ name: "In Progress", description: "This is actively being worked on", position: 2, isParking: false },
-	{ name: "Review", description: "This is in review", position: 3, isParking: false },
-	{ name: "Done", description: "This has been completed", position: 4, isParking: false },
-	{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 5, isParking: true },
+	{ name: "Backlog", description: "This hasn't been started", position: 0, role: "backlog", isParking: false },
+	{ name: "To Do", description: "This is ready to be picked up", position: 1, role: "todo", isParking: false },
+	{ name: "In Progress", description: "This is actively being worked on", position: 2, role: "active", isParking: false },
+	{ name: "Review", description: "This is in review", position: 3, role: "review", isParking: false },
+	{ name: "Done", description: "This has been completed", position: 4, role: "done", isParking: false },
+	{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 5, role: "parking", isParking: true },
 ];
 
 type BoardListItem = Board & {
 	columns: Array<{
 		id: string;
 		name: string;
+		role: string | null;
 		isParking: boolean;
 		_count: { cards: number };
 	}>;
@@ -33,6 +34,7 @@ async function list(projectId: string): Promise<ServiceResult<BoardListItem[]>> 
 					select: {
 						id: true,
 						name: true,
+						role: true,
 						isParking: true,
 						_count: { select: { cards: true } },
 					},

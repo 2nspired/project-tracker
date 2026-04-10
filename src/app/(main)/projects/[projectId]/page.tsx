@@ -75,6 +75,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { hasRole } from "@/lib/column-roles";
 import { COLOR_CLASSES } from "@/lib/project-colors";
 import type { ProjectColor } from "@/lib/schemas/project-schemas";
 import { api } from "@/trpc/react";
@@ -410,11 +411,11 @@ function BoardsTab({
 				) : (
 					boards?.map((board) => {
 						const totalCards = board.columns.reduce((sum, col) => sum + col._count.cards, 0);
-						const doneCol = board.columns.find((c) => c.name === "Done");
+						const doneCol = board.columns.find((c) => hasRole(c, "done"));
 						const doneCards = doneCol?._count.cards ?? 0;
-						const inProgressCol = board.columns.find((c) => c.name === "In Progress");
+						const inProgressCol = board.columns.find((c) => hasRole(c, "active"));
 						const inProgressCards = inProgressCol?._count.cards ?? 0;
-						const todoCol = board.columns.find((c) => c.name === "To Do");
+						const todoCol = board.columns.find((c) => hasRole(c, "todo"));
 						const todoCards = todoCol?._count.cards ?? 0;
 						const pct = totalCards > 0 ? Math.round((doneCards / totalCards) * 100) : 0;
 

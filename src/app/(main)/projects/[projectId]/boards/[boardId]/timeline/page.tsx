@@ -4,6 +4,7 @@ import { ArrowLeft, Bot, Clock, User } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
 
+import { hasRole } from "@/lib/column-roles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -63,7 +64,7 @@ export default function TimelinePage({
 		grouped.get(date)!.push(card);
 	}
 
-	const doneColumn = board.columns.find((c) => c.name.toLowerCase() === "done");
+	const doneColumn = board.columns.find((c) => hasRole(c, "done"));
 	const doneCardIds = new Set(doneColumn?.cards.map((c) => c.id) ?? []);
 
 	return (

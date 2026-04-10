@@ -6,6 +6,7 @@ import { LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { RouterOutputs } from "@/trpc/react";
 
+import { getHorizon, type Horizon } from "@/lib/column-roles";
 import { RiverFlow } from "./river-flow";
 import { DetailCards } from "./detail-cards";
 import { DetailRows } from "./detail-rows";
@@ -13,7 +14,7 @@ import { DetailRows } from "./detail-rows";
 type FullBoard = RouterOutputs["board"]["getFull"];
 type BoardCard = FullBoard["columns"][number]["cards"][number];
 
-export type Horizon = "now" | "next" | "later" | "done";
+export type { Horizon };
 
 export type RoadmapCard = BoardCard & {
 	columnName: string;
@@ -28,14 +29,6 @@ export type MilestoneGroup = {
 	done: number;
 	total: number;
 };
-
-function getHorizon(columnName: string, isParking: boolean): Horizon {
-	const lower = columnName.toLowerCase();
-	if (lower === "done") return "done";
-	if (lower === "in progress" || lower === "review") return "now";
-	if (lower === "to do") return "next";
-	return "later";
-}
 
 function groupByMilestone(cards: RoadmapCard[]): MilestoneGroup[] {
 	const map = new Map<string, MilestoneGroup>();
@@ -79,7 +72,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 		col.cards.map((card) => ({
 			...card,
 			columnName: col.name,
-			horizon: getHorizon(col.name, col.isParking),
+			horizon: getHorizon(col),
 			isBlocked: (card.relationsTo?.length ?? 0) > 0,
 		})),
 	);

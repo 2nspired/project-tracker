@@ -47,12 +47,12 @@ export async function seedTutorialProject(
 
 	// Create columns (board service does this automatically, but we use raw Prisma here)
 	const columnDefs = [
-		{ name: "Backlog", position: 0, isParking: false },
-		{ name: "To Do", position: 1, isParking: false },
-		{ name: "In Progress", position: 2, isParking: false },
-		{ name: "Review", position: 3, isParking: false },
-		{ name: "Done", position: 4, isParking: false },
-		{ name: "Parking Lot", position: 5, isParking: true },
+		{ name: "Backlog", position: 0, role: "backlog", isParking: false },
+		{ name: "To Do", position: 1, role: "todo", isParking: false },
+		{ name: "In Progress", position: 2, role: "active", isParking: false },
+		{ name: "Review", position: 3, role: "review", isParking: false },
+		{ name: "Done", position: 4, role: "done", isParking: false },
+		{ name: "Parking Lot", position: 5, role: "parking", isParking: true },
 	];
 
 	const columnMap = new Map<string, string>();
@@ -62,6 +62,7 @@ export async function seedTutorialProject(
 				boardId: board.id,
 				name: col.name,
 				position: col.position,
+				role: col.role,
 				isParking: col.isParking,
 			},
 		});

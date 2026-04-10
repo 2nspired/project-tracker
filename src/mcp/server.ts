@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { getHorizon, hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { db } from "./db.js";
 import { registerResources } from "./resources.js";
@@ -443,14 +444,6 @@ server.registerTool(
 			if (!board)
 				return err("Board not found.", "Use getTools({ category: 'discovery' }) to find boards.");
 
-			function getHorizon(colName: string): string {
-				const lower = colName.toLowerCase();
-				if (lower === "done") return "done";
-				if (lower === "in progress" || lower === "review") return "now";
-				if (lower === "to do") return "next";
-				return "later";
-			}
-
 			const allCards = board.columns.flatMap((col) =>
 				col.cards.map((card) => ({
 					id: card.id,
@@ -459,7 +452,7 @@ server.registerTool(
 					title: card.title,
 					priority: card.priority,
 					column: col.name,
-					horizon: getHorizon(col.name),
+					horizon: getHorizon(col),
 					milestone: card.milestone?.name ?? null,
 					checklistDone: card.checklists.filter((c) => c.completed).length,
 					checklistTotal: card.checklists.length,
@@ -530,62 +523,33 @@ server.registerTool(
 			state = "existing";
 		}
 
-		let guidance: string;
-		let suggestedActions: string[];
-		let offerSampleProject = false;
+		const offerSampleProject = state === "empty" || (state === "existing" && cardCount === 0);
 
-		if (state === "empty") {
-			offerSampleProject = true;
-			guidance = [
-				"## Fresh Install",
-				"",
-				"No projects found. Let's get you started!",
-				"",
-				"**Options:**",
-				"1. **Tutorial project** — Run `seedTutorial` via `runTool` to create a pre-built project with 17 example cards that teach every feature",
-				"2. **Quick start** — Use the `onboarding` prompt with mode `quickstart` to set up your own project",
-				"3. **Guided walkthrough** — Use the `onboarding` prompt with mode `tutorial` for a step-by-step experience",
-			].join("\n");
-			suggestedActions = [
-				"runTool({ tool: 'seedTutorial' })",
-				"onboarding prompt (tutorial)",
-				"onboarding prompt (quickstart)",
-			];
-		} else if (state === "returning") {
-			guidance = [
-				"## Welcome Back",
-				"",
-				`Found ${projectCount} project(s), ${boardCount} board(s), ${cardCount} card(s).`,
-				"You have previous session handoffs — use `resume-session` with your board ID to pick up where you left off.",
-			].join("\n");
-			suggestedActions = [
-				"resume-session prompt with boardId",
-				"runTool({ tool: 'listProjects' })",
-				"runTool({ tool: 'listBoards' })",
-			];
-		} else {
-			guidance = [
-				"## Existing Setup",
-				"",
-				`Found ${projectCount} project(s), ${boardCount} board(s), ${cardCount} card(s).`,
-				"Use `resume-session` with a board ID to start working, or browse your boards.",
-			].join("\n");
-			suggestedActions = ["resume-session prompt with boardId", "runTool({ tool: 'listBoards' })"];
-			if (cardCount === 0) {
-				offerSampleProject = true;
-				suggestedActions.push("runTool({ tool: 'seedTutorial' })");
-			}
+		const options: Array<{ action: string; description: string }> = [];
+		if (offerSampleProject) {
+			options.push(
+				{ action: "runTool({ tool: 'seedTutorial' })", description: "Create tutorial project with 17 example cards" },
+				{ action: "onboarding prompt (quickstart)", description: "Set up your own project" },
+				{ action: "onboarding prompt (tutorial)", description: "Step-by-step guided walkthrough" },
+			);
+		}
+		if (state === "returning") {
+			options.push(
+				{ action: "resume-session prompt with boardId", description: "Continue where you left off" },
+				{ action: "runTool({ tool: 'listBoards' })", description: "Browse boards" },
+			);
+		} else if (state === "existing") {
+			options.push(
+				{ action: "resume-session prompt with boardId", description: "Start working on a board" },
+				{ action: "runTool({ tool: 'listBoards' })", description: "Browse boards" },
+			);
 		}
 
 		return ok({
 			state,
-			projects: projectCount,
-			boards: boardCount,
-			cards: cardCount,
-			handoffs: handoffCount,
+			stats: { projects: projectCount, boards: boardCount, cards: cardCount, handoffs: handoffCount },
 			offerSampleProject,
-			guidance,
-			suggestedActions,
+			options,
 		});
 	}
 );
@@ -701,8 +665,8 @@ server.registerPrompt(
 			}
 		}
 
-		const inProgress = board.columns.find((c) => c.name === "In Progress")?.cards ?? [];
-		const todo = board.columns.find((c) => c.name === "To Do")?.cards ?? [];
+		const inProgress = board.columns.find((c) => hasRole(c, "active"))?.cards ?? [];
+		const todo = board.columns.find((c) => hasRole(c, "todo"))?.cards ?? [];
 		const blocked = board.columns.flatMap((c) => c.cards).filter((c) => c.relationsTo.length > 0);
 
 		// Detect available features
@@ -822,7 +786,7 @@ server.registerPrompt(
 			};
 		}
 
-		const inProgress = board.columns.find((c) => c.name === "In Progress")?.cards ?? [];
+		const inProgress = board.columns.find((c) => hasRole(c, "active"))?.cards ?? [];
 
 		const prompt = [
 			`# End Session — ${board.project.name} / ${board.name}`,
@@ -996,7 +960,7 @@ server.registerPrompt(
 
 		// Stale cards (not updated in 7+ days, not in Done)
 		const staleThreshold = new Date(Date.now() - 7 * 86400000);
-		const doneCol = board.columns.find((c) => c.name === "Done");
+		const doneCol = board.columns.find((c) => hasRole(c, "done"));
 		const stale = allCards.filter(
 			(c) => c.columnId !== doneCol?.id && new Date(c.updatedAt) < staleThreshold
 		);

@@ -4,6 +4,7 @@ import type {
 	ReorderMilestonesInput,
 	UpdateMilestoneInput,
 } from "@/lib/schemas/milestone-schemas";
+import { getHorizon } from "@/lib/column-roles";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
@@ -21,7 +22,7 @@ async function list(projectId: string): Promise<ServiceResult<MilestoneWithCount
 				_count: { select: { cards: true } },
 				cards: {
 					select: {
-						column: { select: { name: true, isParking: true } },
+						column: { select: { name: true, role: true, isParking: true } },
 					},
 				},
 			},
@@ -30,11 +31,7 @@ async function list(projectId: string): Promise<ServiceResult<MilestoneWithCount
 		const data = milestones.map((m) => {
 			const cardsByStatus = { now: 0, next: 0, later: 0, done: 0 };
 			for (const card of m.cards) {
-				const col = card.column.name.toLowerCase();
-				if (col === "done") cardsByStatus.done++;
-				else if (col === "in progress" || col === "review") cardsByStatus.now++;
-				else if (col === "to do") cardsByStatus.next++;
-				else cardsByStatus.later++;
+				cardsByStatus[getHorizon(card.column)]++;
 			}
 			const { cards: _, ...rest } = m;
 			return { ...rest, cardsByStatus };

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getHorizon } from "../../lib/column-roles.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, resolveCardId, ok, err, safeExecute } from "../utils.js";
@@ -40,7 +41,7 @@ registerExtendedTool("getFocusContext", {
 					checklists: { orderBy: { position: "asc" }, select: { id: true, text: true, completed: true } },
 					comments: { orderBy: { createdAt: "desc" }, take: 5, select: { content: true, authorName: true, authorType: true, createdAt: true } },
 					milestone: { select: { id: true, name: true } },
-					column: { select: { name: true } },
+					column: { select: { name: true, role: true } },
 					relationsFrom: { include: { toCard: { select: { id: true, number: true, title: true, priority: true } } } },
 					relationsTo: { include: { fromCard: { select: { id: true, number: true, title: true, priority: true } } } },
 					decisions: { select: { id: true, title: true, status: true, decision: true }, orderBy: { createdAt: "desc" } },
@@ -70,7 +71,7 @@ registerExtendedTool("getFocusContext", {
 							...(cardTags.length > 0 ? cardTags.map((t) => ({ tags: { contains: t } })) : []),
 						],
 					},
-					select: { number: true, title: true, priority: true, column: { select: { name: true } } },
+					select: { number: true, title: true, priority: true, column: { select: { name: true, role: true } } },
 					take: 3,
 				});
 				relatedCards = candidates.map((c) => ({
@@ -118,7 +119,7 @@ registerExtendedTool("getFocusContext", {
 			const cards = await db.card.findMany({
 				where: { milestoneId: ms.id, column: { boardId } },
 				include: {
-					column: { select: { name: true } },
+					column: { select: { name: true, role: true } },
 					checklists: { select: { completed: true } },
 				},
 				orderBy: { position: "asc" },
@@ -129,17 +130,9 @@ registerExtendedTool("getFocusContext", {
 				select: { id: true, title: true, status: true },
 			});
 
-			function getHorizon(colName: string): string {
-				const lower = colName.toLowerCase();
-				if (lower === "done") return "done";
-				if (lower === "in progress" || lower === "review") return "now";
-				if (lower === "to do") return "next";
-				return "later";
-			}
-
 			const grouped: Record<string, Array<{ ref: string; title: string; priority: string; checklist: string }>> = { now: [], next: [], later: [], done: [] };
 			for (const c of cards) {
-				const horizon = getHorizon(c.column.name);
+				const horizon = getHorizon(c.column);
 				const done = c.checklists.filter((cl) => cl.completed).length;
 				const total = c.checklists.length;
 				grouped[horizon].push({
@@ -167,7 +160,7 @@ registerExtendedTool("getFocusContext", {
 			const allCards = await db.card.findMany({
 				where: { column: { boardId } },
 				include: {
-					column: { select: { name: true } },
+					column: { select: { name: true, role: true } },
 					checklists: { select: { completed: true } },
 				},
 				orderBy: { position: "asc" },
