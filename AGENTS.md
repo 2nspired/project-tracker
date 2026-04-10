@@ -34,6 +34,23 @@ Marks a card whose `metadata` JSON holds metrics read by `renderStatus`. Shape:
 { "metrics": [{ "key": "latency", "value": 17.5, "unit": "s", "recordedAt": "2026-04-10", "env": "Mac Mini M4" }] }
 ```
 
+## Context Entries
+
+Persistent context entries store project knowledge that would otherwise live in scattered memory files. Use `saveContextEntry` to record facts, decisions, and learnings that should persist across sessions.
+
+### End-of-Session Review
+
+Before calling `saveHandoff` at the end of a session, call `reviewSessionFacts(projectId, boardId)` to discover candidate facts from the session. Present each candidate to the user for confirmation before saving. This creates the missing ritual for:
+- Negative findings ("X approach doesn't work because Y")
+- Successful recipes ("This pattern works well for Z")  
+- Self-calibration notes ("Estimates for this area tend to run 2x")
+
+### Surface Levels
+
+- **`ambient`** — auto-loaded at session start (use sparingly)
+- **`indexed`** — queryable on demand (default, good for most facts)
+- **`surfaced`** — visible in board UI (reserved for future use)
+
 ## Column Definitions
 
 | Column | Purpose | When to move here |
