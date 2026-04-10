@@ -248,7 +248,7 @@ export function getToolCatalog(opts?: { category?: string; tool?: string }): {
 		decisions: "Structured architectural decision records",
 		scratch: "Ephemeral agent working memory (auto-expires)",
 		git: "Git commit linking and code mapping",
-		context: "Focused context bundles for efficient loading",
+		context: "Context bundles, persistent knowledge entries, and code facts",
 	};
 
 	return {

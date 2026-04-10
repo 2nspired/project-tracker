@@ -31,6 +31,7 @@ import "./tools/git-tools.js";
 import "./tools/onboarding-tools.js";
 import "./tools/status-tools.js";
 import "./tools/context-entry-tools.js";
+import "./tools/codefact-tools.js";
 
 const server = new McpServer({
 	name: "project-tracker",

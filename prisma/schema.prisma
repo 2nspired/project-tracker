@@ -28,6 +28,7 @@ model Project {
   decisions      Decision[]
   gitLinks       GitLink[]
   contextEntries PersistentContextEntry[]
+  codeFacts      CodeFact[]
 
   @@map("project")
 }
@@ -329,4 +330,25 @@ model PersistentContextEntry {
   @@index([surface])
   @@index([projectId, surface])
   @@map("persistent_context_entry")
+}
+
+model CodeFact {
+  id             String   @id @default(uuid())
+  projectId      String   @map("project_id")
+  path           String   // File path (relative to repo root)
+  symbol         String?  // Optional symbol name (function, class, etc.)
+  fact           String   // The factual assertion about this code
+  author         String   @default("AGENT") // Who recorded this (AGENT or HUMAN)
+  recordedAtSha  String?  @map("recorded_at_sha") // Git SHA when recorded
+  needsRecheck   Boolean  @default(false) @map("needs_recheck") // Advisory flag
+  lastVerifiedAt DateTime? @map("last_verified_at") // Last time someone confirmed this is still true
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectId, path])
+  @@index([needsRecheck])
+  @@map("code_fact")
 }

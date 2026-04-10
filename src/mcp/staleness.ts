@@ -21,11 +21,22 @@ export type StalenessWarning = {
 	reason: string;
 	type: "file-changed" | "age-decay";
 	severity: "stale" | "possibly-stale";
+	source?: "context-entry" | "code-fact";
 };
 
 // ─── Core ──────────────────────────────────────────────────────────
 
 export async function checkStaleness(projectId: string): Promise<StalenessWarning[]> {
+	// Check both context entries and code facts in parallel
+	const [entryWarnings, codeFactWarnings] = await Promise.all([
+		checkContextEntryStaleness(projectId),
+		checkCodeFactStaleness(projectId),
+	]);
+
+	return [...entryWarnings, ...codeFactWarnings];
+}
+
+async function checkContextEntryStaleness(projectId: string): Promise<StalenessWarning[]> {
 	const entries = await db.persistentContextEntry.findMany({
 		where: { projectId },
 	});
@@ -55,7 +66,7 @@ export async function checkStaleness(projectId: string): Promise<StalenessWarnin
 				project.repoPath,
 			);
 			if (fileWarning) {
-				warnings.push(fileWarning);
+				warnings.push({ ...fileWarning, source: "context-entry" });
 			}
 		} else {
 			// Narrative staleness (age-based)
@@ -74,6 +85,7 @@ export async function checkStaleness(projectId: string): Promise<StalenessWarnin
 						: `Human-recorded fact, ${ageDays} days old`,
 					type: "age-decay",
 					severity: "stale",
+					source: "context-entry",
 				});
 			} else if (ageDays >= possiblyStaleDays) {
 				warnings.push({
@@ -84,6 +96,7 @@ export async function checkStaleness(projectId: string): Promise<StalenessWarnin
 						: `Human-recorded fact, ${ageDays} days old`,
 					type: "age-decay",
 					severity: "possibly-stale",
+					source: "context-entry",
 				});
 			}
 		}
@@ -128,21 +141,80 @@ async function checkFileCitedStaleness(
 	return null;
 }
 
+// ─── Code Fact Staleness ──────────────────────────────────────────
+
+export async function checkCodeFactStaleness(projectId: string): Promise<StalenessWarning[]> {
+	const facts = await db.codeFact.findMany({
+		where: { projectId },
+	});
+
+	if (facts.length === 0) return [];
+
+	const project = await db.project.findUnique({
+		where: { id: projectId },
+		select: { repoPath: true },
+	});
+
+	if (!project?.repoPath) return [];
+
+	const warnings: StalenessWarning[] = [];
+
+	for (const fact of facts) {
+		if (!fact.recordedAtSha) continue;
+
+		const fileWarning = await checkFileCitedStaleness(
+			fact.id,
+			`[${fact.path}${fact.symbol ? `#${fact.symbol}` : ""}] ${fact.fact}`,
+			[fact.path],
+			fact.recordedAtSha,
+			project.repoPath,
+		);
+		if (fileWarning) {
+			warnings.push({ ...fileWarning, source: "code-fact" });
+
+			// Also flag the fact as needs_recheck
+			await db.codeFact.update({
+				where: { id: fact.id },
+				data: { needsRecheck: true },
+			}).catch(() => {});
+		}
+	}
+
+	return warnings;
+}
+
 // ─── Formatting ────────────────────────────────────────────────────
 
 export function formatStalenessWarnings(warnings: StalenessWarning[]): string | null {
 	if (warnings.length === 0) return null;
 
-	const lines = warnings.map((w) =>
-		`- **[${w.severity}]** "${w.claim}" — ${w.reason}`
+	const entryWarnings = warnings.filter((w) => w.source !== "code-fact");
+	const codeFactWarnings = warnings.filter((w) => w.source === "code-fact");
+
+	const sections: string[] = [
+		"\u26a0\ufe0f STALE CONTEXT WARNINGS",
+		"The following persistent knowledge may be outdated:",
+		"",
+	];
+
+	if (entryWarnings.length > 0) {
+		sections.push(...entryWarnings.map((w) =>
+			`- **[${w.severity}]** "${w.claim}" — ${w.reason}`
+		));
+	}
+
+	if (codeFactWarnings.length > 0) {
+		if (entryWarnings.length > 0) sections.push("");
+		sections.push("**Code facts:**");
+		sections.push(...codeFactWarnings.map((w) =>
+			`- **[${w.severity}]** ${w.claim} — ${w.reason}`
+		));
+	}
+
+	sections.push(
+		"",
+		"Use `listContextEntries`/`listCodeFacts` to review, `saveContextEntry`/`saveCodeFact` to update, or the delete tools to remove stale entries.",
 	);
 
-	return [
-		"\u26a0\ufe0f STALE CONTEXT WARNINGS",
-		"The following persistent context entries may be outdated:",
-		"",
-		...lines,
-		"",
-		"Use `listContextEntries` to review, `saveContextEntry` with entryId to update, or `deleteContextEntry` to remove stale entries.",
-	].join("\n");
+	return sections.join("\n");
 }
