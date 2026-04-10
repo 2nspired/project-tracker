@@ -20,13 +20,14 @@ model Project {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  boards     Board[]
-  labels     Label[]
-  cards      Card[]
-  notes      Note[]
-  milestones Milestone[]
-  decisions  Decision[]
-  gitLinks   GitLink[]
+  boards         Board[]
+  labels         Label[]
+  cards          Card[]
+  notes          Note[]
+  milestones     Milestone[]
+  decisions      Decision[]
+  gitLinks       GitLink[]
+  contextEntries PersistentContextEntry[]
 
   @@map("project")
 }
@@ -305,4 +306,27 @@ model GitLink {
   @@index([projectId])
   @@index([cardId])
   @@map("git_link")
+}
+
+model PersistentContextEntry {
+  id            String   @id @default(uuid())
+  projectId     String   @map("project_id")
+  claim         String   // The fact or assertion
+  rationale     String   @default("") // Why this matters
+  application   String   @default("") // How to apply this knowledge
+  details       String   @default("[]") // JSON string[] — supporting details
+  author        String   @default("AGENT") // Who recorded this (AGENT or HUMAN)
+  audience      String   @default("all") // Who should see it (all, agent, human)
+  citedFiles    String   @default("[]") @map("cited_files") // JSON string[] — file paths this fact references
+  recordedAtSha String?  @map("recorded_at_sha") // Git SHA when this was recorded
+  surface       String   @default("indexed") // ambient | indexed | surfaced
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([surface])
+  @@index([projectId, surface])
+  @@map("persistent_context_entry")
 }
