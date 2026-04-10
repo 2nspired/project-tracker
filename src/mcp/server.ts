@@ -661,6 +661,7 @@ server.registerTool(
 			projects: projects.map((p) => ({
 				id: p.id,
 				name: p.name,
+				...(p.projectPrompt ? { projectPrompt: p.projectPrompt } : {}),
 				boards: p.boards.map((b) => ({
 					id: b.id,
 					name: b.name,

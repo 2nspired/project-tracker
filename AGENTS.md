@@ -4,6 +4,14 @@ Shared guidelines for any AI agent (Claude, Codex, etc.) using the Project Track
 
 When this MCP is connected to a project, use the board as your shared workspace with the user. These guidelines keep it useful without burning tokens.
 
+## Project Prompt
+
+Each project has an optional `projectPrompt` field — a short orientation paragraph that auto-loads at session start via `checkOnboarding`. Use `updateProjectPrompt` to set it.
+
+**When to use `projectPrompt` vs. repo-side CLAUDE.md:**
+- `projectPrompt` is stored in the tracker DB and shared across all agent accounts. Use it for project-level context that any collaborator (human or agent) needs at session start — current phase, key constraints, what to focus on.
+- `CLAUDE.md` lives in the repo and is scoped to that repo's code. Use it for build commands, code conventions, and repo-specific instructions.
+
 ## Column Definitions
 
 | Column | Purpose | When to move here |

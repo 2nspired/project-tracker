@@ -15,6 +15,7 @@ model Project {
   slug            String   @unique
   favorite        Boolean  @default(false)
   repoPath        String?  @map("repo_path")
+  projectPrompt   String?  @map("project_prompt")
   nextCardNumber  Int      @default(1) @map("next_card_number")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")

@@ -54,6 +54,44 @@ registerExtendedTool("listBoards", {
 	}),
 });
 
+registerExtendedTool("updateProjectPrompt", {
+	category: "discovery",
+	description:
+		"Set or clear a project's prompt — a short orientation paragraph auto-loaded at session start via checkOnboarding. Use this instead of per-account PROJECT_PROMPT.md files so all agents share one source of truth.",
+	parameters: z.object({
+		projectId: z.string().describe("Project UUID"),
+		prompt: z
+			.string()
+			.nullable()
+			.describe("The prompt text to set, or null to clear it"),
+	}),
+	handler: ({ projectId, prompt }) =>
+		safeExecute(async () => {
+			const project = await db.project.findUnique({
+				where: { id: projectId as string },
+			});
+			if (!project)
+				return err(
+					"Project not found.",
+					"Use listProjects to find a valid projectId."
+				);
+
+			const updated = await db.project.update({
+				where: { id: projectId as string },
+				data: { projectPrompt: (prompt as string | null) ?? null },
+			});
+
+			return ok({
+				projectId: updated.id,
+				projectName: updated.name,
+				projectPrompt: updated.projectPrompt,
+				updated: true,
+			});
+		}),
+});
+
+// ─── Cards ──────────────────────────────────────────────────────────
+
 registerExtendedTool("getCard", {
 	category: "discovery",
 	description: "Full card detail: description, checklist, comments, activity history. TOON by default.",
