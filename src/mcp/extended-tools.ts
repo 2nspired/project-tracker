@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "./db.js";
 import { registerExtendedTool } from "./tool-registry.js";
-import { AGENT_NAME, resolveCardId, resolveOrCreateMilestone, ok, err, errWithToolHint, safeExecute } from "./utils.js";
+import { AGENT_NAME, resolveCardRef, resolveOrCreateMilestone, ok, err, errWithToolHint, safeExecute } from "./utils.js";
 import { toToon } from "./toon.js";
 
 // ─── Discovery ──────────────────────────────────────────────────────
@@ -63,8 +63,9 @@ registerExtendedTool("getCard", {
 	}),
 	annotations: { readOnlyHint: true },
 	handler: ({ cardId, format }) => safeExecute(async () => {
-		const id = await resolveCardId(cardId as string);
-		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs, or searchCards to find by title.");
+		const resolved = await resolveCardRef(cardId as string);
+		if (!resolved.ok) return err(resolved.message);
+		const id = resolved.id;
 
 		const card = await db.card.findUnique({
 			where: { id },
@@ -185,8 +186,9 @@ registerExtendedTool("deleteCard", {
 	}),
 	annotations: { destructiveHint: true },
 	handler: ({ cardId }) => safeExecute(async () => {
-		const id = await resolveCardId(cardId as string);
-		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs.");
+		const resolved = await resolveCardRef(cardId as string);
+		if (!resolved.ok) return err(resolved.message);
+		const id = resolved.id;
 		const card = await db.card.findUnique({ where: { id } });
 		if (!card) return err("Card not found.");
 
@@ -367,8 +369,9 @@ registerExtendedTool("bulkMoveCards", {
 		const errors: string[] = [];
 
 		for (const ref of cardIds as string[]) {
-			const id = await resolveCardId(ref);
-			if (!id) { errors.push(`Card "${ref}" not found`); continue; }
+			const resolved = await resolveCardRef(ref);
+			if (!resolved.ok) { errors.push(resolved.message); continue; }
+			const id = resolved.id;
 
 			const card = await db.card.findUnique({ where: { id }, include: { column: true } });
 			if (!card) { errors.push(`Card "${ref}" not found`); continue; }
@@ -406,8 +409,9 @@ registerExtendedTool("bulkUpdateCards", {
 		const errors: string[] = [];
 
 		for (const input of cards as Array<Record<string, unknown>>) {
-			const id = await resolveCardId(input.cardId as string);
-			if (!id) { errors.push(`Card "${input.cardId}" not found`); continue; }
+			const resolved = await resolveCardRef(input.cardId as string);
+			if (!resolved.ok) { errors.push(resolved.message); continue; }
+			const id = resolved.id;
 
 			const existing = await db.card.findUnique({ where: { id } });
 			if (!existing) { errors.push(`Card "${input.cardId}" not found`); continue; }
@@ -465,8 +469,9 @@ registerExtendedTool("bulkAddChecklistItems", {
 		items: z.array(z.string()).min(1).describe("Checklist item texts"),
 	}),
 	handler: ({ cardId, items }) => safeExecute(async () => {
-		const id = await resolveCardId(cardId as string);
-		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs.");
+		const resolved = await resolveCardRef(cardId as string);
+		if (!resolved.ok) return err(resolved.message);
+		const id = resolved.id;
 
 		const maxPos = await db.checklistItem.aggregate({ where: { cardId: id }, _max: { position: true } });
 		let pos = (maxPos._max.position ?? -1) + 1;
@@ -497,8 +502,9 @@ registerExtendedTool("bulkAddChecklistItemsMulti", {
 		const errors: string[] = [];
 
 		for (const entry of cards as Array<{ cardId: string; items: string[] }>) {
-			const id = await resolveCardId(entry.cardId);
-			if (!id) { errors.push(`Card "${entry.cardId}" not found`); continue; }
+			const resolved = await resolveCardRef(entry.cardId);
+			if (!resolved.ok) { errors.push(resolved.message); continue; }
+			const id = resolved.id;
 
 			const maxPos = await db.checklistItem.aggregate({ where: { cardId: id }, _max: { position: true } });
 			let pos = (maxPos._max.position ?? -1) + 1;
@@ -531,8 +537,9 @@ registerExtendedTool("bulkSetMilestone", {
 		const errors: string[] = [];
 
 		for (const ref of cardIds as string[]) {
-			const id = await resolveCardId(ref);
-			if (!id) { errors.push(`Card "${ref}" not found`); continue; }
+			const resolved = await resolveCardRef(ref);
+			if (!resolved.ok) { errors.push(resolved.message); continue; }
+			const id = resolved.id;
 
 			const card = await db.card.findUnique({ where: { id } });
 			if (!card) { errors.push(`Card "${ref}" not found`); continue; }
@@ -556,8 +563,9 @@ registerExtendedTool("addChecklistItem", {
 		text: z.string().describe("Item text"),
 	}),
 	handler: ({ cardId, text }) => safeExecute(async () => {
-		const id = await resolveCardId(cardId as string);
-		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs.");
+		const resolved = await resolveCardRef(cardId as string);
+		if (!resolved.ok) return err(resolved.message);
+		const id = resolved.id;
 
 		const maxPos = await db.checklistItem.aggregate({ where: { cardId: id }, _max: { position: true } });
 		const item = await db.checklistItem.create({
@@ -650,8 +658,9 @@ registerExtendedTool("listComments", {
 	}),
 	annotations: { readOnlyHint: true },
 	handler: ({ cardId }) => safeExecute(async () => {
-		const id = await resolveCardId(cardId as string);
-		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs.");
+		const resolved = await resolveCardRef(cardId as string);
+		if (!resolved.ok) return err(resolved.message);
+		const id = resolved.id;
 
 		const comments = await db.comment.findMany({
 			where: { cardId: id },
@@ -750,8 +759,9 @@ registerExtendedTool("setMilestone", {
 			return err("Provide either milestoneId or milestoneName.", "Use milestoneId for precision, milestoneName for convenience.");
 		}
 
-		const id = await resolveCardId(cardId as string);
-		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs.");
+		const resolved = await resolveCardRef(cardId as string);
+		if (!resolved.ok) return err(resolved.message);
+		const id = resolved.id;
 
 		const card = await db.card.findUnique({ where: { id } });
 		if (!card) return err("Card not found.");

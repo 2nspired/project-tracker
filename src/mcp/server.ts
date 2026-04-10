@@ -12,7 +12,7 @@ import {
 	detectFeatures,
 	err,
 	ok,
-	resolveCardId,
+	resolveCardRef,
 	resolveOrCreateMilestone,
 	SCHEMA_VERSION,
 	safeExecute,
@@ -284,9 +284,9 @@ server.registerTool(
 	},
 	async ({ cardId: cardRef, title, description, priority, tags, assignee, milestoneName, metadata }) => {
 		return safeExecute(async () => {
-			const cardId = await resolveCardId(cardRef);
-			if (!cardId)
-				return err(`Card "${cardRef}" not found.`, "Use getBoard to see valid card refs.");
+			const resolved = await resolveCardRef(cardRef);
+			if (!resolved.ok) return err(resolved.message);
+			const cardId = resolved.id;
 
 			const existing = await db.card.findUnique({ where: { id: cardId } });
 			if (!existing) return err("Card not found.");
@@ -353,9 +353,9 @@ server.registerTool(
 	},
 	async ({ cardId: cardRef, columnName, position }) => {
 		return safeExecute(async () => {
-			const cardId = await resolveCardId(cardRef);
-			if (!cardId)
-				return err(`Card "${cardRef}" not found.`, "Use getBoard to see valid card refs.");
+			const resolved = await resolveCardRef(cardRef);
+			if (!resolved.ok) return err(resolved.message);
+			const cardId = resolved.id;
 
 			const card = await db.card.findUnique({
 				where: { id: cardId },
@@ -428,9 +428,9 @@ server.registerTool(
 	},
 	async ({ cardId: cardRef, content }) => {
 		return safeExecute(async () => {
-			const cardId = await resolveCardId(cardRef);
-			if (!cardId)
-				return err(`Card "${cardRef}" not found.`, "Use getBoard to see valid card refs.");
+			const resolved = await resolveCardRef(cardRef);
+			if (!resolved.ok) return err(resolved.message);
+			const cardId = resolved.id;
 
 			const card = await db.card.findUnique({ where: { id: cardId } });
 			if (!card) return err("Card not found.");
@@ -978,8 +978,8 @@ server.registerPrompt(
 				],
 			};
 
-		const cardId = await resolveCardId(cardRef, board.projectId);
-		if (!cardId)
+		const cardResolved = await resolveCardRef(cardRef, board.projectId);
+		if (!cardResolved.ok)
 			return {
 				messages: [
 					{

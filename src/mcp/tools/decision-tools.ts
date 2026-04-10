@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { AGENT_NAME, resolveCardId, ok, err, safeExecute } from "../utils.js";
+import { AGENT_NAME, resolveCardRef, ok, err, safeExecute } from "../utils.js";
 
 // ─── Decisions ─────────────────────────────────────────────────────
 
@@ -20,9 +20,9 @@ registerExtendedTool("recordDecision", {
 	handler: ({ projectId, cardId, title, status, decision, alternatives, rationale }) => safeExecute(async () => {
 		let resolvedCardId: string | null = null;
 		if (cardId) {
-			const id = await resolveCardId(cardId as string);
-			if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs, or searchCards to find by title.");
-			resolvedCardId = id;
+			const resolved = await resolveCardRef(cardId as string);
+			if (!resolved.ok) return err(resolved.message);
+			resolvedCardId = resolved.id;
 		}
 
 		const record = await db.decision.create({
@@ -61,9 +61,9 @@ registerExtendedTool("getDecisions", {
 	handler: ({ projectId, cardId, status }) => safeExecute(async () => {
 		let resolvedCardId: string | undefined;
 		if (cardId) {
-			const id = await resolveCardId(cardId as string);
-			if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs.");
-			resolvedCardId = id;
+			const resolved = await resolveCardRef(cardId as string);
+			if (!resolved.ok) return err(resolved.message);
+			resolvedCardId = resolved.id;
 		}
 
 		const where: Record<string, unknown> = { projectId: projectId as string };

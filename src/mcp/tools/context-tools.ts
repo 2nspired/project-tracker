@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getHorizon } from "../../lib/column-roles.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { AGENT_NAME, resolveCardId, ok, err, errWithToolHint, safeExecute } from "../utils.js";
+import { AGENT_NAME, resolveCardRef, ok, err, errWithToolHint, safeExecute } from "../utils.js";
 
 // ─── Focus Context ─────────────────────────────────────────────────
 
@@ -32,8 +32,9 @@ registerExtendedTool("getFocusContext", {
 
 		// ─── Card scope: deep context for a single card ──────────
 		if (cardRef) {
-			const cardId = await resolveCardId(cardRef, board.projectId);
-			if (!cardId) return err(`Card "${cardRef}" not found.`, "Use getBoard to see valid card refs.");
+			const resolved = await resolveCardRef(cardRef, board.projectId);
+			if (!resolved.ok) return err(resolved.message);
+			const cardId = resolved.id;
 
 			const card = await db.card.findUnique({
 				where: { id: cardId },

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { AGENT_NAME, resolveCardId, ok, err, safeExecute } from "../utils.js";
+import { AGENT_NAME, resolveCardRef, ok, err, safeExecute } from "../utils.js";
 
 // ─── Relations ─────────────────────────────────────────────────────
 
@@ -14,11 +14,13 @@ registerExtendedTool("linkCards", {
 		type: z.enum(["blocks", "related", "parent"]).describe("blocks = cardId blocks targetCardId, related = bidirectional, parent = cardId is parent of targetCardId"),
 	}),
 	handler: ({ cardId, targetCardId, type }) => safeExecute(async () => {
-		const fromId = await resolveCardId(cardId as string);
-		if (!fromId) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs, or searchCards to find by title.");
+		const fromResolved = await resolveCardRef(cardId as string);
+		if (!fromResolved.ok) return err(fromResolved.message);
+		const fromId = fromResolved.id;
 
-		const toId = await resolveCardId(targetCardId as string);
-		if (!toId) return err(`Card "${targetCardId}" not found.`, "Use getBoard to see valid card refs, or searchCards to find by title.");
+		const toResolved = await resolveCardRef(targetCardId as string);
+		if (!toResolved.ok) return err(toResolved.message);
+		const toId = toResolved.id;
 
 		if (fromId === toId) return err("A card cannot be linked to itself.");
 
@@ -79,11 +81,13 @@ registerExtendedTool("unlinkCards", {
 	}),
 	annotations: { destructiveHint: true },
 	handler: ({ cardId, targetCardId, type }) => safeExecute(async () => {
-		const fromId = await resolveCardId(cardId as string);
-		if (!fromId) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs.");
+		const fromResolved = await resolveCardRef(cardId as string);
+		if (!fromResolved.ok) return err(fromResolved.message);
+		const fromId = fromResolved.id;
 
-		const toId = await resolveCardId(targetCardId as string);
-		if (!toId) return err(`Card "${targetCardId}" not found.`, "Use getBoard to see valid card refs.");
+		const toResolved = await resolveCardRef(targetCardId as string);
+		if (!toResolved.ok) return err(toResolved.message);
+		const toId = toResolved.id;
 
 		const [fromCard, toCard] = await Promise.all([
 			db.card.findUnique({ where: { id: fromId }, select: { id: true, number: true, title: true } }),

@@ -45,30 +45,60 @@ export async function detectFeatures(): Promise<FeatureAvailability> {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export type ResolveResult =
+	| { ok: true; id: string }
+	| { ok: false; error: "not_found" | "ambiguous"; message: string };
+
 /**
  * Resolve a card reference — accepts UUID or "#number" (e.g. "#7").
  * When projectId is provided, resolves numbers within that project (precise).
- * Without projectId, searches across all projects (may be ambiguous).
+ * Without projectId, detects ambiguity across projects and fails safely.
  */
-export async function resolveCardId(ref: string, projectId?: string): Promise<string | null> {
-	if (UUID_REGEX.test(ref)) return ref;
+export async function resolveCardRef(ref: string, projectId?: string): Promise<ResolveResult> {
+	if (UUID_REGEX.test(ref)) return { ok: true, id: ref };
 
 	const num = Number.parseInt(ref.replace(/^#/, ""), 10);
-	if (Number.isNaN(num)) return null;
+	if (Number.isNaN(num)) return { ok: false, error: "not_found", message: `"${ref}" is not a valid card reference. Use a UUID or #number.` };
 
 	if (projectId) {
 		const card = await db.card.findUnique({
 			where: { projectId_number: { projectId, number: num } },
 			select: { id: true },
 		});
-		return card?.id ?? null;
+		return card
+			? { ok: true, id: card.id }
+			: { ok: false, error: "not_found", message: `Card #${num} not found in this project.` };
 	}
 
-	const card = await db.card.findFirst({
+	// No project scope — check for ambiguity
+	const matches = await db.card.findMany({
 		where: { number: num },
-		select: { id: true },
+		select: { id: true, project: { select: { name: true } } },
+		take: 5,
 	});
-	return card?.id ?? null;
+
+	if (matches.length === 0) {
+		return { ok: false, error: "not_found", message: `Card #${num} not found.` };
+	}
+	if (matches.length === 1) {
+		return { ok: true, id: matches[0].id };
+	}
+
+	const projects = matches.map((m) => `"${m.project.name}"`).join(", ");
+	return {
+		ok: false,
+		error: "ambiguous",
+		message: `Card #${num} exists in multiple projects (${projects}). Use the card UUID instead, or call getBoard first to scope to a project.`,
+	};
+}
+
+/**
+ * Convenience wrapper — returns just the ID or null.
+ * For call sites that need the full error, use resolveCardRef directly.
+ */
+export async function resolveCardId(ref: string, projectId?: string): Promise<string | null> {
+	const result = await resolveCardRef(ref, projectId);
+	return result.ok ? result.id : null;
 }
 
 /**

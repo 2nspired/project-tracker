@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { resolveCardId, ok, err, errWithToolHint, safeExecute } from "../utils.js";
+import { resolveCardRef, ok, err, errWithToolHint, safeExecute } from "../utils.js";
 import { validateRepo, detectGitRepo, gitLog, gitDiffFiles } from "../git-utils.js";
 
 // ─── Git ──────────────────────────────────────────────────────────
@@ -165,8 +165,9 @@ registerExtendedTool("getCodeMap", {
 	}),
 	annotations: { readOnlyHint: true },
 	handler: ({ cardId }) => safeExecute(async () => {
-		const id = await resolveCardId(cardId as string);
-		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs, or searchCards to find by title.");
+		const resolved = await resolveCardRef(cardId as string);
+		if (!resolved.ok) return err(resolved.message);
+		const id = resolved.id;
 
 		const links = await db.gitLink.findMany({
 			where: { cardId: id },
@@ -199,8 +200,9 @@ registerExtendedTool("getCardCommits", {
 	}),
 	annotations: { readOnlyHint: true },
 	handler: ({ cardId }) => safeExecute(async () => {
-		const id = await resolveCardId(cardId as string);
-		if (!id) return err(`Card "${cardId}" not found.`, "Use getBoard to see valid card refs, or searchCards to find by title.");
+		const resolved = await resolveCardRef(cardId as string);
+		if (!resolved.ok) return err(resolved.message);
+		const id = resolved.id;
 
 		const links = await db.gitLink.findMany({
 			where: { cardId: id },
