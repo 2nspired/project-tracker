@@ -1,9 +1,6 @@
 "use client";
 
-import { Bot, Search, User, X } from "lucide-react";
-import { useState } from "react";
-
-import { Badge } from "@/components/ui/badge";
+import { ArrowUpDown, Bot, Search, Sparkles, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,6 +10,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+
+export type SortMode = "manual" | "smart";
 
 export type BoardFilters = {
 	search: string;
@@ -31,6 +30,8 @@ const emptyFilters: BoardFilters = {
 type BoardToolbarProps = {
 	filters: BoardFilters;
 	onFiltersChange: (filters: BoardFilters) => void;
+	sortMode: SortMode;
+	onSortModeChange: (mode: SortMode) => void;
 	availableTags: string[];
 	totalCards: number;
 	visibleCards: number;
@@ -39,6 +40,8 @@ type BoardToolbarProps = {
 export function BoardToolbar({
 	filters,
 	onFiltersChange,
+	sortMode,
+	onSortModeChange,
 	availableTags,
 	totalCards,
 	visibleCards,
@@ -133,6 +136,22 @@ export function BoardToolbar({
 					</SelectContent>
 				</Select>
 			)}
+
+			{/* Sort mode toggle */}
+			<Button
+				variant={sortMode === "smart" ? "secondary" : "ghost"}
+				size="sm"
+				className="h-8 gap-1.5 px-2.5 text-xs"
+				onClick={() => onSortModeChange(sortMode === "manual" ? "smart" : "manual")}
+				title={sortMode === "smart" ? "Smart sort: cards ranked by work-next score" : "Manual sort: cards in drag order"}
+			>
+				{sortMode === "smart" ? (
+					<Sparkles className="h-3.5 w-3.5 text-amber-500" />
+				) : (
+					<ArrowUpDown className="h-3.5 w-3.5" />
+				)}
+				{sortMode === "smart" ? "Smart" : "Sort"}
+			</Button>
 
 			{/* Clear + count */}
 			{hasActiveFilters && (

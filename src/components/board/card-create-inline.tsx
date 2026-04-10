@@ -1,7 +1,7 @@
 "use client";
 
-import { FileText, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { FileText, Info, Plus, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,8 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { cardTemplates, type CardTemplate } from "@/lib/card-templates";
+import { findSimilarCards } from "@/lib/card-similarity";
+import { type CardTemplate, cardTemplates } from "@/lib/card-templates";
 import { api } from "@/trpc/react";
 
 export function CardCreateInline({ columnId, boardId }: { columnId: string; boardId: string }) {
@@ -22,6 +23,24 @@ export function CardCreateInline({ columnId, boardId }: { columnId: string; boar
 	const [template, setTemplate] = useState<CardTemplate | null>(null);
 
 	const utils = api.useUtils();
+
+	// Get existing cards from the board cache for similarity detection
+	const { data: board } = api.board.getFull.useQuery(
+		{ id: boardId },
+		{ enabled: isCreating } // only fetch when creating
+	);
+
+	const allBoardCards = useMemo(() => {
+		if (!board) return [];
+		return board.columns.flatMap((col) =>
+			col.cards.map((c) => ({ id: c.id, number: c.number, title: c.title }))
+		);
+	}, [board]);
+
+	const similarCards = useMemo(
+		() => findSimilarCards(title, allBoardCards),
+		[title, allBoardCards]
+	);
 
 	const createCard = api.card.create.useMutation({
 		onSuccess: (card) => {
@@ -121,6 +140,20 @@ export function CardCreateInline({ columnId, boardId }: { columnId: string; boar
 					}
 				}}
 			/>
+			{similarCards.length > 0 && (
+				<div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5">
+					<div className="flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+						<Info className="h-3 w-3" />
+						Similar card{similarCards.length > 1 ? "s" : ""} found
+					</div>
+					{similarCards.map((match) => (
+						<div key={match.id} className="mt-0.5 text-[10px] text-muted-foreground">
+							<span className="font-mono">#{match.number}</span> <span>{match.title}</span>
+							<span className="ml-1 opacity-50">({Math.round(match.score * 100)}%)</span>
+						</div>
+					))}
+				</div>
+			)}
 			<div className="flex gap-2">
 				<Button type="submit" size="sm" disabled={createCard.isPending || !title.trim()}>
 					Add

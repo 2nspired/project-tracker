@@ -3,6 +3,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
+import type { SortMode } from "./board-toolbar";
 import { CardCreateInline } from "./card-create-inline";
 import { ColumnHeader } from "./column-header";
 import { SortableCard } from "./sortable-card";
@@ -18,6 +19,7 @@ type ColumnCard = {
 	updatedAt: Date;
 	checklists: Array<{ completed: boolean }>;
 	_count: { comments: number };
+	_workNextScore?: number;
 };
 
 type BoardColumnProps = {
@@ -29,10 +31,11 @@ type BoardColumnProps = {
 		cards: ColumnCard[];
 	};
 	boardId: string;
+	sortMode: SortMode;
 	onCardClick: (cardId: string) => void;
 };
 
-export function BoardColumn({ column, boardId, onCardClick }: BoardColumnProps) {
+export function BoardColumn({ column, boardId, sortMode, onCardClick }: BoardColumnProps) {
 	const { setNodeRef, isOver } = useDroppable({
 		id: column.id,
 		data: { type: "column", column },
@@ -48,15 +51,13 @@ export function BoardColumn({ column, boardId, onCardClick }: BoardColumnProps) 
 		>
 			<ColumnHeader column={column} boardId={boardId} />
 
-			<div
-				ref={setNodeRef}
-				className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto"
-			>
+			<div ref={setNodeRef} className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto">
 				<SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
 					{column.cards.map((card) => (
 						<SortableCard
 							key={card.id}
 							card={card}
+							showScore={sortMode === "smart"}
 							onClick={() => onCardClick(card.id)}
 						/>
 					))}

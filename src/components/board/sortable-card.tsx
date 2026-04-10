@@ -17,11 +17,13 @@ type SortableCardProps = {
 		updatedAt: Date;
 		checklists: Array<{ completed: boolean }>;
 		_count: { comments: number };
+		_workNextScore?: number;
 	};
+	showScore?: boolean;
 	onClick: () => void;
 };
 
-export function SortableCard({ card, onClick }: SortableCardProps) {
+export function SortableCard({ card, showScore, onClick }: SortableCardProps) {
 	const {
 		attributes,
 		listeners,
@@ -42,7 +44,7 @@ export function SortableCard({ card, onClick }: SortableCardProps) {
 
 	return (
 		<div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-			<BoardCard card={card} onClick={onClick} />
+			<BoardCard card={card} showScore={showScore} onClick={onClick} />
 		</div>
 	);
 }

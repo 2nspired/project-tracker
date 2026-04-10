@@ -1,9 +1,10 @@
 "use client";
 
-import { Ban, Bot, CheckSquare, Clock, MessageSquare, User } from "lucide-react";
+import { Ban, Bot, CheckSquare, Clock, MessageSquare, Sparkles, User } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import type { Priority } from "@/lib/schemas/card-schemas";
+import { formatScore, scoreColor } from "@/lib/work-next-score";
 
 const priorityBorders: Record<Priority, string> = {
 	NONE: "border-l-border",
@@ -26,7 +27,9 @@ type BoardCardProps = {
 		checklists: Array<{ completed: boolean }>;
 		_count: { comments: number };
 		_blockedByCount?: number;
+		_workNextScore?: number;
 	};
+	showScore?: boolean;
 	onClick: () => void;
 };
 
@@ -40,7 +43,7 @@ function getAgeIndicator(days: number): { className: string; label: string } | n
 	return null;
 }
 
-export function BoardCard({ card, onClick }: BoardCardProps) {
+export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 	const tags: string[] = JSON.parse(card.tags);
 	const priority = card.priority as Priority;
 	const checklistTotal = card.checklists.length;
@@ -57,7 +60,18 @@ export function BoardCard({ card, onClick }: BoardCardProps) {
 			<div className="space-y-2">
 				<div className="flex items-start justify-between gap-2">
 					<span className="text-sm font-medium leading-tight">{card.title}</span>
-					<span className="shrink-0 text-[10px] font-mono text-muted-foreground">#{card.number}</span>
+					<div className="flex shrink-0 items-center gap-1.5">
+						{showScore && card._workNextScore !== undefined && (
+							<span
+								className={`flex items-center gap-0.5 text-[10px] font-mono tabular-nums ${scoreColor(card._workNextScore)}`}
+								title={`Work-next score: ${card._workNextScore}`}
+							>
+								<Sparkles className="h-2.5 w-2.5" />
+								{formatScore(card._workNextScore)}
+							</span>
+						)}
+						<span className="text-[10px] font-mono text-muted-foreground">#{card.number}</span>
+					</div>
 				</div>
 
 				{tags.length > 0 && (

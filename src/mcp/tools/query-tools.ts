@@ -3,6 +3,44 @@ import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { ok, err, safeExecute } from "../utils.js";
 
+// ─── Similarity utilities (inlined to avoid ESM import issues) ────
+
+const STOP_WORDS = new Set([
+	"a", "an", "the", "is", "are", "was", "were", "be", "been",
+	"to", "of", "in", "for", "on", "with", "at", "by", "from",
+	"and", "or", "but", "not", "this", "that", "it", "as",
+	"add", "update", "fix", "implement", "create", "remove",
+]);
+
+function normalizeSim(text: string): string {
+	return text
+		.toLowerCase()
+		.replace(/[^a-z0-9\s]/g, "")
+		.split(/\s+/)
+		.filter((w) => w.length > 1 && !STOP_WORDS.has(w))
+		.join(" ");
+}
+
+function trigramSet(text: string): Set<string> {
+	const set = new Set<string>();
+	const normalized = normalizeSim(text);
+	if (normalized.length < 3) { set.add(normalized); return set; }
+	for (let i = 0; i <= normalized.length - 3; i++) {
+		set.add(normalized.slice(i, i + 3));
+	}
+	return set;
+}
+
+function jaccardSimilarity(a: string, b: string): number {
+	const sa = trigramSet(a);
+	const sb = trigramSet(b);
+	if (sa.size === 0 || sb.size === 0) return 0;
+	let intersection = 0;
+	for (const gram of sa) { if (sb.has(gram)) intersection++; }
+	const union = sa.size + sb.size - intersection;
+	return union === 0 ? 0 : intersection / union;
+}
+
 // ─── Smart Queries ────────────────────────────────────────────────
 
 registerExtendedTool("queryCards", {
@@ -161,6 +199,58 @@ registerExtendedTool("queryCards", {
 				milestone: card.milestone?.name ?? null,
 				updatedAt: card.updatedAt,
 			})),
+		});
+	}),
+});
+
+// ─── Similarity Search ───────────────────────────────────────────
+
+registerExtendedTool("findSimilar", {
+	category: "discovery",
+	description: "Find cards with similar titles using trigram similarity. Useful for detecting duplicates before creating new cards.",
+	parameters: z.object({
+		boardId: z.string().describe("Board UUID"),
+		title: z.string().min(3).describe("Title to compare against existing cards"),
+		threshold: z.number().min(0).max(1).default(0.35).describe("Similarity threshold (0-1, default 0.35)"),
+		limit: z.number().int().min(1).max(20).default(5).describe("Max results (1-20, default 5)"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: ({ boardId, title, threshold, limit }) => safeExecute(async () => {
+		const board = await db.board.findUnique({
+			where: { id: boardId as string },
+			include: {
+				columns: {
+					include: {
+						cards: {
+							select: { id: true, number: true, title: true, priority: true, tags: true },
+						},
+					},
+				},
+			},
+		});
+		if (!board) return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
+
+		const allCards = board.columns.flatMap((col) =>
+			col.cards.map((c) => ({ ...c, column: col.name })),
+		);
+
+		const matches = allCards
+			.map((card) => ({
+				ref: `#${card.number}`,
+				title: card.title,
+				column: card.column,
+				priority: card.priority,
+				tags: JSON.parse(card.tags) as string[],
+				similarity: Math.round(jaccardSimilarity(title as string, card.title) * 100) / 100,
+			}))
+			.filter((m) => m.similarity >= (threshold as number))
+			.sort((a, b) => b.similarity - a.similarity)
+			.slice(0, limit as number);
+
+		return ok({
+			query: title,
+			matches,
+			hasDuplicates: matches.some((m) => m.similarity >= 0.6),
 		});
 	}),
 });

@@ -17,11 +17,13 @@ import { Lightbulb } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { hasRole } from "@/lib/column-roles";
+import { computeWorkNextScore } from "@/lib/work-next-score";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
-import { type BoardFilters, BoardToolbar, emptyFilters } from "./board-toolbar";
+import { BoardPulse } from "./board-pulse";
+import { type BoardFilters, type SortMode, BoardToolbar, emptyFilters } from "./board-toolbar";
 import { CardCreateInline } from "./card-create-inline";
 import { CardDetailSheet } from "./card-detail-sheet";
 import { AddColumnButton } from "./column-header";
@@ -67,6 +69,7 @@ export function BoardView({ board }: { board: FullBoard }) {
 	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 	const [activeCard, setActiveCard] = useState<BoardCardType | null>(null);
 	const [filters, setFilters] = useState<BoardFilters>(emptyFilters);
+	const [sortMode, setSortMode] = useState<SortMode>("manual");
 
 	const utils = api.useUtils();
 	const moveCard = api.card.move.useMutation({
@@ -94,23 +97,49 @@ export function BoardView({ board }: { board: FullBoard }) {
 		return Array.from(tagSet).sort();
 	}, [allCards]);
 
+	// Build a map of how many cards each card blocks (for work-next scoring)
+	const blocksOtherMap = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const col of board.columns) {
+			for (const card of col.cards) {
+				// relationsTo are "blocked by" relations on this card
+				// We need to count how many cards THIS card blocks (i.e., appears as blocker)
+				// This data isn't directly available, but _blockedByCount tells us
+				// how many block relations point TO this card. We need the inverse.
+			}
+		}
+		// We don't have relationsFrom in getFull, so we approximate:
+		// cards with _blockedByCount > 0 are blocked; we can't know who blocks them
+		// from this data. For now, _blocksOtherCount stays 0 unless enriched.
+		return map;
+	}, [board.columns]);
+
 	// Apply filters to get filtered columns
 	// Done column sorts by most recently completed (updatedAt desc) instead of position
+	// Smart sort mode: sort by work-next score (descending) instead of position
 	const filteredColumns = useMemo(
 		() =>
 			board.columns.map((col) => {
-				const cards = filterCards(col.cards, filters);
+				let cards = filterCards(col.cards, filters);
 				if (hasRole(col, "done")) {
-					return {
-						...col,
-						cards: [...cards].sort(
-							(a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-						),
-					};
+					cards = [...cards].sort(
+						(a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+					);
+				} else if (sortMode === "smart") {
+					cards = [...cards]
+						.map((card) => ({
+							...card,
+							_workNextScore: computeWorkNextScore({
+								...card,
+								relationsTo: card.relationsTo,
+								_blocksOtherCount: blocksOtherMap.get(card.id) ?? 0,
+							}),
+						}))
+						.sort((a, b) => b._workNextScore - a._workNextScore);
 				}
 				return { ...col, cards };
 			}),
-		[board.columns, filters]
+		[board.columns, filters, sortMode, blocksOtherMap]
 	);
 
 	const totalCards = allCards.length;
@@ -193,10 +222,14 @@ export function BoardView({ board }: { board: FullBoard }) {
 				<BoardToolbar
 					filters={filters}
 					onFiltersChange={setFilters}
+					sortMode={sortMode}
+					onSortModeChange={setSortMode}
 					availableTags={availableTags}
 					totalCards={totalCards}
 					visibleCards={visibleCards}
 				/>
+
+				<BoardPulse boardId={board.id} />
 
 				{/* Columns */}
 				<div className="flex flex-1 gap-4 overflow-x-auto p-4">
@@ -205,6 +238,7 @@ export function BoardView({ board }: { board: FullBoard }) {
 							key={column.id}
 							column={column}
 							boardId={board.id}
+							sortMode={sortMode}
 							onCardClick={setSelectedCardId}
 						/>
 					))}
