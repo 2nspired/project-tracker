@@ -263,10 +263,12 @@ model Decision {
   decision     String
   alternatives String   @default("[]") // JSON array
   rationale    String   @default("")
-  author       String   @default("AGENT")
-  version      Int      @default(0) // Optimistic locking for multi-agent conflict resolution
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  author         String   @default("AGENT")
+  version        Int      @default(0) // Optimistic locking for multi-agent conflict resolution
+  supersedes     String?  @map("supersedes")    // ID of the old decision this one replaces
+  supersededBy   String?  @map("superseded_by") // ID of the new decision that replaced this one
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   card    Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)

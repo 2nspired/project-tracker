@@ -19,22 +19,23 @@ export type StalenessWarning = {
 	entryId: string;
 	claim: string;
 	reason: string;
-	type: "file-changed" | "age-decay" | "ttl-expired";
+	type: "file-changed" | "age-decay" | "ttl-expired" | "superseded";
 	severity: "stale" | "possibly-stale";
-	source?: "context-entry" | "code-fact" | "measurement";
+	source?: "context-entry" | "code-fact" | "measurement" | "decision";
 };
 
 // ─── Core ──────────────────────────────────────────────────────────
 
 export async function checkStaleness(projectId: string): Promise<StalenessWarning[]> {
 	// Check context entries, code facts, and measurements in parallel
-	const [entryWarnings, codeFactWarnings, measurementWarnings] = await Promise.all([
+	const [entryWarnings, codeFactWarnings, measurementWarnings, decisionWarnings] = await Promise.all([
 		checkContextEntryStaleness(projectId),
 		checkCodeFactStaleness(projectId),
 		checkMeasurementStaleness(projectId),
+		checkDecisionStaleness(projectId),
 	]);
 
-	return [...entryWarnings, ...codeFactWarnings, ...measurementWarnings];
+	return [...entryWarnings, ...codeFactWarnings, ...measurementWarnings, ...decisionWarnings];
 }
 
 async function checkContextEntryStaleness(projectId: string): Promise<StalenessWarning[]> {
@@ -292,14 +293,34 @@ export async function checkMeasurementStaleness(projectId: string): Promise<Stal
 	return warnings;
 }
 
+// ─── Decision Staleness ──────────────────────────────────────────
+
+export async function checkDecisionStaleness(projectId: string): Promise<StalenessWarning[]> {
+	const decisions = await db.decision.findMany({
+		where: { projectId, status: "superseded" },
+	});
+
+	return decisions.map((d) => ({
+		entryId: d.id,
+		claim: d.title,
+		reason: d.supersededBy
+			? `Superseded by decision ${d.supersededBy.slice(0, 8)}… — use the newer decision instead`
+			: "Marked as superseded but no replacement linked",
+		type: "superseded" as const,
+		severity: "stale" as const,
+		source: "decision" as const,
+	}));
+}
+
 // ─── Formatting ────────────────────────────────────────────────────
 
 export function formatStalenessWarnings(warnings: StalenessWarning[]): string | null {
 	if (warnings.length === 0) return null;
 
-	const entryWarnings = warnings.filter((w) => w.source === "context-entry" || !w.source);
+	const entryWarnings = warnings.filter((w) => w.source === "context-entry" || (!w.source && w.source !== "decision"));
 	const codeFactWarnings = warnings.filter((w) => w.source === "code-fact");
 	const measurementWarnings = warnings.filter((w) => w.source === "measurement");
+	const decisionWarnings = warnings.filter((w) => w.source === "decision");
 
 	const sections: string[] = [
 		"\u26a0\ufe0f STALE CONTEXT WARNINGS",
@@ -325,6 +346,14 @@ export function formatStalenessWarnings(warnings: StalenessWarning[]): string | 
 		if (entryWarnings.length > 0 || codeFactWarnings.length > 0) sections.push("");
 		sections.push("**Measurements:**");
 		sections.push(...measurementWarnings.map((w) =>
+			`- **[${w.severity}]** ${w.claim} — ${w.reason}`
+		));
+	}
+
+	if (decisionWarnings.length > 0) {
+		if (entryWarnings.length > 0 || codeFactWarnings.length > 0 || measurementWarnings.length > 0) sections.push("");
+		sections.push("**Decisions:**");
+		sections.push(...decisionWarnings.map((w) =>
 			`- **[${w.severity}]** ${w.claim} — ${w.reason}`
 		));
 	}

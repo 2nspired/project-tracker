@@ -16,8 +16,9 @@ registerExtendedTool("recordDecision", {
 		decision: z.string().describe("The decision text"),
 		alternatives: z.array(z.string()).default([]).describe("Alternatives considered"),
 		rationale: z.string().default("").describe("Why this decision was made"),
+		supersedesId: z.string().optional().describe("ID of the decision this one supersedes — the old decision will be marked as superseded and linked"),
 	}),
-	handler: ({ projectId, cardId, title, status, decision, alternatives, rationale }) => safeExecute(async () => {
+	handler: ({ projectId, cardId, title, status, decision, alternatives, rationale, supersedesId }) => safeExecute(async () => {
 		let resolvedCardId: string | null = null;
 		if (cardId) {
 			const resolved = await resolveCardRef(cardId as string);
@@ -39,12 +40,25 @@ registerExtendedTool("recordDecision", {
 			include: { card: { select: { id: true, number: true, title: true } } },
 		});
 
+		if (supersedesId) {
+			const oldDecision = await db.decision.findUnique({ where: { id: supersedesId as string } });
+			if (!oldDecision) return err("Superseded decision not found.", "Check the supersedesId.");
+			await db.decision.update({ where: { id: supersedesId as string }, data: { status: "superseded", supersededBy: record.id } });
+			await db.decision.update({ where: { id: record.id }, data: { supersedes: supersedesId as string } });
+		}
+
+		const final = supersedesId
+			? await db.decision.findUnique({ where: { id: record.id }, include: { card: { select: { id: true, number: true, title: true } } } })
+			: record;
+
 		return ok({
-			id: record.id,
-			title: record.title,
-			status: record.status,
-			version: record.version,
-			card: record.card ? { ref: `#${record.card.number}`, title: record.card.title } : null,
+			id: final!.id,
+			title: final!.title,
+			status: final!.status,
+			version: final!.version,
+			supersedes: final!.supersedes,
+			supersededBy: final!.supersededBy,
+			card: final!.card ? { ref: `#${final!.card.number}`, title: final!.card.title } : null,
 			created: true,
 		});
 	}),
@@ -86,6 +100,8 @@ registerExtendedTool("getDecisions", {
 			rationale: d.rationale,
 			author: d.author,
 			version: d.version,
+			supersedes: d.supersedes,
+			supersededBy: d.supersededBy,
 			card: d.card ? { ref: `#${d.card.number}`, title: d.card.title } : null,
 			createdAt: d.createdAt,
 		})));
@@ -102,9 +118,10 @@ registerExtendedTool("updateDecision", {
 		decision: z.string().optional().describe("Updated decision text"),
 		rationale: z.string().optional().describe("Updated rationale"),
 		alternatives: z.array(z.string()).optional().describe("Updated alternatives"),
+		supersedesId: z.string().optional().describe("ID of the decision this one supersedes — sets old decision to superseded and links them"),
 	}),
 	annotations: { idempotentHint: true },
-	handler: ({ decisionId, version, status, decision, rationale, alternatives }) => safeExecute(async () => {
+	handler: ({ decisionId, version, status, decision, rationale, alternatives, supersedesId }) => safeExecute(async () => {
 		const existing = await db.decision.findUnique({ where: { id: decisionId as string } });
 		if (!existing) return err("Decision not found.", "Use getDecisions to find valid decision IDs.");
 
@@ -123,11 +140,24 @@ registerExtendedTool("updateDecision", {
 			data,
 		});
 
+		if (supersedesId) {
+			const oldDecision = await db.decision.findUnique({ where: { id: supersedesId as string } });
+			if (!oldDecision) return err("Superseded decision not found.", "Check the supersedesId.");
+			await db.decision.update({ where: { id: supersedesId as string }, data: { status: "superseded", supersededBy: updated.id } });
+			await db.decision.update({ where: { id: updated.id }, data: { supersedes: supersedesId as string } });
+		}
+
+		const final = supersedesId
+			? await db.decision.findUnique({ where: { id: updated.id } })
+			: updated;
+
 		return ok({
-			id: updated.id,
-			title: updated.title,
-			status: updated.status,
-			version: updated.version,
+			id: final!.id,
+			title: final!.title,
+			status: final!.status,
+			version: final!.version,
+			supersedes: final!.supersedes,
+			supersededBy: final!.supersededBy,
 			updated: true,
 		});
 	}),
