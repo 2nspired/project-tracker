@@ -10,7 +10,7 @@ export const AGENT_NAME = process.env.AGENT_NAME || "Agent";
  * Increment when schema changes require `db:push`.
  * Feature map tells agents what capabilities are available.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export type FeatureAvailability = {
 	version: number;

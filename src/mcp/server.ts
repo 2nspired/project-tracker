@@ -33,6 +33,7 @@ import "./tools/onboarding-tools.js";
 import "./tools/status-tools.js";
 import "./tools/context-entry-tools.js";
 import "./tools/codefact-tools.js";
+import "./tools/measurement-tools.js";
 import "./tools/knowledge-tools.js";
 
 const server = new McpServer({

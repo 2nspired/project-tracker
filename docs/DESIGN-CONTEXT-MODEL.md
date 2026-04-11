@@ -66,7 +66,7 @@ Move persistent context from scattered files into structured, queryable entries 
 - `indexed` — queryable but not surfaced in UI main flow (default)
 - `surfaced` — appears in the board UI main flow
 
-## Phase 3: Code Facts + FTS5 Cross-Source Search (Current)
+## Phase 3: Code Facts + FTS5 Cross-Source Search
 
 Structured code facts and full-text search across all knowledge sources.
 

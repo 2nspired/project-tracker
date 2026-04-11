@@ -28,7 +28,8 @@ model Project {
   decisions      Decision[]
   gitLinks       GitLink[]
   contextEntries PersistentContextEntry[]
-  codeFacts      CodeFact[]
+  codeFacts         CodeFact[]
+  measurementFacts  MeasurementFact[]
 
   @@map("project")
 }
@@ -351,4 +352,27 @@ model CodeFact {
   @@index([projectId, path])
   @@index([needsRecheck])
   @@map("code_fact")
+}
+
+model MeasurementFact {
+  id           String    @id @default(uuid())
+  projectId    String    @map("project_id")
+  value        Float                          // The measured value
+  unit         String                         // e.g. "seconds", "ms", "MB"
+  description  String                         // What was measured
+  env          String    @default("{}")       // JSON key-value pairs of dependencies
+  path         String?                        // Optional file path (relative to repo root)
+  symbol       String?                        // Optional function/symbol name
+  author       String    @default("AGENT")
+  recordedAt   DateTime  @default(now()) @map("recorded_at")
+  ttl          Int?                           // Optional TTL in days
+  needsRecheck Boolean   @default(false) @map("needs_recheck")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([needsRecheck])
+  @@map("measurement_fact")
 }

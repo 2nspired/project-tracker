@@ -165,6 +165,23 @@ export async function rebuildIndex(projectId: string): Promise<{ indexed: Record
 		});
 	}
 
+	// Source 9: Measurement facts
+	const measurements = await db.measurementFact.findMany({
+		where: { projectId },
+		select: { id: true, description: true, value: true, unit: true, env: true, path: true, symbol: true },
+	});
+	for (const m of measurements) {
+		const envObj = JSON.parse(m.env) as Record<string, string>;
+		const envStr = Object.entries(envObj).map(([k, v]) => `${k}: ${v}`).join(", ");
+		rows.push({
+			source_type: "measurement",
+			source_id: m.id,
+			project_id: projectId,
+			title: `[measurement] ${m.description}`,
+			content: `${m.value} ${m.unit}${m.path ? ` (${m.path}${m.symbol ? `#${m.symbol}` : ""})` : ""}${envStr ? ` — env: ${envStr}` : ""}`,
+		});
+	}
+
 	// Source 8: Indexed repo markdown files
 	if (project?.repoPath) {
 		const docRows = await indexRepoMarkdown(projectId, project.repoPath);

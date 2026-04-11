@@ -1,6 +1,6 @@
 {
-	"name": "next-starter",
-	"version": "0.2.0",
+	"name": "project-tracker",
+	"version": "2.1.0",
 	"private": true,
 	"scripts": {
 		"dev": "tsx scripts/dev.ts",

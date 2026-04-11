@@ -42,6 +42,13 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 - Board audit — find cards missing priority, tags, milestones, or checklists
 - Schema version detection with migration hints
 
+**Persistent context** ([design doc](docs/DESIGN-CONTEXT-MODEL.md))
+- Context entries — structured knowledge claims with rationale, cited files, and staleness tracking
+- Code facts — file-cited structural facts about the codebase with auto-staleness detection
+- Knowledge search — FTS5 full-text search across cards, comments, decisions, notes, handoffs, code facts, and repo docs
+- Staleness warnings — auto-flags stale facts at session start based on git changes and age heuristics
+- Generated project status — `renderStatus` replaces hand-maintained STATUS.md with board-derived markdown
+
 For agent workflow conventions and board usage guidelines, see [AGENTS.md](AGENTS.md).
 
 ## Quick Start
@@ -144,7 +151,7 @@ Replace `/path/to/project-tracker` with the actual path where you cloned this re
 
 ## MCP Tools
 
-The tracker uses an **Essential + Catalog** pattern: 10 essential tools are always loaded in the agent's context. 51 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
+The tracker uses an **Essential + Catalog** pattern: 10 essential tools are always loaded in the agent's context. 67 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
 
 ### Essential Tools (10)
 
@@ -161,24 +168,24 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `getTools` | Browse extended tools by category |
 | `runTool` | Execute any extended tool by name |
 
-### Extended Tools (51)
+### Extended Tools (67)
 
 | Category | Count | Examples |
 | --- | --- | --- |
-| `discovery` | 8 | List projects/boards, stats, board audit, similarity search, work-next |
+| `discovery` | 10 | List projects/boards, stats, board audit, similarity search, work-next, render status, query cards |
 | `cards` | 5 | Bulk create, bulk update, templates, bulk move, delete |
-| `checklist` | 4 | Add, bulk add, toggle, delete |
+| `checklist` | 6 | Add, bulk add, bulk add multi, toggle, delete, reorder |
 | `milestones` | 5 | Create, update, set, bulk set, list with completion % |
 | `notes` | 4 | Create, update, list, delete |
 | `relations` | 3 | Link/unlink cards, get blockers |
-| `session` | 3 | Save/load handoffs, board diff |
+| `session` | 5 | Save/load/list handoffs, board diff, review session facts |
 | `decisions` | 3 | Record, list, update architectural decisions |
 | `scratch` | 4 | Set, get, list, clear ephemeral agent notes |
 | `git` | 4 | Sync commits, get log, code map, card commits |
 | `comments` | 2 | List and delete comments |
 | `setup` | 4 | Create projects, columns, set repo path, seed tutorial |
 | `activity` | 1 | Recent activity history |
-| `context` | 1 | Focus context bundles (card/milestone/tag scope) |
+| `context` | 11 | Focus context, code facts CRUD, context entries CRUD, knowledge search, rebuild index |
 
 ### Prompts (8)
 
@@ -345,7 +352,7 @@ src/
 │   └── api/routers/               # tRPC routers
 ├── mcp/
 │   ├── server.ts                  # MCP server (10 essential tools, 8 prompts)
-│   ├── tool-registry.ts           # Extended tool catalog (51 tools, 14 categories)
+│   ├── tool-registry.ts           # Extended tool catalog (67 tools, 14 categories)
 │   └── tools/                     # Domain-split tool files
 ├── lib/                           # Schemas, utilities, templates
 └── trpc/                          # tRPC React client
