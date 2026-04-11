@@ -116,9 +116,11 @@ model Card {
   createdBy   String   @default("HUMAN") @map("created_by")
   milestoneId String?   @map("milestone_id")
   dueDate     DateTime? @map("due_date")
-  metadata    String   @default("{}") // JSON object for agent context (not rendered in UI)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  metadata     String   @default("{}") // JSON object for agent context (not rendered in UI)
+  version      Int      @default(0) // Optimistic locking for multi-agent conflict resolution
+  lastEditedBy String?  @map("last_edited_by") // Agent/actor who last modified this card
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   column        Column          @relation(fields: [columnId], references: [id], onDelete: Cascade)
   project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -261,6 +263,7 @@ model Decision {
   alternatives String   @default("[]") // JSON array
   rationale    String   @default("")
   author       String   @default("AGENT")
+  version      Int      @default(0) // Optimistic locking for multi-agent conflict resolution
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -321,6 +324,7 @@ model PersistentContextEntry {
   citedFiles    String   @default("[]") @map("cited_files") // JSON string[] — file paths this fact references
   recordedAtSha String?  @map("recorded_at_sha") // Git SHA when this was recorded
   surface       String   @default("indexed") // ambient | indexed | surfaced
+  version       Int      @default(0) // Optimistic locking for multi-agent conflict resolution
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -341,6 +345,7 @@ model CodeFact {
   author         String   @default("AGENT") // Who recorded this (AGENT or HUMAN)
   recordedAtSha  String?  @map("recorded_at_sha") // Git SHA when recorded
   needsRecheck   Boolean  @default(false) @map("needs_recheck") // Advisory flag
+  version        Int      @default(0) // Optimistic locking for multi-agent conflict resolution
   lastVerifiedAt DateTime? @map("last_verified_at") // Last time someone confirmed this is still true
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")

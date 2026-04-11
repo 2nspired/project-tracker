@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { ok, err, safeExecute } from "../utils.js";
+import { ok, err, safeExecute, checkVersionConflict } from "../utils.js";
 
 // ─── Code Facts ──────────────────────────────────────────────────
 
@@ -15,6 +15,7 @@ function parseFact(fact: {
 	recordedAtSha: string | null;
 	needsRecheck: boolean;
 	lastVerifiedAt: Date | null;
+	version: number;
 	createdAt: Date;
 	updatedAt: Date;
 }) {
@@ -28,6 +29,7 @@ function parseFact(fact: {
 		recordedAtSha: fact.recordedAtSha,
 		needsRecheck: fact.needsRecheck,
 		lastVerifiedAt: fact.lastVerifiedAt,
+		version: fact.version,
 		createdAt: fact.createdAt,
 		updatedAt: fact.updatedAt,
 	};
@@ -45,8 +47,9 @@ registerExtendedTool("saveCodeFact", {
 		author: z.string().default("AGENT").describe("Who recorded this (AGENT or HUMAN)"),
 		recordedAtSha: z.string().optional().describe("Git SHA when this was recorded"),
 		factId: z.string().optional().describe("Fact UUID — pass to update an existing fact"),
+		version: z.number().int().optional().describe("Expected version for optimistic locking — pass to detect conflicts"),
 	}),
-	handler: ({ projectId, path, fact, symbol, author, recordedAtSha, factId }) =>
+	handler: ({ projectId, path, fact, symbol, author, recordedAtSha, factId, version }) =>
 		safeExecute(async () => {
 			const project = await db.project.findUnique({ where: { id: projectId as string } });
 			if (!project) return err("Project not found.", "Use listProjects to find a valid projectId.");
@@ -65,9 +68,12 @@ registerExtendedTool("saveCodeFact", {
 				const existing = await db.codeFact.findUnique({ where: { id: factId as string } });
 				if (!existing) return err("Code fact not found.", "Check the factId and try again.");
 
+				const conflict = checkVersionConflict(version as number | undefined, existing.version, "code fact");
+				if (conflict) return conflict;
+
 				const updated = await db.codeFact.update({
 					where: { id: factId as string },
-					data: { ...data, lastVerifiedAt: new Date() },
+					data: { ...data, lastVerifiedAt: new Date(), version: { increment: 1 } },
 				});
 				return ok(parseFact(updated));
 			}
