@@ -199,6 +199,6 @@ Then add to the project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc
 
 This project is tracked in the Project Tracker board.
 Use the `project-tracker` MCP tools to read and update the board.
-At the start of each conversation, use the `start-session` prompt with the board ID.
+At the start of each conversation, use the `resume-session` prompt with the board ID.
 Reference cards by #number in conversation (e.g. "working on #7").
 ```

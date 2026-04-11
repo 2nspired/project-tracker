@@ -202,7 +202,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `setup-project` | Step-by-step guide for setting up a new project on the tracker. |
 | `holistic-review` | Review board against actual codebase — sync board state with reality. |
 
-### Resources (4)
+### Resources (5)
 
 | Resource URI | What it provides |
 | --- | --- |
@@ -210,6 +210,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `tracker://board/{boardId}/card/{number}` | Single card with all details |
 | `tracker://board/{boardId}/handoff` | Latest session handoff |
 | `tracker://project/{projectId}/decisions` | All project decisions |
+| `status://project/{slug}` | Board-derived project status (replaces STATUS.md) |
 
 Cards get sequential numbers per project (`#1`, `#2`, `#3`). Reference them in conversation — "working on #7", "move #12 to Done" — the agent resolves them automatically.
 
