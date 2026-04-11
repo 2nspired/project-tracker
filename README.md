@@ -45,6 +45,8 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 **Persistent context** ([design doc](docs/DESIGN-CONTEXT-MODEL.md))
 - Context entries — structured knowledge claims with rationale, cited files, and staleness tracking
 - Code facts — file-cited structural facts about the codebase with auto-staleness detection
+- Measurement facts — environment-dependent numeric values (latency, build time, etc.) with TTL and env-drift staleness
+- Optimistic locking — version-based conflict resolution for multi-agent writes with clear conflict errors
 - Knowledge search — FTS5 full-text search across cards, comments, decisions, notes, handoffs, code facts, and repo docs
 - Staleness warnings — auto-flags stale facts at session start based on git changes and age heuristics
 - Generated project status — `renderStatus` replaces hand-maintained STATUS.md with board-derived markdown
@@ -151,7 +153,7 @@ Replace `/path/to/project-tracker` with the actual path where you cloned this re
 
 ## MCP Tools
 
-The tracker uses an **Essential + Catalog** pattern: 10 essential tools are always loaded in the agent's context. 67 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
+The tracker uses an **Essential + Catalog** pattern: 10 essential tools are always loaded in the agent's context. 71 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
 
 ### Essential Tools (10)
 
@@ -168,7 +170,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `getTools` | Browse extended tools by category |
 | `runTool` | Execute any extended tool by name |
 
-### Extended Tools (67)
+### Extended Tools (71)
 
 | Category | Count | Examples |
 | --- | --- | --- |
@@ -185,7 +187,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `comments` | 2 | List and delete comments |
 | `setup` | 4 | Create projects, columns, set repo path, seed tutorial |
 | `activity` | 1 | Recent activity history |
-| `context` | 11 | Focus context, code facts CRUD, context entries CRUD, knowledge search, rebuild index |
+| `context` | 15 | Focus context, code facts CRUD, context entries CRUD, measurements CRUD, knowledge search, rebuild index |
 
 ### Prompts (8)
 
@@ -200,7 +202,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `setup-project` | Step-by-step guide for setting up a new project on the tracker. |
 | `holistic-review` | Review board against actual codebase — sync board state with reality. |
 
-### Resources (4)
+### Resources (5)
 
 | Resource URI | What it provides |
 | --- | --- |
@@ -208,6 +210,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `tracker://board/{boardId}/card/{number}` | Single card with all details |
 | `tracker://board/{boardId}/handoff` | Latest session handoff |
 | `tracker://project/{projectId}/decisions` | All project decisions |
+| `status://project/{slug}` | Board-derived project status (replaces STATUS.md) |
 
 Cards get sequential numbers per project (`#1`, `#2`, `#3`). Reference them in conversation — "working on #7", "move #12 to Done" — the agent resolves them automatically.
 
@@ -352,7 +355,7 @@ src/
 │   └── api/routers/               # tRPC routers
 ├── mcp/
 │   ├── server.ts                  # MCP server (10 essential tools, 8 prompts)
-│   ├── tool-registry.ts           # Extended tool catalog (67 tools, 14 categories)
+│   ├── tool-registry.ts           # Extended tool catalog (71 tools, 14 categories)
 │   └── tools/                     # Domain-split tool files
 ├── lib/                           # Schemas, utilities, templates
 └── trpc/                          # tRPC React client

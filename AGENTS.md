@@ -63,6 +63,39 @@ Use `saveCodeFact` to record facts like:
 
 **`needsRecheck`** — Advisory flag, auto-set when the cited file's latest commit differs from `recordedAtSha`. Use `listCodeFacts` with `needsRecheck: true` to find facts that may need updating.
 
+## Measurement Facts
+
+Measurement facts record environment-dependent numeric values like latency, memory usage, build times, or bundle sizes. Unlike code facts (which are assertions about code structure), measurements depend on hardware, model builds, tool versions, and other environmental factors.
+
+Use `saveMeasurement` to record values like:
+- "17.5s eval latency" (`value: 17.5`, `unit: "s"`, `env: { hardware: "Mac Mini M4", model: "qwen2.5:7b", num_ctx: "4096" }`)
+- "2.3MB bundle size" (`value: 2.3`, `unit: "MB"`, `env: { node: "20", bundler: "esbuild" }`)
+
+**`env` field** — JSON key-value pairs of dependencies that affect this measurement. When any dependency changes, the measurement may be invalid. Include at minimum the hardware/runtime and any version-sensitive tool.
+
+**`ttl`** — Optional time-to-live in days. Set this for measurements you know will expire (e.g., benchmark results that should be re-run monthly: `ttl: 30`).
+
+**`needsRecheck`** — Auto-set when TTL expires, when a cited file's SHA drifts, or when the measurement ages past staleness thresholds. Use `listMeasurements` with `needsRecheck: true` to find measurements that need re-running.
+
+## Conflict Resolution
+
+When multiple agents (or an agent and a human) edit the same entity concurrently, optimistic locking prevents silent overwrites.
+
+**How it works:** Card, Decision, PersistentContextEntry, and CodeFact have a `version` field. When updating, pass the `version` you read — if another writer incremented it since your read, the update fails with a clear conflict error. Re-read the entity to get the current state and retry.
+
+**`lastEditedBy`** — Card tracks which agent last modified it. This is stamped automatically via `AGENT_NAME` on creates, updates, and moves.
+
+**When to pass `version`:** Always pass it when updating entities that might be edited by another agent or the human in parallel. If you're the only writer, it's optional but still good practice.
+
+## Decision Supersession
+
+When a new architectural decision replaces an old one, use `supersedesId` when calling `recordDecision` or `updateDecision`. This:
+1. Marks the old decision as `superseded`
+2. Links both decisions bidirectionally (`supersedes` / `supersededBy`)
+3. Triggers staleness warnings if anyone cites the old decision
+
+Don't manually set `status: "superseded"` without linking — use `supersedesId` so the chain is traceable.
+
 ## Knowledge Search
 
 `queryKnowledge(projectId, topic)` searches across all project knowledge: cards, comments, decisions, notes, handoffs, code facts, context entries, and indexed repo markdown files. Uses SQLite FTS5 with Porter stemming for relevance-ranked results.
@@ -166,6 +199,6 @@ Then add to the project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc
 
 This project is tracked in the Project Tracker board.
 Use the `project-tracker` MCP tools to read and update the board.
-At the start of each conversation, use the `start-session` prompt with the board ID.
+At the start of each conversation, use the `resume-session` prompt with the board ID.
 Reference cards by #number in conversation (e.g. "working on #7").
 ```

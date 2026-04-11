@@ -86,9 +86,26 @@ CRUD via `saveCodeFact`, `listCodeFacts`, `getCodeFact`, `deleteCodeFact` MCP to
 
 The hard problems that require new data models and coordination mechanisms.
 
-- **Measurement facts** with environment dependencies and auto-staleness detection
-- **Multi-agent conflict resolution** — write races, vocabulary canonicalization, fact conflicts
-- **Multi-user `authorId`/`audienceId`** — structural attribution, only if pilot data warrants it
+### What Shipped
+
+**`MeasurementFact` model** — `{ value: Float, unit: String, description: String, env: JSON (key-value pairs of environment dependencies), path?, symbol?, author, recordedAt, ttl?, needsRecheck }`. Separate model from CodeFact — measurements rot on environment drift, not file renames. CRUD via `saveMeasurement`, `listMeasurements`, `getMeasurement`, `deleteMeasurement`.
+
+Three-tier staleness:
+1. TTL-based: if `ttl` is set and expired, flag stale
+2. Env SHA drift: if env contains a `sha`/`codeSha` key and the cited file changed, flag stale
+3. Age-based fallback: same agent/human decay thresholds as context entries (14d/30d agent, 30d/60d human)
+
+Measurements indexed in FTS5 via `rebuildKnowledgeIndex`.
+
+**Multi-agent conflict resolution** — `version Int @default(0)` on Card, Decision, PersistentContextEntry, CodeFact for optimistic locking. `lastEditedBy String?` on Card to track which agent last modified it. Write tools (`updateCard`, `bulkUpdateCards`, `updateDecision`, `saveContextEntry`, `saveCodeFact`) accept optional `version` param, check against current, increment on success. Read tools expose `version` in responses so clients can pass it back. `checkVersionConflict` utility returns clear conflict errors when versions diverge.
+
+**Decision supersession** — `supersedes String?` and `supersededBy String?` on Decision for bidirectional ADR linking. `recordDecision` and `updateDecision` accept `supersedesId` — automatically marks old decision as superseded and links both directions. Staleness pipeline flags superseded decisions so agents don't cite outdated ADRs.
+
+### Not Shipped (Deferred)
+
+- **Vocabulary canonicalization / alias resolution** — stretch goal, deferred
+- **Human reconciliation flow for fact conflicts** — deferred
+- **Multi-user `authorId`/`audienceId`** — pilot data doesn't warrant it yet
 
 ## Known Hard Problems
 
@@ -100,9 +117,13 @@ A fact like "17.5s eval latency" looks objective but depends on hardware, model 
 
 Target data model: `{ value, unit, env[], recordedAt, ttl? }` with auto-flag on env drift.
 
+> **Addressed in Phase 4** by the `MeasurementFact` model with three-tier staleness (TTL, env SHA drift, age-based fallback).
+
 ### 2. Silently-Superseded Decisions
 
 ADRs implicitly evolved past by later ADRs but never explicitly superseded. They still read as current because nothing signals otherwise. Needs `supersedes`/`supersededBy` links and last-seen-valid signals when an ADR is cited.
+
+> **Addressed in Phase 4** by bidirectional `supersedes`/`supersededBy` links on Decision, with automatic staleness flagging of superseded ADRs.
 
 ### 3. Branch-Local Facts Promoted Unfairly
 
