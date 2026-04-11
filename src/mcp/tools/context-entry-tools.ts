@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { ok, err, safeExecute } from "../utils.js";
+import { ok, err, safeExecute, checkVersionConflict } from "../utils.js";
 
 // ─── Context Entries ──────────────────────────────────────────────
 
@@ -19,6 +19,7 @@ function parseEntry(entry: {
 	citedFiles: string;
 	recordedAtSha: string | null;
 	surface: string;
+	version: number;
 	createdAt: Date;
 	updatedAt: Date;
 }) {
@@ -34,6 +35,7 @@ function parseEntry(entry: {
 		citedFiles: JSON.parse(entry.citedFiles) as string[],
 		recordedAtSha: entry.recordedAtSha,
 		surface: entry.surface,
+		version: entry.version,
 		createdAt: entry.createdAt,
 		updatedAt: entry.updatedAt,
 	};
@@ -55,8 +57,9 @@ registerExtendedTool("saveContextEntry", {
 		recordedAtSha: z.string().optional().describe("Git SHA when this was recorded"),
 		surface: z.enum(VALID_SURFACES).default("indexed").describe("Visibility level: ambient | indexed | surfaced"),
 		entryId: z.string().optional().describe("Entry UUID — pass to update an existing entry"),
+		version: z.number().int().optional().describe("Expected version for optimistic locking — pass to detect conflicts"),
 	}),
-	handler: ({ projectId, claim, rationale, application, details, author, audience, citedFiles, recordedAtSha, surface, entryId }) =>
+	handler: ({ projectId, claim, rationale, application, details, author, audience, citedFiles, recordedAtSha, surface, entryId, version }) =>
 		safeExecute(async () => {
 			// Validate project exists
 			const project = await db.project.findUnique({ where: { id: projectId as string } });
@@ -79,9 +82,12 @@ registerExtendedTool("saveContextEntry", {
 				const existing = await db.persistentContextEntry.findUnique({ where: { id: entryId as string } });
 				if (!existing) return err("Context entry not found.", "Check the entryId and try again.");
 
+				const conflict = checkVersionConflict(version as number | undefined, existing.version, "context entry");
+				if (conflict) return conflict;
+
 				const updated = await db.persistentContextEntry.update({
 					where: { id: entryId as string },
-					data,
+					data: { ...data, version: { increment: 1 } },
 				});
 				return ok(parseEntry(updated));
 			}

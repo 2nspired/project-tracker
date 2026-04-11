@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { AGENT_NAME, resolveCardRef, ok, err, safeExecute } from "../utils.js";
+import { AGENT_NAME, resolveCardRef, ok, err, safeExecute, checkVersionConflict } from "../utils.js";
 
 // ─── Decisions ─────────────────────────────────────────────────────
 
@@ -43,6 +43,7 @@ registerExtendedTool("recordDecision", {
 			id: record.id,
 			title: record.title,
 			status: record.status,
+			version: record.version,
 			card: record.card ? { ref: `#${record.card.number}`, title: record.card.title } : null,
 			created: true,
 		});
@@ -84,6 +85,7 @@ registerExtendedTool("getDecisions", {
 			alternatives: JSON.parse(d.alternatives) as string[],
 			rationale: d.rationale,
 			author: d.author,
+			version: d.version,
 			card: d.card ? { ref: `#${d.card.number}`, title: d.card.title } : null,
 			createdAt: d.createdAt,
 		})));
@@ -95,21 +97,26 @@ registerExtendedTool("updateDecision", {
 	description: "Update a decision's status, text, or rationale.",
 	parameters: z.object({
 		decisionId: z.string().describe("Decision UUID"),
+		version: z.number().int().optional().describe("Expected version for optimistic locking — pass to detect conflicts"),
 		status: z.enum(["proposed", "accepted", "rejected", "superseded"]).optional(),
 		decision: z.string().optional().describe("Updated decision text"),
 		rationale: z.string().optional().describe("Updated rationale"),
 		alternatives: z.array(z.string()).optional().describe("Updated alternatives"),
 	}),
 	annotations: { idempotentHint: true },
-	handler: ({ decisionId, status, decision, rationale, alternatives }) => safeExecute(async () => {
+	handler: ({ decisionId, version, status, decision, rationale, alternatives }) => safeExecute(async () => {
 		const existing = await db.decision.findUnique({ where: { id: decisionId as string } });
 		if (!existing) return err("Decision not found.", "Use getDecisions to find valid decision IDs.");
+
+		const conflict = checkVersionConflict(version as number | undefined, existing.version, "decision");
+		if (conflict) return conflict;
 
 		const data: Record<string, unknown> = {};
 		if (status !== undefined) data.status = status;
 		if (decision !== undefined) data.decision = decision;
 		if (rationale !== undefined) data.rationale = rationale;
 		if (alternatives !== undefined) data.alternatives = JSON.stringify(alternatives);
+		data.version = { increment: 1 };
 
 		const updated = await db.decision.update({
 			where: { id: decisionId as string },
@@ -120,6 +127,7 @@ registerExtendedTool("updateDecision", {
 			id: updated.id,
 			title: updated.title,
 			status: updated.status,
+			version: updated.version,
 			updated: true,
 		});
 	}),

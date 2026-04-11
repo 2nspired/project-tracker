@@ -120,6 +120,26 @@ export async function resolveOrCreateMilestone(projectId: string, name: string):
 	return ms.id;
 }
 
+// ─── Optimistic Locking ────────────────────────────────────────────
+
+/**
+ * Check version for optimistic locking. Returns an error ToolResult if
+ * the provided version doesn't match the current version, or null if OK.
+ * When version is undefined, the check is skipped (backwards-compatible).
+ */
+export function checkVersionConflict(
+	expectedVersion: number | undefined,
+	currentVersion: number,
+	entityType: string,
+): ToolResult | null {
+	if (expectedVersion === undefined) return null;
+	if (expectedVersion === currentVersion) return null;
+	return err(
+		`Version conflict on ${entityType}: you sent version ${expectedVersion}, but current version is ${currentVersion}.`,
+		"Re-read the entity to get the latest version, then retry your update.",
+	);
+}
+
 // ─── Response Formatting ────────────────────────────────────────────
 
 type ToolContent = { type: "text"; text: string };

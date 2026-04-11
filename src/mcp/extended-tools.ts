@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "./db.js";
 import { registerExtendedTool } from "./tool-registry.js";
-import { AGENT_NAME, resolveCardRef, resolveOrCreateMilestone, ok, err, errWithToolHint, safeExecute } from "./utils.js";
+import { AGENT_NAME, resolveCardRef, resolveOrCreateMilestone, ok, err, errWithToolHint, safeExecute, checkVersionConflict } from "./utils.js";
 import { toToon } from "./toon.js";
 
 // ─── Discovery ──────────────────────────────────────────────────────
@@ -146,6 +146,8 @@ registerExtendedTool("getCard", {
 			...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
 			createdAt: card.createdAt,
 			updatedAt: card.updatedAt,
+			version: card.version,
+			lastEditedBy: card.lastEditedBy,
 			relations: { blocks, blockedBy, relatedTo },
 			decisions: card.decisions,
 			checklist: card.checklists.map((c) => ({
@@ -435,6 +437,7 @@ registerExtendedTool("bulkUpdateCards", {
 	parameters: z.object({
 		cards: z.array(z.object({
 			cardId: z.string().describe("Card UUID or #number"),
+			version: z.number().int().optional().describe("Expected version for optimistic locking"),
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
 			tags: z.array(z.string()).optional().describe("Replaces all tags"),
 			assignee: z.enum(["HUMAN", "AGENT"]).nullable().optional().describe("null to unassign"),
@@ -453,6 +456,11 @@ registerExtendedTool("bulkUpdateCards", {
 
 			const existing = await db.card.findUnique({ where: { id } });
 			if (!existing) { errors.push(`Card "${input.cardId}" not found`); continue; }
+
+			if (input.version !== undefined && input.version !== existing.version) {
+				errors.push(`Version conflict on card #${existing.number}: sent version ${input.version}, current is ${existing.version}`);
+				continue;
+			}
 
 			let milestoneId: string | null | undefined;
 			if (input.milestoneName !== undefined) {
@@ -480,6 +488,8 @@ registerExtendedTool("bulkUpdateCards", {
 					assignee: input.assignee as string | null | undefined,
 					milestoneId: milestoneId !== undefined ? milestoneId : undefined,
 					metadata: mergedMetadata,
+					version: { increment: 1 },
+					lastEditedBy: AGENT_NAME,
 				},
 				include: { milestone: { select: { name: true } } },
 			});

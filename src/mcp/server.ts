@@ -11,6 +11,7 @@ import { initFts5 } from "./fts.js";
 import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
 import {
 	AGENT_NAME,
+	checkVersionConflict,
 	detectFeatures,
 	err,
 	ok,
@@ -157,6 +158,8 @@ server.registerTool(
 							tags: JSON.parse(card.tags),
 							assignee: card.assignee,
 							createdBy: card.createdBy,
+							version: card.version,
+							lastEditedBy: card.lastEditedBy,
 							milestone: card.milestone ? { id: card.milestone.id, name: card.milestone.name } : null,
 							checklist: {
 								total: card.checklists.length,
@@ -243,6 +246,7 @@ server.registerTool(
 					milestoneId,
 					metadata: metadata ? JSON.stringify(metadata) : undefined,
 					createdBy: "AGENT",
+					lastEditedBy: AGENT_NAME,
 					position: (maxPosition._max.position ?? -1) + 1,
 				},
 			});
@@ -286,10 +290,11 @@ server.registerTool(
 				.optional()
 				.describe("null to unassign; auto-creates if new"),
 			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (merged with existing; set key to null to delete)"),
+			version: z.number().int().optional().describe("Expected version for optimistic locking — pass to detect conflicts"),
 		},
 		annotations: { idempotentHint: true },
 	},
-	async ({ cardId: cardRef, title, description, priority, tags, assignee, milestoneName, metadata }) => {
+	async ({ cardId: cardRef, title, description, priority, tags, assignee, milestoneName, metadata, version }) => {
 		return safeExecute(async () => {
 			const resolved = await resolveCardRef(cardRef);
 			if (!resolved.ok) return err(resolved.message);
@@ -297,6 +302,9 @@ server.registerTool(
 
 			const existing = await db.card.findUnique({ where: { id: cardId } });
 			if (!existing) return err("Card not found.");
+
+			const conflict = checkVersionConflict(version, existing.version, "card");
+			if (conflict) return conflict;
 
 			let milestoneId: string | null | undefined;
 			if (milestoneName !== undefined) {
@@ -326,6 +334,8 @@ server.registerTool(
 					assignee,
 					milestoneId: milestoneId !== undefined ? milestoneId : undefined,
 					metadata: mergedMetadata,
+					version: { increment: 1 },
+					lastEditedBy: AGENT_NAME,
 				},
 				include: { milestone: { select: { name: true } } },
 			});
@@ -335,6 +345,8 @@ server.registerTool(
 				ref: `#${card.number}`,
 				title: card.title,
 				updated: true,
+				version: card.version,
+				lastEditedBy: card.lastEditedBy,
 				fields: {
 					priority: card.priority,
 					tags: JSON.parse(card.tags),
@@ -395,7 +407,14 @@ server.registerTool(
 			filtered.splice(insertAt, 0, card);
 
 			const updates = filtered.map((c, i) =>
-				db.card.update({ where: { id: c.id }, data: { columnId: targetColumn.id, position: i } })
+				db.card.update({
+					where: { id: c.id },
+					data: {
+						columnId: targetColumn.id,
+						position: i,
+						...(c.id === cardId && { lastEditedBy: AGENT_NAME }),
+					},
+				})
 			);
 			await db.$transaction(updates);
 
