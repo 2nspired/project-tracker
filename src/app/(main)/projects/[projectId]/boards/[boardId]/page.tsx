@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowLeft, Bot, BrainCircuit, Check, Clock, Map, NotebookPen, Pencil, Users, X } from "lucide-react";
+import { ArrowLeft, Bot, BrainCircuit, Check, Clock, Columns3, List, Map, NotebookPen, Pencil, Users, X } from "lucide-react";
 import Link from "next/link";
 import { use, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ActivityFeedToggle } from "@/components/board/activity-feed";
+import { BoardListView } from "@/components/board/board-list-view";
 import { BoardView } from "@/components/board/board-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,7 @@ export default function BoardPage({
 }) {
 	const { projectId, boardId } = use(params);
 
+	const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 	const [showHandoffs, setShowHandoffs] = useState(false);
 	const [showScratch, setShowScratch] = useState(false);
 	const refetchInterval = useBoardEvents(boardId);
@@ -141,6 +143,34 @@ export default function BoardPage({
 					<div className="flex-1">
 						<EditableBoardName boardId={board.id} name={board.name} />
 						<p className="text-xs text-muted-foreground">{board.project.name}</p>
+					</div>
+					<div className="flex items-center rounded-md border">
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant={viewMode === "kanban" ? "secondary" : "ghost"}
+									size="sm"
+									className="h-8 rounded-r-none border-0 px-2"
+									onClick={() => setViewMode("kanban")}
+								>
+									<Columns3 className="h-3.5 w-3.5" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Board view</TooltipContent>
+						</Tooltip>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant={viewMode === "list" ? "secondary" : "ghost"}
+									size="sm"
+									className="h-8 rounded-l-none border-0 px-2"
+									onClick={() => setViewMode("list")}
+								>
+									<List className="h-3.5 w-3.5" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>List view</TooltipContent>
+						</Tooltip>
 					</div>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -207,7 +237,7 @@ export default function BoardPage({
 				</div>
 				{showHandoffs && <SessionHistoryPanel boardId={board.id} />}
 				{showScratch && <AgentNotesPanel boardId={board.id} />}
-				<BoardView board={board} />
+				{viewMode === "kanban" ? <BoardView board={board} /> : <BoardListView board={board} />}
 			</div>
 		</TooltipProvider>
 	);

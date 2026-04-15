@@ -60,7 +60,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 		>
 			<div className="space-y-2">
 				<div className="flex items-start justify-between gap-2">
-					<span className="text-xs font-medium leading-tight">{card.title}</span>
+					<span className="text-sm font-normal leading-tight">{card.title}</span>
 					<div className="flex shrink-0 items-center gap-1.5">
 						{showScore && card._workNextScore !== undefined && (
 							<span
