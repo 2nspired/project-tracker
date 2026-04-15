@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { getHorizon, hasRole } from "../lib/column-roles.js";
+import { computeBriefing } from "./services/briefing-service.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { db } from "./db.js";
 import { registerResources } from "./resources.js";
@@ -672,11 +673,11 @@ server.registerTool(
 		}
 		if (state === "returning") {
 			options.push(
-				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call runTool({ tool: 'loadHandoff', params: { boardId } }) as a tool-based alternative", description: "Continue where you left off" },
+				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call loadHandoff({ boardId }) directly (it's an essential tool)", description: "Continue where you left off" },
 			);
 		} else if (state === "existing") {
 			options.push(
-				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call runTool({ tool: 'loadHandoff', params: { boardId } }) as a tool-based alternative", description: "Start working on a board" },
+				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call loadHandoff({ boardId }) directly (it's an essential tool)", description: "Start working on a board" },
 			);
 		}
 
@@ -690,7 +691,7 @@ server.registerTool(
 			state,
 			stats: { projects: projectCount, boards: boardCount, cards: cardCount, handoffs: handoffCount },
 			toolArchitecture: {
-				essential: "10 tools are always visible: getBoard, createCard, updateCard, moveCard, addComment, searchCards, getRoadmap, checkOnboarding, getTools, runTool.",
+				essential: "11 tools are always visible: getBoard, createCard, updateCard, moveCard, addComment, searchCards, getRoadmap, checkOnboarding, loadHandoff, getTools, runTool.",
 				extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
 				prompts: "8 MCP prompts are available (resume-session, end-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
 			},
@@ -709,6 +710,37 @@ server.registerTool(
 			stalenessWarnings,
 		});
 	}
+);
+
+// ─── Load Handoff (Essential — enriched session primer) ──────────────
+
+server.registerTool(
+	"loadHandoff",
+	{
+		title: "Load Handoff",
+		description:
+			"Session primer: loads last handoff plus enriched briefing. Returns handoff notes, board changes since then, top work-next candidates (scored), attention items (stale facts, open decisions, blocked cards), and project pulse (column counts, 7-day throughput, bottleneck). Call this at session start with a known boardId. TOON-encoded by default (~400-800 tokens).",
+		inputSchema: {
+			boardId: z.string().describe("Board UUID"),
+			format: z
+				.enum(["json", "toon"])
+				.default("toon")
+				.describe("Response format — 'toon' (default, ~40% fewer tokens) or 'json'"),
+		},
+		annotations: { readOnlyHint: true },
+	},
+	async ({ boardId, format }) => {
+		return safeExecute(async () => {
+			const briefing = await computeBriefing(boardId as string);
+			if (!briefing) {
+				return err(
+					"Board not found.",
+					"Use checkOnboarding to discover available boards, or listProjects → listBoards.",
+				);
+			}
+			return ok(briefing, format as "json" | "toon");
+		});
+	},
 );
 
 // ─── Meta-Tools (Essential + Catalog pattern) ──────────────────────
@@ -1505,7 +1537,7 @@ async function main() {
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
 	console.error(
-		`Project Tracker MCP v2.1 — 10 essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
+		`Project Tracker MCP v2.1 — 11 essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
 	);
 }
 

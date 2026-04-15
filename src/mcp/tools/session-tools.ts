@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { checkStaleness, formatStalenessWarnings } from "../staleness.js";
 import { AGENT_NAME, ok, err, safeExecute } from "../utils.js";
+import { computeBoardDiff } from "../services/board-diff.js";
 
 // ─── Session ───────────────────────────────────────────────────────
 
@@ -43,76 +43,7 @@ registerExtendedTool("saveHandoff", {
 	}),
 });
 
-registerExtendedTool("loadHandoff", {
-	category: "session",
-	description: "Load latest handoff and changes since then.",
-	parameters: z.object({
-		boardId: z.string().describe("Board UUID"),
-	}),
-	annotations: { readOnlyHint: true },
-	handler: ({ boardId }) => safeExecute(async () => {
-		const board = await db.board.findUnique({
-			where: { id: boardId as string },
-			select: { id: true, projectId: true },
-		});
-		if (!board) return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
-
-		// Get latest handoff
-		const handoff = await db.sessionHandoff.findFirst({
-			where: { boardId: boardId as string },
-			orderBy: { createdAt: "desc" },
-		});
-
-		if (!handoff) {
-			return ok({ handoff: null, diff: null, message: "No previous handoff found." });
-		}
-
-		// Compute board diff since handoff
-		const diff = await computeBoardDiff(boardId as string, handoff.createdAt);
-
-		// Check for stale context entries
-		const warnings = await checkStaleness(board.projectId);
-		const stalenessWarnings = formatStalenessWarnings(warnings);
-
-		return ok({
-			handoff: {
-				id: handoff.id,
-				agentName: handoff.agentName,
-				workingOn: JSON.parse(handoff.workingOn),
-				findings: JSON.parse(handoff.findings),
-				nextSteps: JSON.parse(handoff.nextSteps),
-				blockers: JSON.parse(handoff.blockers),
-				summary: handoff.summary,
-				createdAt: handoff.createdAt,
-			},
-			diff,
-			stalenessWarnings,
-			capabilities: {
-				_hint: "These agent-workflow tools are available via runTool(). Use getTools({ tool: 'name' }) for full schema.",
-				memory: [
-					"saveHandoff / loadHandoff — session continuity",
-					"listHandoffs — view handoff history across sessions",
-					"getBoardDiff — what changed since a given time",
-				],
-				notes: [
-					"createNote / updateNote / deleteNote / listNotes — persistent project-level notes (survives across sessions)",
-				],
-				scratch: [
-					"setScratch / getScratch / listScratch / clearScratch — temporary key-value storage with optional expiry",
-				],
-				analysis: [
-					"getFocusContext — scoped context bundle (by card, milestone, or tag)",
-					"getBlockers — list blocked cards and what blocks them",
-					"auditBoard — board health check (missing priority/tags/milestones)",
-					"getWorkNextSuggestion — AI-scored card priority suggestions",
-				],
-				decisions: [
-					"recordDecision / getDecisions — track architectural decisions tied to cards",
-				],
-			},
-		});
-	}),
-});
+// loadHandoff has been promoted to an essential tool in server.ts (enriched with scoring, attention, pulse)
 
 registerExtendedTool("listHandoffs", {
 	category: "session",
@@ -174,72 +105,4 @@ registerExtendedTool("getBoardDiff", {
 	}),
 });
 
-// ─── Shared diff logic ─────────────────────────────────────────────
-
-async function computeBoardDiff(boardId: string, since: Date) {
-	// Get all card IDs for the board via Column join
-	const columns = await db.column.findMany({
-		where: { boardId },
-		include: {
-			cards: {
-				select: { id: true, number: true, title: true },
-			},
-		},
-	});
-
-	const cardMap = new Map<string, { number: number; title: string }>();
-	for (const col of columns) {
-		for (const card of col.cards) {
-			cardMap.set(card.id, { number: card.number, title: card.title });
-		}
-	}
-
-	const cardIds = Array.from(cardMap.keys());
-
-	if (cardIds.length === 0) {
-		return { cardsMoved: [], cardsCreated: [], checklistProgress: [], newComments: 0, since };
-	}
-
-	// Get activities since the given time
-	const activities = await db.activity.findMany({
-		where: {
-			cardId: { in: cardIds },
-			createdAt: { gt: since },
-		},
-		orderBy: { createdAt: "desc" },
-	});
-
-	const cardsMoved: Array<{ ref: string; title: string; from: string; to: string }> = [];
-	const cardsCreated: Array<{ ref: string; title: string; column: string }> = [];
-	const checklistProgress: Array<{ ref: string; title: string; completed: string }> = [];
-
-	for (const activity of activities) {
-		const card = cardMap.get(activity.cardId);
-		if (!card) continue;
-
-		const ref = `#${card.number}`;
-
-		if (activity.action === "moved" && activity.details) {
-			const match = activity.details.match(/Moved from "(.+?)" to "(.+?)"/);
-			if (match) {
-				cardsMoved.push({ ref, title: card.title, from: match[1], to: match[2] });
-			}
-		} else if (activity.action === "created" && activity.details) {
-			const match = activity.details.match(/created in (.+?)$/);
-			const column = match ? match[1] : "Unknown";
-			cardsCreated.push({ ref, title: card.title, column });
-		} else if (activity.action === "checklist_completed" && activity.details) {
-			checklistProgress.push({ ref, title: card.title, completed: activity.details });
-		}
-	}
-
-	// Count new comments
-	const newComments = await db.comment.count({
-		where: {
-			cardId: { in: cardIds },
-			createdAt: { gt: since },
-		},
-	});
-
-	return { cardsMoved, cardsCreated, checklistProgress, newComments, since };
-}
+// computeBoardDiff is now in ../services/board-diff.ts (shared with essential loadHandoff)

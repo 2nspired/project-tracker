@@ -202,12 +202,16 @@ This project uses a Project Tracker board via MCP.
 **Session lifecycle:** Use the `resume-session` MCP prompt (with boardId) at
 conversation start and `end-session` before wrapping up. These are MCP prompts,
 not tools — invoke them via prompts/get. If prompts aren't supported in your
-client, use `runTool({ tool: 'loadHandoff', params: { boardId } })` instead.
+client, use `loadHandoff({ boardId })` instead (it's an essential tool).
 
-**Tool architecture:** 10 essential tools are always visible (getBoard, createCard,
+**Tool architecture:** 11 essential tools are always visible (getBoard, createCard,
 updateCard, moveCard, addComment, searchCards, getRoadmap, checkOnboarding,
-getTools, runTool). 70+ extended tools live behind `getTools`/`runTool` — call
-`getTools()` with no args to see all categories.
+loadHandoff, getTools, runTool). 70+ extended tools live behind `getTools`/`runTool`
+— call `getTools()` with no args to see all categories.
+
+**loadHandoff** is the enriched session primer — returns last handoff notes, board
+changes since then, scored work-next candidates, attention items (stale facts,
+open decisions, blocked cards), and a project pulse. TOON-encoded by default.
 
 **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
 reflect progress. Use `addComment` for decisions and blockers. Call
