@@ -36,6 +36,7 @@ import "./tools/context-entry-tools.js";
 import "./tools/codefact-tools.js";
 import "./tools/measurement-tools.js";
 import "./tools/knowledge-tools.js";
+import "./tools/prompt-tools.js";
 
 const server = new McpServer({
 	name: "project-tracker",

@@ -19,6 +19,8 @@ async function listByColumn(columnId: string): Promise<ServiceResult<Card[]>> {
 async function getById(cardId: string): Promise<
 	ServiceResult<
 		Card & {
+			column: { name: string };
+			milestone: { id: string; name: string } | null;
 			checklists: Array<{ id: string; text: string; completed: boolean; position: number }>;
 			comments: Array<{
 				id: string;
@@ -66,6 +68,8 @@ async function getById(cardId: string): Promise<
 		const card = await db.card.findUnique({
 			where: { id: cardId },
 			include: {
+				column: { select: { name: true } },
+				milestone: { select: { id: true, name: true } },
 				checklists: { orderBy: { position: "asc" } },
 				comments: { orderBy: { createdAt: "asc" } },
 				activities: { orderBy: { createdAt: "desc" } },

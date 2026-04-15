@@ -5,6 +5,7 @@ import {
 	Bot,
 	CheckSquare,
 	Clock,
+	Copy,
 	FileText,
 	GitCommit,
 	Link2,
@@ -20,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { formatDate, formatRelativeCompact } from "@/lib/format-date";
+import { buildAgentPrompt, type PromptCardInput } from "@/lib/prompt-builder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -258,6 +260,38 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 		updateCard.mutate({ id: card.id, data: { tags: newTags } });
 	};
 
+	const handleCopyPrompt = useCallback(() => {
+		if (!card) return;
+		const input: PromptCardInput = {
+			ref: `#${card.number}`,
+			boardId,
+			title: card.title,
+			description: card.description,
+			priority: card.priority,
+			tags: JSON.parse(card.tags) as string[],
+			assignee: card.assignee,
+			milestone: card.milestone?.name ?? null,
+			column: card.column?.name ?? null,
+			checklist: card.checklists.map((c) => ({ text: c.text, completed: c.completed })),
+			decisions: card.decisions,
+			blockedBy: card.relationsTo
+				.filter((r) => r.type === "blocks")
+				.map((r) => ({ ref: `#${r.fromCard.number}`, title: r.fromCard.title })),
+			blocks: card.relationsFrom
+				.filter((r) => r.type === "blocks")
+				.map((r) => ({ ref: `#${r.toCard.number}`, title: r.toCard.title })),
+		};
+		const prompt = buildAgentPrompt(input);
+		if (!navigator.clipboard) {
+			toast.error("Clipboard not available (requires HTTPS or localhost)");
+			return;
+		}
+		navigator.clipboard.writeText(prompt).then(
+			() => toast.success("Agent prompt copied to clipboard"),
+			() => toast.error("Failed to copy prompt"),
+		);
+	}, [card, boardId]);
+
 	return (
 		<Sheet open={!!cardId} onOpenChange={(open) => { if (!open) onClose(); }}>
 			<SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
@@ -321,15 +355,25 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 							)}
 						</div>
 					</SheetTitle>
-					<p className="text-xs text-muted-foreground">
-						Created by {card.createdBy === "AGENT" ? "Agent" : "Human"}
-						{card.assignee && (
-							<>
-								<span className="mx-1.5">|</span>
-								Assigned to {card.assignee === "AGENT" ? "Agent" : "Human"}
-							</>
-						)}
-					</p>
+					<div className="flex items-center justify-between">
+						<p className="text-xs text-muted-foreground">
+							Created by {card.createdBy === "AGENT" ? "Agent" : "Human"}
+							{card.assignee && (
+								<>
+									<span className="mx-1.5">|</span>
+									Assigned to {card.assignee === "AGENT" ? "Agent" : "Human"}
+								</>
+							)}
+						</p>
+						<Button
+							variant="ghost"
+							size="icon-xs"
+							onClick={handleCopyPrompt}
+							title="Copy as agent prompt"
+						>
+							<Copy className="h-3.5 w-3.5" />
+						</Button>
+					</div>
 				</SheetHeader>
 
 				<div className="space-y-8 px-6 pb-8">
