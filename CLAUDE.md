@@ -20,6 +20,20 @@ Local-first kanban board with MCP integration for AI-assisted development.
 - `npm run db:seed` — seed tutorial project
 - `npm run db:studio` — open Prisma Studio
 
+### Background Service (launchd)
+
+The web UI can run as a persistent background service via macOS launchd on port 3100, so it's always available without manually starting a dev server.
+
+- `npm run service:install` — build and register the launchd service
+- `npm run service:uninstall` — stop and remove the service
+- `npm run service:start` — start the service
+- `npm run service:stop` — stop the service
+- `npm run service:disable` — stop and prevent auto-start on login
+- `npm run service:enable` — re-enable auto-start on login
+- `npm run service:status` — check if the service is running
+- `npm run service:logs` — tail stdout/stderr logs
+- `npm run service:update` — rebuild and restart after code changes
+
 ## Project Structure
 
 - `src/server/services/` — business logic (ServiceResult pattern)

@@ -1,7 +1,14 @@
 import { z } from "zod";
+import {
+	setScratch,
+	getScratch,
+	listScratch,
+	clearScratch,
+	gcExpiredScratch,
+} from "../../lib/services/scratch.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { AGENT_NAME, ok, err, safeExecute } from "../utils.js";
+import { AGENT_NAME, ok, safeExecute } from "../utils.js";
 
 // ─── Scratch (Ephemeral Agent Working Memory) ─────────────────────
 
@@ -16,27 +23,12 @@ registerExtendedTool("setScratch", {
 	}),
 	annotations: { idempotentHint: true },
 	handler: ({ boardId, key, value, ttlDays }) => safeExecute(async () => {
-		const expiresAt = new Date(Date.now() + (ttlDays as number) * 24 * 60 * 60 * 1000);
-
-		const entry = await db.agentScratch.upsert({
-			where: {
-				boardId_agentName_key: {
-					boardId: boardId as string,
-					agentName: AGENT_NAME,
-					key: key as string,
-				},
-			},
-			update: {
-				value: value as string,
-				expiresAt,
-			},
-			create: {
-				boardId: boardId as string,
-				agentName: AGENT_NAME,
-				key: key as string,
-				value: value as string,
-				expiresAt,
-			},
+		const entry = await setScratch(db, {
+			boardId: boardId as string,
+			agentName: AGENT_NAME,
+			key: key as string,
+			value: value as string,
+			ttlDays: ttlDays as number,
 		});
 
 		return ok({
@@ -59,17 +51,9 @@ registerExtendedTool("getScratch", {
 	annotations: { readOnlyHint: true },
 	handler: ({ boardId, key }) => safeExecute(async () => {
 		// GC expired entries before read
-		await db.agentScratch.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+		await gcExpiredScratch(db);
 
-		const entry = await db.agentScratch.findUnique({
-			where: {
-				boardId_agentName_key: {
-					boardId: boardId as string,
-					agentName: AGENT_NAME,
-					key: key as string,
-				},
-			},
-		});
+		const entry = await getScratch(db, boardId as string, AGENT_NAME, key as string);
 
 		if (!entry) {
 			return ok({ key, value: null, found: false });
@@ -94,17 +78,7 @@ registerExtendedTool("listScratch", {
 	}),
 	annotations: { readOnlyHint: true },
 	handler: ({ boardId }) => safeExecute(async () => {
-		// GC expired entries before read
-		await db.agentScratch.deleteMany({ where: { expiresAt: { lt: new Date() } } });
-
-		const entries = await db.agentScratch.findMany({
-			where: {
-				boardId: boardId as string,
-				agentName: AGENT_NAME,
-			},
-			orderBy: { updatedAt: "desc" },
-			select: { key: true, value: true, expiresAt: true, updatedAt: true },
-		});
+		const entries = await listScratch(db, boardId as string, AGENT_NAME);
 
 		return ok({
 			agentName: AGENT_NAME,
@@ -123,31 +97,11 @@ registerExtendedTool("clearScratch", {
 	}),
 	annotations: { destructiveHint: true },
 	handler: ({ boardId, key }) => safeExecute(async () => {
+		const result = await clearScratch(db, boardId as string, AGENT_NAME, key as string | undefined);
+
 		if (key) {
-			const existing = await db.agentScratch.findUnique({
-				where: {
-					boardId_agentName_key: {
-						boardId: boardId as string,
-						agentName: AGENT_NAME,
-						key: key as string,
-					},
-				},
-			});
-
-			if (!existing) {
-				return ok({ cleared: 0, key, message: "Entry not found." });
-			}
-
-			await db.agentScratch.delete({ where: { id: existing.id } });
-			return ok({ cleared: 1, key });
+			return ok({ cleared: result.count, key });
 		}
-
-		const result = await db.agentScratch.deleteMany({
-			where: {
-				boardId: boardId as string,
-				agentName: AGENT_NAME,
-			},
-		});
 
 		return ok({ cleared: result.count, agentName: AGENT_NAME, scope: "all" });
 	}),

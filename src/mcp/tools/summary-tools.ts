@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { categorizeFile } from "../../lib/categorize-file.js";
+import { getCommitSummary } from "../../lib/services/commit-summary.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { resolveCardRef, ok, err, safeExecute } from "../utils.js";
@@ -18,57 +18,13 @@ registerExtendedTool("getCommitSummary", {
 		safeExecute(async () => {
 			const resolved = await resolveCardRef(cardId as string);
 			if (!resolved.ok) return err(resolved.message);
-			const id = resolved.id;
 
-			const links = await db.gitLink.findMany({
-				where: { cardId: id },
-				orderBy: { commitDate: "asc" },
-			});
+			const summary = await getCommitSummary(db, resolved.id);
 
-			if (links.length === 0) {
-				return ok({
-					cardId: id,
-					commitCount: 0,
-					authors: [],
-					timeSpan: null,
-					filesByCategory: {},
-					totalFiles: 0,
-					message: "No git links found for this card.",
-				});
+			if (summary.commitCount === 0) {
+				return ok({ ...summary, message: "No git links found for this card." });
 			}
 
-			const authorSet = new Set<string>();
-			for (const link of links) {
-				if (link.author) authorSet.add(link.author);
-			}
-
-			const fileSet = new Set<string>();
-			for (const link of links) {
-				const paths = JSON.parse(link.filePaths) as string[];
-				for (const p of paths) fileSet.add(p);
-			}
-
-			const filesByCategory: Record<string, string[]> = {};
-			for (const file of fileSet) {
-				const cat = categorizeFile(file);
-				if (!filesByCategory[cat]) filesByCategory[cat] = [];
-				filesByCategory[cat].push(file);
-			}
-
-			for (const cat of Object.keys(filesByCategory)) {
-				filesByCategory[cat].sort();
-			}
-
-			return ok({
-				cardId: id,
-				commitCount: links.length,
-				authors: Array.from(authorSet).sort(),
-				timeSpan: {
-					first: links[0].commitDate,
-					last: links[links.length - 1].commitDate,
-				},
-				filesByCategory,
-				totalFiles: fileSet.size,
-			});
+			return ok(summary);
 		}),
 });

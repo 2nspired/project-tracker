@@ -1,4 +1,11 @@
 import { z } from "zod";
+import { computeBoardDiff } from "../../lib/services/board-diff.js";
+import {
+	saveHandoff,
+	getLatestHandoff,
+	listHandoffs as listHandoffsShared,
+	parseHandoff,
+} from "../../lib/services/handoff.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { checkStaleness, formatStalenessWarnings } from "../staleness.js";
@@ -21,16 +28,14 @@ registerExtendedTool("saveHandoff", {
 		const board = await db.board.findUnique({ where: { id: boardId as string } });
 		if (!board) return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
 
-		const handoff = await db.sessionHandoff.create({
-			data: {
-				boardId: boardId as string,
-				agentName: AGENT_NAME,
-				workingOn: JSON.stringify(workingOn ?? []),
-				findings: JSON.stringify(findings ?? []),
-				nextSteps: JSON.stringify(nextSteps ?? []),
-				blockers: JSON.stringify(blockers ?? []),
-				summary: (summary as string) ?? "",
-			},
+		const handoff = await saveHandoff(db, {
+			boardId: boardId as string,
+			agentName: AGENT_NAME,
+			workingOn: (workingOn as string[]) ?? [],
+			findings: (findings as string[]) ?? [],
+			nextSteps: (nextSteps as string[]) ?? [],
+			blockers: (blockers as string[]) ?? [],
+			summary: (summary as string) ?? "",
 		});
 
 		return ok({
@@ -58,17 +63,16 @@ registerExtendedTool("loadHandoff", {
 		if (!board) return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
 
 		// Get latest handoff
-		const handoff = await db.sessionHandoff.findFirst({
-			where: { boardId: boardId as string },
-			orderBy: { createdAt: "desc" },
-		});
+		const raw = await getLatestHandoff(db, boardId as string);
 
-		if (!handoff) {
+		if (!raw) {
 			return ok({ handoff: null, diff: null, message: "No previous handoff found." });
 		}
 
+		const parsed = parseHandoff(raw);
+
 		// Compute board diff since handoff
-		const diff = await computeBoardDiff(boardId as string, handoff.createdAt);
+		const diff = await computeBoardDiff(db, boardId as string, raw.createdAt);
 
 		// Check for stale context entries
 		const warnings = await checkStaleness(board.projectId);
@@ -76,14 +80,14 @@ registerExtendedTool("loadHandoff", {
 
 		return ok({
 			handoff: {
-				id: handoff.id,
-				agentName: handoff.agentName,
-				workingOn: JSON.parse(handoff.workingOn),
-				findings: JSON.parse(handoff.findings),
-				nextSteps: JSON.parse(handoff.nextSteps),
-				blockers: JSON.parse(handoff.blockers),
-				summary: handoff.summary,
-				createdAt: handoff.createdAt,
+				id: parsed.id,
+				agentName: parsed.agentName,
+				workingOn: parsed.workingOn,
+				findings: parsed.findings,
+				nextSteps: parsed.nextSteps,
+				blockers: parsed.blockers,
+				summary: parsed.summary,
+				createdAt: parsed.createdAt,
 			},
 			diff,
 			stalenessWarnings,
@@ -126,28 +130,27 @@ registerExtendedTool("listHandoffs", {
 		const board = await db.board.findUnique({ where: { id: boardId as string } });
 		if (!board) return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
 
-		const handoffs = await db.sessionHandoff.findMany({
-			where: { boardId: boardId as string },
-			orderBy: { createdAt: "desc" },
-			take: (limit as number) ?? 5,
-		});
+		const rawHandoffs = await listHandoffsShared(db, boardId as string, (limit as number) ?? 5);
 
-		if (handoffs.length === 0) {
+		if (rawHandoffs.length === 0) {
 			return ok({ handoffs: [], message: "No handoffs found for this board." });
 		}
 
 		return ok({
-			handoffs: handoffs.map(h => ({
-				id: h.id,
-				agentName: h.agentName,
-				summary: h.summary,
-				workingOn: JSON.parse(h.workingOn),
-				findings: JSON.parse(h.findings),
-				nextSteps: JSON.parse(h.nextSteps),
-				blockers: JSON.parse(h.blockers),
-				createdAt: h.createdAt,
-			})),
-			total: handoffs.length,
+			handoffs: rawHandoffs.map(h => {
+				const parsed = parseHandoff(h);
+				return {
+					id: parsed.id,
+					agentName: parsed.agentName,
+					summary: parsed.summary,
+					workingOn: parsed.workingOn,
+					findings: parsed.findings,
+					nextSteps: parsed.nextSteps,
+					blockers: parsed.blockers,
+					createdAt: parsed.createdAt,
+				};
+			}),
+			total: rawHandoffs.length,
 		});
 	}),
 });
@@ -169,77 +172,8 @@ registerExtendedTool("getBoardDiff", {
 			return err("Invalid date.", "Provide a valid ISO 8601 datetime string.");
 		}
 
-		const diff = await computeBoardDiff(boardId as string, sinceDate);
+		const diff = await computeBoardDiff(db, boardId as string, sinceDate);
 		return ok(diff);
 	}),
 });
 
-// ─── Shared diff logic ─────────────────────────────────────────────
-
-async function computeBoardDiff(boardId: string, since: Date) {
-	// Get all card IDs for the board via Column join
-	const columns = await db.column.findMany({
-		where: { boardId },
-		include: {
-			cards: {
-				select: { id: true, number: true, title: true },
-			},
-		},
-	});
-
-	const cardMap = new Map<string, { number: number; title: string }>();
-	for (const col of columns) {
-		for (const card of col.cards) {
-			cardMap.set(card.id, { number: card.number, title: card.title });
-		}
-	}
-
-	const cardIds = Array.from(cardMap.keys());
-
-	if (cardIds.length === 0) {
-		return { cardsMoved: [], cardsCreated: [], checklistProgress: [], newComments: 0, since };
-	}
-
-	// Get activities since the given time
-	const activities = await db.activity.findMany({
-		where: {
-			cardId: { in: cardIds },
-			createdAt: { gt: since },
-		},
-		orderBy: { createdAt: "desc" },
-	});
-
-	const cardsMoved: Array<{ ref: string; title: string; from: string; to: string }> = [];
-	const cardsCreated: Array<{ ref: string; title: string; column: string }> = [];
-	const checklistProgress: Array<{ ref: string; title: string; completed: string }> = [];
-
-	for (const activity of activities) {
-		const card = cardMap.get(activity.cardId);
-		if (!card) continue;
-
-		const ref = `#${card.number}`;
-
-		if (activity.action === "moved" && activity.details) {
-			const match = activity.details.match(/Moved from "(.+?)" to "(.+?)"/);
-			if (match) {
-				cardsMoved.push({ ref, title: card.title, from: match[1], to: match[2] });
-			}
-		} else if (activity.action === "created" && activity.details) {
-			const match = activity.details.match(/created in (.+?)$/);
-			const column = match ? match[1] : "Unknown";
-			cardsCreated.push({ ref, title: card.title, column });
-		} else if (activity.action === "checklist_completed" && activity.details) {
-			checklistProgress.push({ ref, title: card.title, completed: activity.details });
-		}
-	}
-
-	// Count new comments
-	const newComments = await db.comment.count({
-		where: {
-			cardId: { in: cardIds },
-			createdAt: { gt: since },
-		},
-	});
-
-	return { cardsMoved, cardsCreated, checklistProgress, newComments, since };
-}

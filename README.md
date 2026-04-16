@@ -85,11 +85,21 @@ npx prisma db push
 
 ### 3. Start the web UI
 
+**Option A: Background service (recommended)**
+
+```bash
+npm run service:install
+```
+
+This builds the app and registers it as a macOS background service via launchd. The board is always available at [http://localhost:3100](http://localhost:3100) — it starts on login, restarts on crash, and uses no resources when idle. Run `npm run service:update` after pulling new code.
+
+**Option B: Dev server**
+
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see your boards. If the database doesn't exist yet, `npm run dev` creates it automatically.
+Open [http://localhost:3000](http://localhost:3000) to see your boards. Use this when actively developing the tracker itself (hot reload, Turbopack, etc.). If the database doesn't exist yet, `npm run dev` creates it automatically.
 
 > **Note:** The web UI is optional. The MCP server works independently — your agent can use the board even without the browser open. But the UI is where you'll visually track progress.
 
@@ -138,15 +148,15 @@ See [AGENTS.md](AGENTS.md) for the full agent guidelines (column definitions, wo
 ## How It Works
 
 ```
-You (Browser)  <-->  Next.js App  <-->  SQLite file (data/tracker.db)
-                                              ^
-AI Agent (Claude Code)  <-->  MCP Server  ----┘
+You (Browser)  <-->  Next.js App (localhost:3100)  <-->  SQLite file (data/tracker.db)
+                     (launchd background service)              ^
+AI Agent (Claude Code)  <-->  MCP Server  --------------------|
                               (auto-started by Claude Code)
 ```
 
 - **Data lives in a SQLite file** on your machine. Stop everything, come back tomorrow — your data is still there.
 - **The MCP server starts automatically** when Claude Code needs it (configured via `.mcp.json`). You don't run it manually.
-- **The web UI** (`npm run dev`) is for you to visually browse boards. It's optional but useful.
+- **The web UI** runs as a background service via launchd (port 3100) — always available, no manual startup. Use `npm run dev` (port 3000) only when developing the tracker itself.
 - **No authentication** — this is a single-user local tool.
 
 ## Setting Up with Claude Code (Prompt)
@@ -333,7 +343,7 @@ No setup required — create tags as you go, like GitHub labels.
 | Script | Description |
 | --- | --- |
 | `npm run setup` | Interactive setup wizard (DB + tutorial + connect) |
-| `npm run dev` | Start web UI (auto-creates DB if missing) |
+| `npm run dev` | Start dev server with hot reload (auto-creates DB if missing) |
 | `npm run build` | Production build |
 | `npm run db:push` | Push schema changes to SQLite |
 | `npm run db:seed` | Seed the tutorial project |
@@ -341,6 +351,15 @@ No setup required — create tags as you go, like GitHub labels.
 | `npm run mcp:dev` | Run MCP server standalone (for testing) |
 | `npm run lint` | Check code with Biome |
 | `npm run type-check` | TypeScript type checking |
+| `npm run service:install` | Build and start as a background service (port 3100) |
+| `npm run service:uninstall` | Stop and remove the background service |
+| `npm run service:start` | Start the background service |
+| `npm run service:stop` | Stop the background service |
+| `npm run service:disable` | Stop and prevent auto-start on login |
+| `npm run service:enable` | Re-enable auto-start and start the service |
+| `npm run service:status` | Check if the background service is running |
+| `npm run service:logs` | Tail background service logs |
+| `npm run service:update` | Rebuild and restart the background service |
 
 ## Tech Stack
 
