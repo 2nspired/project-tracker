@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { ToolResult } from "./utils.js";
+import { logToolCall } from "./instrumentation.js";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -272,6 +273,8 @@ export async function executeTool(
 	name: string,
 	params: Record<string, unknown>,
 ): Promise<ToolResult> {
+	const start = Date.now();
+
 	const def = registry.get(name);
 	if (!def) {
 		// Suggest similar tool names
@@ -284,10 +287,12 @@ export async function executeTool(
 			? `Did you mean: ${suggestions.join(", ")}? Use getTools to see all available tools.`
 			: "Use getTools to see all available tools.";
 
-		return {
+		const result: ToolResult = {
 			content: [{ type: "text" as const, text: `Tool "${name}" not found. ${hint}` }],
 			isError: true,
 		};
+		logToolCall(name, Date.now() - start, result);
+		return result;
 	}
 
 	// Validate parameters
@@ -296,14 +301,18 @@ export async function executeTool(
 		const issues = parsed.error.issues
 			.map((i) => `  - ${i.path.join(".")}: ${i.message}`)
 			.join("\n");
-		return {
+		const result: ToolResult = {
 			content: [{
 				type: "text" as const,
 				text: `Invalid parameters for "${name}":\n${issues}\n\nUse getTools({ tool: "${name}" }) to see the full parameter schema.`,
 			}],
 			isError: true,
 		};
+		logToolCall(name, Date.now() - start, result);
+		return result;
 	}
 
-	return def.handler(parsed.data as Record<string, unknown>);
+	const result = await def.handler(parsed.data as Record<string, unknown>);
+	logToolCall(name, Date.now() - start, result);
+	return result;
 }
