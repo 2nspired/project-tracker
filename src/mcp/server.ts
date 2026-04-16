@@ -13,6 +13,7 @@ import { computeWorkNextScore } from "../lib/work-next-score.js";
 import { db } from "./db.js";
 import { initFts5 } from "./fts.js";
 import { wrapEssentialHandler } from "./instrumentation.js";
+import { ESSENTIAL_TOOLS, MCP_SERVER_VERSION } from "./manifest.js";
 import { registerResources } from "./resources.js";
 import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
 import {
@@ -143,7 +144,7 @@ import "./tools/instrumentation-tools.js";
 
 const server = new McpServer({
 	name: "project-tracker",
-	version: "2.2.0",
+	version: MCP_SERVER_VERSION,
 });
 
 // ─── Discovery tools moved from essential → extended ────────────────
@@ -929,11 +930,12 @@ server.registerTool(
 				handoffs: handoffCount,
 			},
 			toolArchitecture: {
-				essential:
-					"8 tools are always visible: briefMe, createCard, updateCard, moveCard, addComment, checkOnboarding, getTools, runTool. briefMe is the session-start primer; getBoard, searchCards, and getRoadmap moved to extended — call via runTool.",
+				essential: `${ESSENTIAL_TOOLS.length} tools are always visible: ${ESSENTIAL_TOOLS.map((t) => t.name).join(", ")}. briefMe is the session-start primer; getBoard, searchCards, and getRoadmap live in extended — call via runTool.`,
 				extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
 				prompts:
 					"8 MCP prompts are available (resume-session, end-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
+				manifest:
+					"Machine-readable surface at resource `tracker://server/manifest` — all tool names, categories, descriptions, schema version, and commit SHA.",
 			},
 			offerSampleProject,
 			projects: projects.map((p) => ({
@@ -1102,6 +1104,7 @@ server.registerTool(
 
 			return ok(
 				{
+					_serverVersion: MCP_SERVER_VERSION,
 					pulse,
 					...(autoResolved ? { resolvedFromCwd: { ...autoResolved, boardId } } : {}),
 					handoff,
@@ -1917,7 +1920,7 @@ async function main() {
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
 	console.error(
-		`Project Tracker MCP v2.2 — 8 essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
+		`Project Tracker MCP v${MCP_SERVER_VERSION} — ${ESSENTIAL_TOOLS.length} essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
 	);
 }
 

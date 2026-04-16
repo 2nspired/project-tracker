@@ -1,14 +1,42 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./db.js";
-import { toToon } from "./toon.js";
+import { buildServerManifest } from "./manifest.js";
 import { generateStatusMarkdown } from "./tools/status-tools.js";
+import { toToon } from "./toon.js";
 
 /**
  * Register MCP resources — read-only views of tracker data.
  * Resources let clients browse project data without calling tools.
  */
 export function registerResources(server: McpServer) {
+	// ─── Server manifest resource ──────────────────────────────────
+	// One machine-readable source of truth for what's in the MCP server —
+	// version, schema, commit SHA, and the full tool surface (essentials +
+	// extended with descriptions and categories). All counts are derived
+	// at runtime from the registry so docs and the manifest can never drift.
+	server.registerResource(
+		"server-manifest",
+		"tracker://server/manifest",
+		{
+			title: "Server Manifest",
+			description:
+				"Machine-readable snapshot of this MCP server's version, schema, commit, and full tool surface. Use to verify what's actually available instead of trusting cached docs.",
+			mimeType: "application/json",
+		},
+		async (uri) => {
+			const manifest = await buildServerManifest();
+			return {
+				contents: [
+					{
+						uri: uri.href,
+						text: JSON.stringify(manifest, null, 2),
+						mimeType: "application/json",
+					},
+				],
+			};
+		}
+	);
 
 	// ─── Board resource ────────────────────────────────────────────
 	server.registerResource(
@@ -48,7 +76,8 @@ export function registerResources(server: McpServer) {
 					},
 				},
 			});
-			if (!board) return { contents: [{ uri: uri.href, text: "Board not found", mimeType: "text/plain" }] };
+			if (!board)
+				return { contents: [{ uri: uri.href, text: "Board not found", mimeType: "text/plain" }] };
 
 			const data = {
 				id: board.id,
@@ -68,13 +97,15 @@ export function registerResources(server: McpServer) {
 			};
 
 			return {
-				contents: [{
-					uri: uri.href,
-					text: toToon(data),
-					mimeType: "application/json",
-				}],
+				contents: [
+					{
+						uri: uri.href,
+						text: toToon(data),
+						mimeType: "application/json",
+					},
+				],
 			};
-		},
+		}
 	);
 
 	// ─── Card resource ─────────────────────────────────────────────
@@ -84,21 +115,30 @@ export function registerResources(server: McpServer) {
 		{ title: "Card Detail", description: "Single card with checklist, comments, relations" },
 		async (uri, { boardId, number }) => {
 			const cardNum = Number.parseInt(number as string, 10);
-			const board = await db.board.findUnique({ where: { id: boardId as string }, select: { projectId: true } });
-			if (!board) return { contents: [{ uri: uri.href, text: "Board not found", mimeType: "text/plain" }] };
+			const board = await db.board.findUnique({
+				where: { id: boardId as string },
+				select: { projectId: true },
+			});
+			if (!board)
+				return { contents: [{ uri: uri.href, text: "Board not found", mimeType: "text/plain" }] };
 
 			const card = await db.card.findUnique({
 				where: { projectId_number: { projectId: board.projectId, number: cardNum } },
 				include: {
 					checklists: { orderBy: { position: "asc" }, select: { text: true, completed: true } },
-					comments: { orderBy: { createdAt: "desc" }, take: 10, select: { content: true, authorName: true, authorType: true, createdAt: true } },
+					comments: {
+						orderBy: { createdAt: "desc" },
+						take: 10,
+						select: { content: true, authorName: true, authorType: true, createdAt: true },
+					},
 					column: { select: { name: true } },
 					milestone: { select: { name: true } },
 					relationsFrom: { include: { toCard: { select: { number: true, title: true } } } },
 					relationsTo: { include: { fromCard: { select: { number: true, title: true } } } },
 				},
 			});
-			if (!card) return { contents: [{ uri: uri.href, text: "Card not found", mimeType: "text/plain" }] };
+			if (!card)
+				return { contents: [{ uri: uri.href, text: "Card not found", mimeType: "text/plain" }] };
 
 			const data = {
 				ref: `#${card.number}`,
@@ -114,18 +154,24 @@ export function registerResources(server: McpServer) {
 					author: c.authorName ?? c.authorType,
 					when: c.createdAt,
 				})),
-				blocks: card.relationsFrom.filter((r) => r.type === "blocks").map((r) => `#${r.toCard.number}`),
-				blockedBy: card.relationsTo.filter((r) => r.type === "blocks").map((r) => `#${r.fromCard.number}`),
+				blocks: card.relationsFrom
+					.filter((r) => r.type === "blocks")
+					.map((r) => `#${r.toCard.number}`),
+				blockedBy: card.relationsTo
+					.filter((r) => r.type === "blocks")
+					.map((r) => `#${r.fromCard.number}`),
 			};
 
 			return {
-				contents: [{
-					uri: uri.href,
-					text: JSON.stringify(data, null, 2),
-					mimeType: "application/json",
-				}],
+				contents: [
+					{
+						uri: uri.href,
+						text: JSON.stringify(data, null, 2),
+						mimeType: "application/json",
+					},
+				],
 			};
-		},
+		}
 	);
 
 	// ─── Handoff resource ──────────────────────────────────────────
@@ -138,7 +184,8 @@ export function registerResources(server: McpServer) {
 				where: { boardId: boardId as string },
 				orderBy: { createdAt: "desc" },
 			});
-			if (!handoff) return { contents: [{ uri: uri.href, text: "No handoff found", mimeType: "text/plain" }] };
+			if (!handoff)
+				return { contents: [{ uri: uri.href, text: "No handoff found", mimeType: "text/plain" }] };
 
 			const data = {
 				agentName: handoff.agentName,
@@ -151,13 +198,15 @@ export function registerResources(server: McpServer) {
 			};
 
 			return {
-				contents: [{
-					uri: uri.href,
-					text: JSON.stringify(data, null, 2),
-					mimeType: "application/json",
-				}],
+				contents: [
+					{
+						uri: uri.href,
+						text: JSON.stringify(data, null, 2),
+						mimeType: "application/json",
+					},
+				],
 			};
-		},
+		}
 	);
 
 	// ─── Decisions resource ────────────────────────────────────────
@@ -184,13 +233,15 @@ export function registerResources(server: McpServer) {
 			}));
 
 			return {
-				contents: [{
-					uri: uri.href,
-					text: JSON.stringify(data, null, 2),
-					mimeType: "application/json",
-				}],
+				contents: [
+					{
+						uri: uri.href,
+						text: JSON.stringify(data, null, 2),
+						mimeType: "application/json",
+					},
+				],
 			};
-		},
+		}
 	);
 
 	// ─── Status resource ──────────────────────────────────────────────
@@ -223,32 +274,38 @@ export function registerResources(server: McpServer) {
 			});
 			if (!project) {
 				return {
-					contents: [{
-						uri: uri.href,
-						text: `Project with slug "${slug}" not found.`,
-						mimeType: "text/plain",
-					}],
+					contents: [
+						{
+							uri: uri.href,
+							text: `Project with slug "${slug}" not found.`,
+							mimeType: "text/plain",
+						},
+					],
 				};
 			}
 
 			const result = await generateStatusMarkdown(project.id);
 			if ("error" in result) {
 				return {
-					contents: [{
-						uri: uri.href,
-						text: result.error,
-						mimeType: "text/plain",
-					}],
+					contents: [
+						{
+							uri: uri.href,
+							text: result.error,
+							mimeType: "text/plain",
+						},
+					],
 				};
 			}
 
 			return {
-				contents: [{
-					uri: uri.href,
-					text: result.markdown,
-					mimeType: "text/markdown",
-				}],
+				contents: [
+					{
+						uri: uri.href,
+						text: result.markdown,
+						mimeType: "text/markdown",
+					},
+				],
 			};
-		},
+		}
 	);
 }

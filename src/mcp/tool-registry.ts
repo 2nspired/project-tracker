@@ -1,6 +1,6 @@
 import type { z } from "zod";
-import type { ToolResult } from "./utils.js";
 import { logToolCall } from "./instrumentation.js";
+import type { ToolResult } from "./utils.js";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -46,6 +46,31 @@ export function getRegistrySize(): number {
 	return registry.size;
 }
 
+/**
+ * Snapshot of all extended tools — used by the server manifest resource.
+ * Returns tools sorted by category, then name.
+ */
+export function getAllExtendedTools(): Array<{
+	name: string;
+	category: string;
+	description: string;
+	readOnly: boolean;
+	destructive: boolean;
+}> {
+	return Array.from(registry.entries())
+		.map(([name, def]) => ({
+			name,
+			category: def.category,
+			description: def.description,
+			readOnly: def.annotations?.readOnlyHint ?? false,
+			destructive: def.annotations?.destructiveHint ?? false,
+		}))
+		.sort((a, b) => {
+			if (a.category !== b.category) return a.category.localeCompare(b.category);
+			return a.name.localeCompare(b.name);
+		});
+}
+
 // ─── getTools: Catalog Discovery ────────────────────────────────────
 
 type ToolSummary = {
@@ -77,7 +102,11 @@ function getDef(schema: z.ZodTypeAny): Record<string, any> {
 
 function unwrapZod(schema: z.ZodTypeAny): z.ZodTypeAny {
 	const def = getDef(schema);
-	if (def.typeName === "ZodOptional" || def.typeName === "ZodDefault" || def.typeName === "ZodNullable") {
+	if (
+		def.typeName === "ZodOptional" ||
+		def.typeName === "ZodDefault" ||
+		def.typeName === "ZodNullable"
+	) {
 		return unwrapZod(def.innerType as z.ZodTypeAny);
 	}
 	return schema;
@@ -113,7 +142,9 @@ function zodTypeToString(schema: z.ZodTypeAny): string {
 	return schema.description ?? "unknown";
 }
 
-function extractObjectShape(schema: z.ZodObject<z.ZodRawShape>): Record<string, { type: string; required: boolean; description: string }> {
+function extractObjectShape(
+	schema: z.ZodObject<z.ZodRawShape>
+): Record<string, { type: string; required: boolean; description: string }> {
 	const result: Record<string, { type: string; required: boolean; description: string }> = {};
 	for (const [key, value] of Object.entries(schema.shape)) {
 		const field = value as z.ZodTypeAny;
@@ -184,17 +215,21 @@ function extractParamInfo(schema: z.ZodObject<z.ZodRawShape>): ToolDetail["param
  * - category: returns tool summaries for that category
  * - tool: returns full detail for a specific tool including parameter schema
  */
-export function getToolCatalog(opts?: { category?: string; tool?: string }): {
-	type: "categories";
-	categories: Array<{ name: string; tools: number; description: string }>;
-} | {
-	type: "tools";
-	category: string;
-	tools: ToolSummary[];
-} | {
-	type: "detail";
-	tool: ToolDetail;
-} | null {
+export function getToolCatalog(opts?: { category?: string; tool?: string }):
+	| {
+			type: "categories";
+			categories: Array<{ name: string; tools: number; description: string }>;
+	  }
+	| {
+			type: "tools";
+			category: string;
+			tools: ToolSummary[];
+	  }
+	| {
+			type: "detail";
+			tool: ToolDetail;
+	  }
+	| null {
 	// Specific tool detail
 	if (opts?.tool) {
 		const def = registry.get(opts.tool);
@@ -271,7 +306,7 @@ export function getToolCatalog(opts?: { category?: string; tool?: string }): {
  */
 export async function executeTool(
 	name: string,
-	params: Record<string, unknown>,
+	params: Record<string, unknown>
 ): Promise<ToolResult> {
 	const start = Date.now();
 
@@ -280,12 +315,17 @@ export async function executeTool(
 		// Suggest similar tool names
 		const allNames = Array.from(registry.keys());
 		const suggestions = allNames
-			.filter((n) => n.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(n.toLowerCase()))
+			.filter(
+				(n) =>
+					n.toLowerCase().includes(name.toLowerCase()) ||
+					name.toLowerCase().includes(n.toLowerCase())
+			)
 			.slice(0, 3);
 
-		const hint = suggestions.length > 0
-			? `Did you mean: ${suggestions.join(", ")}? Use getTools to see all available tools.`
-			: "Use getTools to see all available tools.";
+		const hint =
+			suggestions.length > 0
+				? `Did you mean: ${suggestions.join(", ")}? Use getTools to see all available tools.`
+				: "Use getTools to see all available tools.";
 
 		const result: ToolResult = {
 			content: [{ type: "text" as const, text: `Tool "${name}" not found. ${hint}` }],
@@ -302,10 +342,12 @@ export async function executeTool(
 			.map((i) => `  - ${i.path.join(".")}: ${i.message}`)
 			.join("\n");
 		const result: ToolResult = {
-			content: [{
-				type: "text" as const,
-				text: `Invalid parameters for "${name}":\n${issues}\n\nUse getTools({ tool: "${name}" }) to see the full parameter schema.`,
-			}],
+			content: [
+				{
+					type: "text" as const,
+					text: `Invalid parameters for "${name}":\n${issues}\n\nUse getTools({ tool: "${name}" }) to see the full parameter schema.`,
+				},
+			],
 			isError: true,
 		};
 		logToolCall(name, Date.now() - start, result);
