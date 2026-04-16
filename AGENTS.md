@@ -6,6 +6,30 @@ Shared guidelines for any AI agent (Claude, Codex, etc.) using the Project Track
 
 When this MCP is connected to a project, use the board as your shared workspace with the user. These guidelines keep it useful without burning tokens.
 
+## Tool Migration (v2.2)
+
+The knowledge tools were consolidated in v2.2. If your prompts or learned workflows reference old tool names, here's what changed:
+
+| Old tool | New equivalent |
+|---|---|
+| `saveContextEntry(...)` | `saveFact({ type: "context", content: "...", ... })` |
+| `listContextEntries(...)` | `listFacts({ type: "context", ... })` |
+| `getContextEntry({ entryId })` | `getFact({ factId })` |
+| `deleteContextEntry({ entryId })` | `deleteFact({ factId })` |
+| `saveCodeFact(...)` | `saveFact({ type: "code", content: "...", path: "...", ... })` |
+| `listCodeFacts(...)` | `listFacts({ type: "code", ... })` |
+| `getCodeFact({ factId })` | `getFact({ factId })` |
+| `deleteCodeFact({ factId })` | `deleteFact({ factId })` |
+| `saveMeasurement(...)` | `saveFact({ type: "measurement", content: "...", value: N, unit: "...", ... })` |
+| `listMeasurements(...)` | `listFacts({ type: "measurement", ... })` |
+| `getMeasurement({ measurementId })` | `getFact({ factId })` |
+| `deleteMeasurement({ measurementId })` | `deleteFact({ factId })` |
+| `getBoardDiff({ boardId, since })` | Removed — use `loadHandoff` (includes board diff automatically) |
+| `reviewSessionFacts(...)` | Removed — save facts directly via `saveFact` during the session |
+| `getCodeMap({ cardId })` | Removed — use `getCommitSummary` (returns files + commit stats) |
+
+**Key concept:** The `content` field replaces `claim` (context), `fact` (code), and `description` (measurement). All three fact types share CRUD through `saveFact`/`listFacts`/`getFact`/`deleteFact` with a `type` discriminator. The underlying data is unchanged.
+
 ## Project Prompt
 
 Each project has an optional `projectPrompt` field — a short orientation paragraph that auto-loads at session start via `checkOnboarding`. Use `updateProjectPrompt` to set it.

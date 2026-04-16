@@ -157,41 +157,6 @@ registerExtendedTool("getGitLog", {
 	}),
 });
 
-registerExtendedTool("getCodeMap", {
-	category: "git",
-	description: "Files touched by all commits linked to a card.",
-	parameters: z.object({
-		cardId: z.string().describe("Card UUID or #number"),
-	}),
-	annotations: { readOnlyHint: true },
-	handler: ({ cardId }) => safeExecute(async () => {
-		const resolved = await resolveCardRef(cardId as string);
-		if (!resolved.ok) return err(resolved.message);
-		const id = resolved.id;
-
-		const links = await db.gitLink.findMany({
-			where: { cardId: id },
-			orderBy: { commitDate: "desc" },
-		});
-
-		if (links.length === 0) {
-			return ok({ cardId: id, files: [], commitCount: 0, message: "No git links found for this card." });
-		}
-
-		const fileSet = new Set<string>();
-		for (const link of links) {
-			const paths = JSON.parse(link.filePaths) as string[];
-			for (const p of paths) fileSet.add(p);
-		}
-
-		return ok({
-			cardId: id,
-			files: Array.from(fileSet).sort(),
-			commitCount: links.length,
-		});
-	}),
-});
-
 registerExtendedTool("getCardCommits", {
 	category: "git",
 	description: "All git commits linked to a card.",
