@@ -30,6 +30,7 @@ import "./tools/scratch-tools.js";
 import "./tools/context-tools.js";
 import "./tools/query-tools.js";
 import "./tools/git-tools.js";
+import "./tools/summary-tools.js";
 import "./tools/onboarding-tools.js";
 import "./tools/status-tools.js";
 import "./tools/context-entry-tools.js";

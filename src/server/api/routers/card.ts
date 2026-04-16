@@ -4,6 +4,7 @@ import { emitCardChanged, emitCardChangedViaColumn } from "@/lib/events";
 import { createCardSchema, moveCardSchema, updateCardSchema } from "@/lib/schemas/card-schemas";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { cardService } from "@/server/services/card-service";
+import { commitSummaryService } from "@/server/services/commit-summary-service";
 
 export const cardRouter = createTRPCRouter({
 	listAll: publicProcedure
@@ -61,6 +62,16 @@ export const cardRouter = createTRPCRouter({
 				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
 			}
 			emitCardChangedViaColumn(input.data.columnId);
+			return result.data;
+		}),
+
+	getCommitSummary: publicProcedure
+		.input(z.object({ cardId: z.string().uuid() }))
+		.query(async ({ input }) => {
+			const result = await commitSummaryService.getForCard(input.cardId);
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
 			return result.data;
 		}),
 
