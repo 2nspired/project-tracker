@@ -21,7 +21,7 @@ registerExtendedTool("recordDecision", {
 	handler: ({ projectId, cardId, title, status, decision, alternatives, rationale, supersedesId }) => safeExecute(async () => {
 		let resolvedCardId: string | null = null;
 		if (cardId) {
-			const resolved = await resolveCardRef(cardId as string);
+			const resolved = await resolveCardRef(cardId as string, projectId as string);
 			if (!resolved.ok) return err(resolved.message);
 			resolvedCardId = resolved.id;
 		}
@@ -76,7 +76,7 @@ registerExtendedTool("getDecisions", {
 	handler: ({ projectId, cardId, status }) => safeExecute(async () => {
 		let resolvedCardId: string | undefined;
 		if (cardId) {
-			const resolved = await resolveCardRef(cardId as string);
+			const resolved = await resolveCardRef(cardId as string, projectId as string);
 			if (!resolved.ok) return err(resolved.message);
 			resolvedCardId = resolved.id;
 		}

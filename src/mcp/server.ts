@@ -14,6 +14,7 @@ import {
 	checkVersionConflict,
 	detectFeatures,
 	err,
+	getProjectIdForBoard,
 	ok,
 	resolveCardRef,
 	resolveOrCreateMilestone,
@@ -286,6 +287,7 @@ server.registerTool(
 		description: "Update card fields. Omitted fields unchanged.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
+			boardId: z.string().optional().describe("Board UUID — scopes #number resolution to this board's project"),
 			title: z.string().optional(),
 			description: z.string().optional().describe("Markdown"),
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
@@ -307,9 +309,10 @@ server.registerTool(
 		},
 		annotations: { idempotentHint: true },
 	},
-	wrapEssentialHandler("updateCard", async ({ cardId: cardRef, title, description, priority, tags, assignee, milestoneName, metadata, scope, version }) => {
+	wrapEssentialHandler("updateCard", async ({ cardId: cardRef, boardId, title, description, priority, tags, assignee, milestoneName, metadata, scope, version }) => {
 		return safeExecute(async () => {
-			const resolved = await resolveCardRef(cardRef);
+			const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
+			const resolved = await resolveCardRef(cardRef, projectId);
 			if (!resolved.ok) return err(resolved.message);
 			const cardId = resolved.id;
 
@@ -376,6 +379,7 @@ server.registerTool(
 					metadata: JSON.parse(card.metadata),
 					...(card.scope && card.scope !== "{}" && { scope: JSON.parse(card.scope) }),
 				},
+				...(resolved.warning && { _warning: resolved.warning }),
 			});
 		});
 	})
@@ -389,12 +393,14 @@ server.registerTool(
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
 			columnName: z.string().describe("Target column (e.g. 'In Progress', 'Done')"),
+			boardId: z.string().optional().describe("Board UUID — scopes #number resolution to this board's project"),
 			position: z.number().int().min(0).optional().describe("0 = top, omit = bottom"),
 		},
 	},
-	wrapEssentialHandler("moveCard", async ({ cardId: cardRef, columnName, position }) => {
+	wrapEssentialHandler("moveCard", async ({ cardId: cardRef, columnName, boardId, position }) => {
 		return safeExecute(async () => {
-			const resolved = await resolveCardRef(cardRef);
+			const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
+			const resolved = await resolveCardRef(cardRef, projectId);
 			if (!resolved.ok) return err(resolved.message);
 			const cardId = resolved.id;
 
@@ -459,6 +465,7 @@ server.registerTool(
 				title: card.title,
 				from: fromCol,
 				to: columnName,
+				...(resolved.warning && { _warning: resolved.warning }),
 			});
 		});
 	})
@@ -471,12 +478,14 @@ server.registerTool(
 		description: "Add a comment to a card.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
+			boardId: z.string().optional().describe("Board UUID — scopes #number resolution to this board's project"),
 			content: z.string().describe("Comment text (markdown)"),
 		},
 	},
-	wrapEssentialHandler("addComment", async ({ cardId: cardRef, content }) => {
+	wrapEssentialHandler("addComment", async ({ cardId: cardRef, boardId, content }) => {
 		return safeExecute(async () => {
-			const resolved = await resolveCardRef(cardRef);
+			const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
+			const resolved = await resolveCardRef(cardRef, projectId);
 			if (!resolved.ok) return err(resolved.message);
 			const cardId = resolved.id;
 
@@ -487,7 +496,7 @@ server.registerTool(
 				data: { cardId, content, authorType: "AGENT", authorName: AGENT_NAME },
 			});
 
-			return ok({ id: comment.id, ref: `#${card.number}`, created: true });
+			return ok({ id: comment.id, ref: `#${card.number}`, created: true, ...(resolved.warning && { _warning: resolved.warning }) });
 		});
 	})
 );

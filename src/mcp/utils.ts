@@ -46,7 +46,7 @@ export async function detectFeatures(): Promise<FeatureAvailability> {
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type ResolveResult =
-	| { ok: true; id: string }
+	| { ok: true; id: string; warning?: string }
 	| { ok: false; error: "not_found" | "ambiguous"; message: string };
 
 /**
@@ -81,7 +81,11 @@ export async function resolveCardRef(ref: string, projectId?: string): Promise<R
 		return { ok: false, error: "not_found", message: `Card #${num} not found.` };
 	}
 	if (matches.length === 1) {
-		return { ok: true, id: matches[0].id };
+		return {
+			ok: true,
+			id: matches[0].id,
+			warning: `#${num} resolved from project "${matches[0].project.name}" without project scope — pass boardId to avoid cross-project misresolution, or use the card UUID.`,
+		};
 	}
 
 	const projects = matches.map((m) => `"${m.project.name}"`).join(", ");
@@ -118,6 +122,14 @@ export async function resolveOrCreateMilestone(projectId: string, name: string):
 		data: { projectId, name, position: (maxPos._max.position ?? -1) + 1 },
 	});
 	return ms.id;
+}
+
+/**
+ * Look up the projectId for a board. Used to scope #number resolution.
+ */
+export async function getProjectIdForBoard(boardId: string): Promise<string | undefined> {
+	const board = await db.board.findUnique({ where: { id: boardId }, select: { projectId: true } });
+	return board?.projectId;
 }
 
 // ─── Optimistic Locking ────────────────────────────────────────────

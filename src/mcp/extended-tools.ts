@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "./db.js";
 import { registerExtendedTool } from "./tool-registry.js";
-import { AGENT_NAME, resolveCardRef, resolveOrCreateMilestone, ok, err, errWithToolHint, safeExecute, checkVersionConflict } from "./utils.js";
+import { AGENT_NAME, getProjectIdForBoard, resolveCardRef, resolveOrCreateMilestone, ok, err, errWithToolHint, safeExecute, checkVersionConflict } from "./utils.js";
 import { parseCardScope, scopeSchema } from "../lib/schemas/card-schemas.js";
 import { toToon } from "./toon.js";
 
@@ -225,17 +225,19 @@ registerExtendedTool("deleteCard", {
 	description: "Permanently delete a card and all its data. Cannot be undone.",
 	parameters: z.object({
 		cardId: z.string().describe("Card UUID or #number"),
+		boardId: z.string().optional().describe("Board UUID — scopes #number resolution to this board's project"),
 	}),
 	annotations: { destructiveHint: true },
-	handler: ({ cardId }) => safeExecute(async () => {
-		const resolved = await resolveCardRef(cardId as string);
+	handler: ({ cardId, boardId }) => safeExecute(async () => {
+		const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
+		const resolved = await resolveCardRef(cardId as string, projectId);
 		if (!resolved.ok) return err(resolved.message);
 		const id = resolved.id;
 		const card = await db.card.findUnique({ where: { id } });
 		if (!card) return err("Card not found.");
 
 		await db.card.delete({ where: { id } });
-		return ok({ deleted: true, ref: `#${card.number}`, title: card.title });
+		return ok({ deleted: true, ref: `#${card.number}`, title: card.title, ...(resolved.warning && { _warning: resolved.warning }) });
 	}),
 });
 
@@ -412,6 +414,7 @@ registerExtendedTool("bulkMoveCards", {
 		columnName: z.string().describe("Target column name"),
 	}),
 	handler: ({ boardId, cardIds, columnName }) => safeExecute(async () => {
+		const projectId = await getProjectIdForBoard(boardId as string);
 		const column = await db.column.findFirst({
 			where: { boardId: boardId as string, name: { equals: columnName as string } },
 		});
@@ -424,7 +427,7 @@ registerExtendedTool("bulkMoveCards", {
 		const errors: string[] = [];
 
 		for (const ref of cardIds as string[]) {
-			const resolved = await resolveCardRef(ref);
+			const resolved = await resolveCardRef(ref, projectId);
 			if (!resolved.ok) { errors.push(resolved.message); continue; }
 			const id = resolved.id;
 
