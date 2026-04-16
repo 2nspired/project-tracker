@@ -663,7 +663,7 @@ registerExtendedTool("toggleChecklistItem", {
 	}),
 	handler: ({ checklistItemId, completed }) => safeExecute(async () => {
 		const item = await db.checklistItem.findUnique({ where: { id: checklistItemId as string } });
-		if (!item) return err("Checklist item not found.", "Get item IDs from getBoard (full mode, not summary) or getFocusContext({ boardId, cardRef: '#number' }).");
+		if (!item) return err("Checklist item not found.", "Get item IDs from getBoard (full mode, not summary) or getCardContext({ boardId, cardId: '#number' }).");
 
 		const updated = await db.checklistItem.update({
 			where: { id: checklistItemId as string },

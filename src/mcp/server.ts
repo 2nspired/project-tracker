@@ -917,7 +917,7 @@ server.registerPrompt(
 		lines.push(
 			"",
 			`---`,
-			`~${tokens} tokens | Use \`getFocusContext\` for deep work. Call \`end-session\` before wrapping up.`
+			`~${tokens} tokens | Use \`getCardContext\` for deep work on a card. Call \`end-session\` before wrapping up.`
 		);
 
 		return {
@@ -1055,7 +1055,7 @@ server.registerPrompt(
 			"",
 			`Load full context for card \`${cardRef}\`:`,
 			"```",
-			`runTool('getFocusContext', { boardId: '${boardId}', cardId: '${cardRef}' })`,
+			`runTool('getCardContext', { boardId: '${boardId}', cardId: '${cardRef}' })`,
 			"```",
 			"",
 			"Then work on the card. When done, update checklist items, add comments with findings, and move the card if complete.",

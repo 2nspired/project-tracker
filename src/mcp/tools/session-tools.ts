@@ -107,7 +107,9 @@ registerExtendedTool("loadHandoff", {
 					"setScratch / getScratch / listScratch / clearScratch — temporary key-value storage with optional expiry",
 				],
 				analysis: [
-					"getFocusContext — scoped context bundle (by card, milestone, or tag)",
+					"getCardContext — deep context for a single card (relations, commits, decisions, checklist)",
+					"getMilestoneContext — cards and progress for a milestone, grouped by horizon",
+					"getTagContext — cards matching a tag, grouped by column",
 					"getBlockers — list blocked cards and what blocks them",
 					"queryKnowledge — full-text search across all project knowledge",
 				],

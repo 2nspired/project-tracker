@@ -258,7 +258,7 @@ Conversation 2:
 
 ```
 Agent: [resume-session] → sees handoff from yesterday + 3 new changes
-Agent: [getFocusContext #4] → loads card + relations + decisions + commits
+Agent: [getCardContext #4] → loads card + relations + decisions + commits
 Agent: [moves #4 → "In Progress"]
   ... writes the code ...
 Agent: [toggleChecklistItem] → checks off "Set up JWT middleware"

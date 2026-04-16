@@ -6,6 +6,18 @@ Shared guidelines for any AI agent (Claude, Codex, etc.) using the Project Track
 
 When this MCP is connected to a project, use the board as your shared workspace with the user. These guidelines keep it useful without burning tokens.
 
+## Tool Migration (v2.3)
+
+Context tools were split into single-purpose tools in v2.3:
+
+| Old tool | New equivalent |
+|---|---|
+| `getFocusContext({ boardId, cardId })` | `getCardContext({ boardId, cardId })` |
+| `getFocusContext({ boardId, milestone })` | `getMilestoneContext({ boardId, milestone })` |
+| `getFocusContext({ boardId, tag })` | `getTagContext({ boardId, tag })` |
+
+`getFocusContext` still exists but returns a deprecation error with a hint. Each replacement does one thing and has one response shape.
+
 ## Tool Migration (v2.2)
 
 The knowledge tools were consolidated in v2.2. If your prompts or learned workflows reference old tool names, here's what changed:
