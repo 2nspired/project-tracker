@@ -956,18 +956,69 @@ registerExtendedTool("listMilestones", {
 });
 
 // ─── Notes ──────────────────────────────────────────────────────────
+//
+// RFC-v2 step 2: the `note` table carries kind/author/cardId/boardId/
+// metadata/expiresAt columns. Tools accept the new fields as optional;
+// legacy calls (title/content/tags only) still produce a general note
+// owned by HUMAN with empty metadata. No dual-write from saveHandoff /
+// scratch yet — that's step 3.
+
+const NOTE_KINDS = ["general", "handoff", "scratch"] as const;
 
 registerExtendedTool("listNotes", {
 	category: "notes",
-	description: "List project notes. Omit projectId to list all.",
+	description:
+		"List notes. Filter by kind/cardId/boardId/author. Omit projectId to list across projects.",
 	parameters: z.object({
 		projectId: z.string().optional().describe("Project UUID, omit for all"),
+		kind: z.enum(NOTE_KINDS).optional().describe("Filter by kind"),
+		cardId: z.string().optional().describe("Card UUID or #number (requires projectId for #N form)"),
+		boardId: z.string().optional().describe("Board UUID"),
+		author: z.string().optional().describe("Filter by author (AGENT_NAME or HUMAN)"),
 	}),
 	annotations: { readOnlyHint: true },
-	handler: ({ projectId }) =>
+	handler: (params) =>
 		safeExecute(async () => {
+			const {
+				projectId,
+				kind,
+				cardId: cardRef,
+				boardId,
+				author,
+			} = params as {
+				projectId?: string;
+				kind?: (typeof NOTE_KINDS)[number];
+				cardId?: string;
+				boardId?: string;
+				author?: string;
+			};
+
+			let resolvedCardId: string | undefined;
+			if (cardRef) {
+				if (!projectId && /^#\d+$/.test(cardRef)) {
+					return err(
+						"Resolving a #N card ref needs projectId.",
+						"Pass projectId or use a card UUID."
+					);
+				}
+				if (projectId) {
+					const resolved = await resolveCardRef(cardRef, projectId);
+					if (!resolved.ok) return err(resolved.message);
+					resolvedCardId = resolved.id;
+				} else {
+					resolvedCardId = cardRef;
+				}
+			}
+
+			const where: Record<string, unknown> = {};
+			if (projectId) where.projectId = projectId;
+			if (kind) where.kind = kind;
+			if (resolvedCardId) where.cardId = resolvedCardId;
+			if (boardId) where.boardId = boardId;
+			if (author) where.author = author;
+
 			const notes = await db.note.findMany({
-				where: projectId ? { projectId: projectId as string } : {},
+				where,
 				orderBy: { updatedAt: "desc" },
 				include: { project: { select: { id: true, name: true } } },
 			});
@@ -976,7 +1027,11 @@ registerExtendedTool("listNotes", {
 					id: n.id,
 					title: n.title,
 					content: n.content.substring(0, 200) + (n.content.length > 200 ? "..." : ""),
-					tags: JSON.parse(n.tags),
+					kind: n.kind,
+					tags: JSON.parse(n.tags) as string[],
+					author: n.author,
+					cardId: n.cardId,
+					boardId: n.boardId,
 					project: n.project?.name ?? null,
 					updatedAt: n.updatedAt,
 				}))
@@ -986,52 +1041,174 @@ registerExtendedTool("listNotes", {
 
 registerExtendedTool("createNote", {
 	category: "notes",
-	description: "Create a project note. Omit projectId for a global note.",
+	description:
+		"Create a note. Defaults: kind=general, author=HUMAN, metadata={}. Omit projectId for a global note.",
 	parameters: z.object({
 		title: z.string(),
 		content: z.string().optional().describe("Markdown"),
 		tags: z.array(z.string()).default([]),
 		projectId: z.string().optional().describe("Project UUID, omit for global"),
+		kind: z.enum(NOTE_KINDS).default("general"),
+		author: z.string().default(AGENT_NAME).describe("AGENT_NAME or HUMAN"),
+		cardId: z.string().optional().describe("Card UUID or #number (requires projectId for #N form)"),
+		boardId: z
+			.string()
+			.optional()
+			.describe("Board UUID — required for handoff/scratch kinds (step 3)"),
+		metadata: z
+			.record(z.string(), z.unknown())
+			.default({})
+			.describe(
+				"Kind-specific metadata (handoff: workingOn/findings/nextSteps/blockers; scratch: key)"
+			),
+		expiresAt: z.string().optional().describe("ISO datetime — scratch TTL"),
 	}),
-	handler: ({ title, content, tags, projectId }) =>
+	handler: (params) =>
 		safeExecute(async () => {
+			const {
+				title,
+				content,
+				tags,
+				projectId,
+				kind,
+				author,
+				cardId: cardRef,
+				boardId,
+				metadata,
+				expiresAt,
+			} = params as {
+				title: string;
+				content?: string;
+				tags: string[];
+				projectId?: string;
+				kind: (typeof NOTE_KINDS)[number];
+				author: string;
+				cardId?: string;
+				boardId?: string;
+				metadata: Record<string, unknown>;
+				expiresAt?: string;
+			};
+
+			let resolvedCardId: string | null = null;
+			if (cardRef) {
+				if (!projectId && /^#\d+$/.test(cardRef)) {
+					return err(
+						"Resolving a #N card ref needs projectId.",
+						"Pass projectId or use a card UUID."
+					);
+				}
+				if (projectId) {
+					const resolved = await resolveCardRef(cardRef, projectId);
+					if (!resolved.ok) return err(resolved.message);
+					resolvedCardId = resolved.id;
+				} else {
+					resolvedCardId = cardRef;
+				}
+			}
+
 			const note = await db.note.create({
 				data: {
-					title: title as string,
-					content: (content as string) ?? "",
+					title,
+					content: content ?? "",
 					tags: JSON.stringify(tags ?? []),
-					projectId: projectId as string | undefined,
+					projectId,
+					kind,
+					author,
+					cardId: resolvedCardId,
+					boardId: boardId ?? null,
+					metadata: JSON.stringify(metadata ?? {}),
+					expiresAt: expiresAt ? new Date(expiresAt) : null,
 				},
 			});
-			return ok({ id: note.id, title: note.title, created: true });
+			return ok({ id: note.id, title: note.title, kind: note.kind, created: true });
 		}),
 });
 
 registerExtendedTool("updateNote", {
 	category: "notes",
-	description: "Update a note.",
+	description: "Update a note. Omitted fields unchanged.",
 	parameters: z.object({
 		noteId: z.string().describe("UUID from listNotes"),
 		title: z.string().optional(),
 		content: z.string().optional().describe("Markdown"),
 		tags: z.array(z.string()).optional().describe("Replaces all tags"),
+		kind: z.enum(NOTE_KINDS).optional(),
+		author: z.string().optional(),
+		cardId: z.string().nullable().optional().describe("Card UUID, #number, or null to unset"),
+		boardId: z.string().nullable().optional().describe("Board UUID or null to unset"),
+		metadata: z.record(z.string(), z.unknown()).optional().describe("Replaces metadata blob"),
+		expiresAt: z.string().nullable().optional().describe("ISO datetime or null to unset"),
+		projectId: z.string().optional().describe("Project UUID — only for resolving #N cardId"),
 	}),
 	annotations: { idempotentHint: true },
-	handler: ({ noteId, title, content, tags }) =>
+	handler: (params) =>
 		safeExecute(async () => {
-			const existing = await db.note.findUnique({ where: { id: noteId as string } });
+			const {
+				noteId,
+				title,
+				content,
+				tags,
+				kind,
+				author,
+				cardId: cardRef,
+				boardId,
+				metadata,
+				expiresAt,
+				projectId,
+			} = params as {
+				noteId: string;
+				title?: string;
+				content?: string;
+				tags?: string[];
+				kind?: (typeof NOTE_KINDS)[number];
+				author?: string;
+				cardId?: string | null;
+				boardId?: string | null;
+				metadata?: Record<string, unknown>;
+				expiresAt?: string | null;
+				projectId?: string;
+			};
+
+			const existing = await db.note.findUnique({ where: { id: noteId } });
 			if (!existing)
 				return errWithToolHint("Note not found.", "listNotes", { projectId: '"<projectId>"' });
 
+			let resolvedCardId: string | null | undefined;
+			if (cardRef === null) {
+				resolvedCardId = null;
+			} else if (cardRef !== undefined) {
+				const scope = projectId ?? existing.projectId ?? undefined;
+				if (!scope && /^#\d+$/.test(cardRef)) {
+					return err(
+						"Resolving a #N card ref needs projectId.",
+						"Pass projectId or use a card UUID."
+					);
+				}
+				if (scope) {
+					const resolved = await resolveCardRef(cardRef, scope);
+					if (!resolved.ok) return err(resolved.message);
+					resolvedCardId = resolved.id;
+				} else {
+					resolvedCardId = cardRef;
+				}
+			}
+
 			const note = await db.note.update({
-				where: { id: noteId as string },
+				where: { id: noteId },
 				data: {
-					title: title as string | undefined,
-					content: content as string | undefined,
+					title,
+					content,
 					tags: tags ? JSON.stringify(tags) : undefined,
+					kind,
+					author,
+					cardId: resolvedCardId,
+					boardId: boardId === undefined ? undefined : boardId,
+					metadata: metadata ? JSON.stringify(metadata) : undefined,
+					expiresAt:
+						expiresAt === undefined ? undefined : expiresAt === null ? null : new Date(expiresAt),
 				},
 			});
-			return ok({ id: note.id, title: note.title, updated: true });
+			return ok({ id: note.id, title: note.title, kind: note.kind, updated: true });
 		}),
 });
 
