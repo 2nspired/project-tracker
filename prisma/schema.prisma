@@ -82,6 +82,7 @@ model Board {
   columns           Column[]
   handoffs          SessionHandoff[]
   scratches         AgentScratch[]
+  notes             Note[]
   defaultForProject Project?         @relation("DefaultBoard")
 
   @@index([projectId])
@@ -137,6 +138,7 @@ model Card {
   decisions     Decision[]
   gitLinks      GitLink[]
   claims        Claim[]
+  notes         Note[]
 
   @@unique([projectId, number])
   @@index([columnId])
@@ -210,17 +212,30 @@ model CardLabel {
 }
 
 model Note {
-  id        String   @id @default(uuid())
-  projectId String?  @map("project_id")
+  id        String    @id @default(uuid())
+  projectId String?   @map("project_id")
+  kind      String    @default("general")
   title     String
-  content   String   @default("")
-  tags      String   @default("[]")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  content   String    @default("")
+  tags      String    @default("[]")
+  author    String    @default("HUMAN")
+  cardId    String?   @map("card_id")
+  boardId   String?   @map("board_id")
+  metadata  String    @default("{}")
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  card    Card?    @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  board   Board?   @relation(fields: [boardId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([projectId, kind])
+  @@index([boardId, kind])
+  @@index([cardId])
+  @@index([kind])
+  @@index([expiresAt])
   @@index([updatedAt])
   @@map("note")
 }
