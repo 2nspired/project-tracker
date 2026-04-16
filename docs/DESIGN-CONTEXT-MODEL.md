@@ -51,7 +51,7 @@ Move persistent context from scattered files into structured, queryable entries 
 
 ### What Shipped
 
-**`PersistentContextEntry` model** — Structured knowledge claims: `{ claim, rationale, application, details[], author, audience, citedFiles[], recordedAtSha, surface }`. CRUD via `saveContextEntry`, `listContextEntries`, `getContextEntry`, `deleteContextEntry` MCP tools.
+**`PersistentContextEntry` model** — Structured knowledge claims: `{ claim, rationale, application, details[], author, audience, citedFiles[], recordedAtSha, surface }`. CRUD via unified `saveFact`/`listFacts`/`getFact`/`deleteFact` tools (type: "context").
 
 **Staleness registry** with two detection classes:
 - File-cited facts: Bazel-style `recordedAtSha` comparison — if a cited file's latest commit differs from the recorded SHA, the fact is flagged stale
@@ -59,7 +59,7 @@ Move persistent context from scattered files into structured, queryable entries 
 
 **Staleness warnings** injected at the top of `loadHandoff` and `checkOnboarding` responses as a markdown block, visible to both human and agent.
 
-**`reviewSessionFacts(projectId, boardId)`** — End-of-session review ritual. Discovers candidate facts from handoff findings, recent card comments, and entries created during the session. The agent presents each candidate for human confirm/edit/drop, then calls `saveContextEntry` for accepted facts.
+**`reviewSessionFacts`** — Removed in the knowledge consolidation pass (9→5 primitives). The end-of-session review workflow was unused. Agents should save facts directly via `saveFact` during the session.
 
 **`surface` field** implemented with the `ambient` / `indexed` / `surfaced` gradient:
 - `ambient` — auto-loaded into agent context at session start
@@ -74,7 +74,7 @@ Structured code facts and full-text search across all knowledge sources.
 
 **`CodeFact` model** — `{ path, symbol?, fact, author, recordedAtSha, needsRecheck, lastVerifiedAt }`. File-level primary, symbol-level optional. No line numbers (they rot too fast). Manual save only in v1, `needsRecheck` advisory flag auto-set when the cited file changes.
 
-CRUD via `saveCodeFact`, `listCodeFacts`, `getCodeFact`, `deleteCodeFact` MCP tools. Staleness integrated into the existing `checkStaleness` pipeline — code facts use file-cited staleness on their `path` field.
+CRUD via unified `saveFact`/`listFacts`/`getFact`/`deleteFact` tools (type: "code"). Staleness integrated into the existing `checkStaleness` pipeline — code facts use file-cited staleness on their `path` field.
 
 **FTS5 `queryKnowledge(topic)`** — Full-text search via SQLite FTS5 virtual table with Porter stemming. Searches across cards, comments, decisions, notes, handoffs, code facts, persistent context entries, and indexed repo markdown files. Returns ranked results with source references and highlighted snippets.
 
@@ -88,7 +88,7 @@ The hard problems that require new data models and coordination mechanisms.
 
 ### What Shipped
 
-**`MeasurementFact` model** — `{ value: Float, unit: String, description: String, env: JSON (key-value pairs of environment dependencies), path?, symbol?, author, recordedAt, ttl?, needsRecheck }`. Separate model from CodeFact — measurements rot on environment drift, not file renames. CRUD via `saveMeasurement`, `listMeasurements`, `getMeasurement`, `deleteMeasurement`.
+**`MeasurementFact` model** — `{ value: Float, unit: String, description: String, env: JSON (key-value pairs of environment dependencies), path?, symbol?, author, recordedAt, ttl?, needsRecheck }`. Separate model from CodeFact — measurements rot on environment drift, not file renames. CRUD via unified `saveFact`/`listFacts`/`getFact`/`deleteFact` tools (type: "measurement").
 
 Three-tier staleness:
 1. TTL-based: if `ttl` is set and expired, flag stale
@@ -97,7 +97,7 @@ Three-tier staleness:
 
 Measurements indexed in FTS5 via `rebuildKnowledgeIndex`.
 
-**Multi-agent conflict resolution** — `version Int @default(0)` on Card, Decision, PersistentContextEntry, CodeFact for optimistic locking. `lastEditedBy String?` on Card to track which agent last modified it. Write tools (`updateCard`, `bulkUpdateCards`, `updateDecision`, `saveContextEntry`, `saveCodeFact`) accept optional `version` param, check against current, increment on success. Read tools expose `version` in responses so clients can pass it back. `checkVersionConflict` utility returns clear conflict errors when versions diverge.
+**Multi-agent conflict resolution** — `version Int @default(0)` on Card, Decision, PersistentContextEntry, CodeFact for optimistic locking. `lastEditedBy String?` on Card to track which agent last modified it. Write tools (`updateCard`, `bulkUpdateCards`, `updateDecision`, `saveFact`) accept optional `version` param, check against current, increment on success. Read tools expose `version` in responses so clients can pass it back. `checkVersionConflict` utility returns clear conflict errors when versions diverge.
 
 **Decision supersession** — `supersedes String?` and `supersededBy String?` on Decision for bidirectional ADR linking. `recordDecision` and `updateDecision` accept `supersedesId` — automatically marks old decision as superseded and links both directions. Staleness pipeline flags superseded decisions so agents don't cite outdated ADRs.
 

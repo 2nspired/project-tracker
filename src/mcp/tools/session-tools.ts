@@ -96,10 +96,12 @@ registerExtendedTool("loadHandoff", {
 				memory: [
 					"saveHandoff / loadHandoff — session continuity",
 					"listHandoffs — view handoff history across sessions",
-					"getBoardDiff — what changed since a given time",
+				],
+				facts: [
+					"saveFact / listFacts / getFact / deleteFact — unified persistent knowledge (type: context | code | measurement)",
 				],
 				notes: [
-					"createNote / updateNote / deleteNote / listNotes — persistent project-level notes (survives across sessions)",
+					"createNote / updateNote / deleteNote / listNotes — persistent project-level notes",
 				],
 				scratch: [
 					"setScratch / getScratch / listScratch / clearScratch — temporary key-value storage with optional expiry",
@@ -107,8 +109,7 @@ registerExtendedTool("loadHandoff", {
 				analysis: [
 					"getFocusContext — scoped context bundle (by card, milestone, or tag)",
 					"getBlockers — list blocked cards and what blocks them",
-					"auditBoard — board health check (missing priority/tags/milestones)",
-					"getWorkNextSuggestion — AI-scored card priority suggestions",
+					"queryKnowledge — full-text search across all project knowledge",
 				],
 				decisions: [
 					"recordDecision / getDecisions — track architectural decisions tied to cards",
@@ -155,25 +156,4 @@ registerExtendedTool("listHandoffs", {
 	}),
 });
 
-registerExtendedTool("getBoardDiff", {
-	category: "session",
-	description: "Semantic diff: what changed on the board since a given time.",
-	parameters: z.object({
-		boardId: z.string().describe("Board UUID"),
-		since: z.string().describe("ISO 8601 datetime"),
-	}),
-	annotations: { readOnlyHint: true },
-	handler: ({ boardId, since }) => safeExecute(async () => {
-		const board = await db.board.findUnique({ where: { id: boardId as string } });
-		if (!board) return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
-
-		const sinceDate = new Date(since as string);
-		if (Number.isNaN(sinceDate.getTime())) {
-			return err("Invalid date.", "Provide a valid ISO 8601 datetime string.");
-		}
-
-		const diff = await computeBoardDiff(db, boardId as string, sinceDate);
-		return ok(diff);
-	}),
-});
 

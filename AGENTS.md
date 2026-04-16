@@ -34,48 +34,32 @@ Marks a card whose `metadata` JSON holds metrics read by `renderStatus`. Shape:
 { "metrics": [{ "key": "latency", "value": 17.5, "unit": "s", "recordedAt": "2026-04-10", "env": "Mac Mini M4" }] }
 ```
 
-## Context Entries
+## Facts (Unified Knowledge Store)
 
-Persistent context entries store project knowledge that would otherwise live in scattered memory files. Use `saveContextEntry` to record facts, decisions, and learnings that should persist across sessions.
+All persistent project knowledge is managed through a single set of tools: `saveFact`, `listFacts`, `getFact`, `deleteFact`. Each fact has a **type** that determines its schema:
 
-### End-of-Session Review
+### `type: "context"` — Project-level knowledge claims
+Record facts, decisions, and learnings that should persist across sessions.
+- `content` = the claim/assertion
+- Optional: `rationale`, `application`, `details[]`, `audience`, `citedFiles[]`, `surface`
+- **Surface levels:** `ambient` (auto-loaded, use sparingly), `indexed` (queryable, default), `surfaced` (reserved)
 
-Before calling `saveHandoff` at the end of a session, call `reviewSessionFacts(projectId, boardId)` to discover candidate facts from the session. Present each candidate to the user for confirmation before saving. This creates the missing ritual for:
-- Negative findings ("X approach doesn't work because Y")
-- Successful recipes ("This pattern works well for Z")  
-- Self-calibration notes ("Estimates for this area tend to run 2x")
+### `type: "code"` — File/symbol-anchored assertions
+Record facts about specific files or symbols. Automatically tracked for staleness when cited files change.
+- `content` = the factual assertion
+- `path` (required) = file path relative to repo root
+- Optional: `symbol`, `recordedAtSha`
+- **No line numbers** — they rot too fast. Use file path + optional symbol name.
+- **`needsRecheck`** — Auto-set when the cited file's latest commit differs from `recordedAtSha`. Use `listFacts({ type: "code", needsRecheck: true })` to find stale facts.
 
-### Surface Levels
-
-- **`ambient`** — auto-loaded at session start (use sparingly)
-- **`indexed`** — queryable on demand (default, good for most facts)
-- **`surfaced`** — visible in board UI (reserved for future use)
-
-## Code Facts
-
-Code facts record assertions about specific files or symbols in the codebase. Unlike context entries (which are project-level knowledge), code facts are anchored to file paths and automatically tracked for staleness when their cited file changes.
-
-Use `saveCodeFact` to record facts like:
-- "This module handles all authentication middleware" (`path: "src/auth/middleware.ts"`)
-- "The `processQueue` function is the entry point for background jobs" (`path: "src/workers/queue.ts"`, `symbol: "processQueue"`)
-
-**No line numbers** — they rot too fast across refactors. Use file path + optional symbol name instead.
-
-**`needsRecheck`** — Advisory flag, auto-set when the cited file's latest commit differs from `recordedAtSha`. Use `listCodeFacts` with `needsRecheck: true` to find facts that may need updating.
-
-## Measurement Facts
-
-Measurement facts record environment-dependent numeric values like latency, memory usage, build times, or bundle sizes. Unlike code facts (which are assertions about code structure), measurements depend on hardware, model builds, tool versions, and other environmental factors.
-
-Use `saveMeasurement` to record values like:
-- "17.5s eval latency" (`value: 17.5`, `unit: "s"`, `env: { hardware: "Mac Mini M4", model: "qwen2.5:7b", num_ctx: "4096" }`)
-- "2.3MB bundle size" (`value: 2.3`, `unit: "MB"`, `env: { node: "20", bundler: "esbuild" }`)
-
-**`env` field** — JSON key-value pairs of dependencies that affect this measurement. When any dependency changes, the measurement may be invalid. Include at minimum the hardware/runtime and any version-sensitive tool.
-
-**`ttl`** — Optional time-to-live in days. Set this for measurements you know will expire (e.g., benchmark results that should be re-run monthly: `ttl: 30`).
-
-**`needsRecheck`** — Auto-set when TTL expires, when a cited file's SHA drifts, or when the measurement ages past staleness thresholds. Use `listMeasurements` with `needsRecheck: true` to find measurements that need re-running.
+### `type: "measurement"` — Environment-dependent numeric values
+Record latency, memory usage, build times, bundle sizes, etc.
+- `content` = description of what was measured
+- `value` + `unit` (required) = the numeric measurement
+- Optional: `env` (JSON key-value pairs of dependencies), `path`, `symbol`, `ttl` (days)
+- **`env` field** — Include hardware/runtime and version-sensitive tools. When any dependency changes, the measurement may be invalid.
+- **`ttl`** — Time-to-live in days. Set for measurements that should be re-run periodically (e.g. `ttl: 30`).
+- **`needsRecheck`** — Auto-set on TTL expiry, SHA drift, or age thresholds. Use `listFacts({ type: "measurement", needsRecheck: true })`.
 
 ## Scope Guards
 

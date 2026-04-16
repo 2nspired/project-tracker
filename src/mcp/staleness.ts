@@ -360,7 +360,7 @@ export function formatStalenessWarnings(warnings: StalenessWarning[]): string | 
 
 	sections.push(
 		"",
-		"Use `listContextEntries`/`listCodeFacts`/`listMeasurements` to review, `saveContextEntry`/`saveCodeFact`/`saveMeasurement` to update, or the delete tools to remove stale entries.",
+		"Use `listFacts` to review, `saveFact` to update, or `deleteFact` to remove stale entries.",
 	);
 
 	return sections.join("\n");

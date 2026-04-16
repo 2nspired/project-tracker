@@ -35,9 +35,7 @@ import "./tools/git-tools.js";
 import "./tools/summary-tools.js";
 import "./tools/onboarding-tools.js";
 import "./tools/status-tools.js";
-import "./tools/context-entry-tools.js";
-import "./tools/codefact-tools.js";
-import "./tools/measurement-tools.js";
+import "./tools/fact-tools.js";
 import "./tools/knowledge-tools.js";
 import "./tools/instrumentation-tools.js";
 
