@@ -10,7 +10,7 @@ export const AGENT_NAME = process.env.AGENT_NAME || "Agent";
  * Increment when schema changes require `db:push`.
  * Feature map tells agents what capabilities are available.
  */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export type FeatureAvailability = {
 	version: number;
@@ -27,7 +27,12 @@ export type FeatureAvailability = {
  */
 export async function detectFeatures(): Promise<FeatureAvailability> {
 	const probe = async (fn: () => Promise<unknown>): Promise<boolean> => {
-		try { await fn(); return true; } catch { return false; }
+		try {
+			await fn();
+			return true;
+		} catch {
+			return false;
+		}
 	};
 
 	const [relations, decisions, handoffs, scratchpad, gitLinks] = await Promise.all([
@@ -58,7 +63,12 @@ export async function resolveCardRef(ref: string, projectId?: string): Promise<R
 	if (UUID_REGEX.test(ref)) return { ok: true, id: ref };
 
 	const num = Number.parseInt(ref.replace(/^#/, ""), 10);
-	if (Number.isNaN(num)) return { ok: false, error: "not_found", message: `"${ref}" is not a valid card reference. Use a UUID or #number.` };
+	if (Number.isNaN(num))
+		return {
+			ok: false,
+			error: "not_found",
+			message: `"${ref}" is not a valid card reference. Use a UUID or #number.`,
+		};
 
 	if (projectId) {
 		const card = await db.card.findUnique({
@@ -144,9 +154,10 @@ export function ok(data: unknown, format?: "json" | "toon"): ToolResult {
 	const estimatedTokens = Math.ceil(roughLen / 4);
 
 	// Inject _meta into objects
-	const output = typeof data === "object" && data !== null && !Array.isArray(data)
-		? { ...(data as Record<string, unknown>), _meta: { estimatedTokens } }
-		: data;
+	const output =
+		typeof data === "object" && data !== null && !Array.isArray(data)
+			? { ...(data as Record<string, unknown>), _meta: { estimatedTokens } }
+			: data;
 
 	const text = format === "toon" ? toToon(output) : JSON.stringify(output, null, 2);
 	return { content: [{ type: "text" as const, text }] };
@@ -159,7 +170,11 @@ export function err(message: string, hint?: string): ToolResult {
 }
 
 /** Format an error with a runnable tool hint so the agent can fix the issue immediately. */
-export function errWithToolHint(message: string, toolName: string, exampleParams: Record<string, string>): ToolResult {
+export function errWithToolHint(
+	message: string,
+	toolName: string,
+	exampleParams: Record<string, string>
+): ToolResult {
 	const paramStr = Object.entries(exampleParams)
 		.map(([k, v]) => `${k}: ${v}`)
 		.join(", ");
@@ -180,7 +195,10 @@ export async function safeExecute(fn: () => Promise<ToolResult>): Promise<ToolRe
 		console.error("[MCP] Tool execution error:", message);
 
 		if (message.includes("Unique constraint")) {
-			return err("A record with that unique value already exists.", "Check for duplicates and try a different value.");
+			return err(
+				"A record with that unique value already exists.",
+				"Check for duplicates and try a different value."
+			);
 		}
 		if (message.includes("Foreign key constraint")) {
 			return err("Referenced record not found.", "Verify the ID you provided exists.");

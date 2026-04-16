@@ -1,17 +1,22 @@
 import type { Note } from "prisma/generated/client";
-import type { CreateNoteInput, UpdateNoteInput } from "@/lib/schemas/note-schemas";
+import type { CreateNoteInput, ListNoteFilter, UpdateNoteInput } from "@/lib/schemas/note-schemas";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
 type NoteWithProject = Note & { project: { id: string; name: string } | null };
 
-async function list(projectId?: string | null): Promise<ServiceResult<NoteWithProject[]>> {
+async function list(
+	projectId?: string | null,
+	filter: ListNoteFilter = {}
+): Promise<ServiceResult<NoteWithProject[]>> {
 	try {
-		const where = projectId === undefined
-			? {}
-			: projectId === null
-				? { projectId: null }
-				: { projectId };
+		const where: Record<string, unknown> = {};
+		if (projectId === null) where.projectId = null;
+		else if (projectId !== undefined) where.projectId = projectId;
+		if (filter.kind) where.kind = filter.kind;
+		if (filter.cardId) where.cardId = filter.cardId;
+		if (filter.boardId) where.boardId = filter.boardId;
+		if (filter.author) where.author = filter.author;
 
 		const notes = await db.note.findMany({
 			where,
@@ -27,9 +32,13 @@ async function list(projectId?: string | null): Promise<ServiceResult<NoteWithPr
 
 async function create(data: CreateNoteInput): Promise<ServiceResult<NoteWithProject>> {
 	try {
-		const { tags, ...rest } = data;
+		const { tags, metadata, ...rest } = data;
 		const note = await db.note.create({
-			data: { ...rest, tags: JSON.stringify(tags ?? []) },
+			data: {
+				...rest,
+				tags: JSON.stringify(tags ?? []),
+				metadata: JSON.stringify(metadata ?? {}),
+			},
 			include: { project: { select: { id: true, name: true } } },
 		});
 		return { success: true, data: note };
@@ -39,16 +48,23 @@ async function create(data: CreateNoteInput): Promise<ServiceResult<NoteWithProj
 	}
 }
 
-async function update(noteId: string, data: UpdateNoteInput): Promise<ServiceResult<NoteWithProject>> {
+async function update(
+	noteId: string,
+	data: UpdateNoteInput
+): Promise<ServiceResult<NoteWithProject>> {
 	try {
 		const existing = await db.note.findUnique({ where: { id: noteId } });
 		if (!existing) {
 			return { success: false, error: { code: "NOT_FOUND", message: "Note not found." } };
 		}
-		const { tags, ...rest } = data;
+		const { tags, metadata, ...rest } = data;
 		const note = await db.note.update({
 			where: { id: noteId },
-			data: { ...rest, ...(tags !== undefined && { tags: JSON.stringify(tags) }) },
+			data: {
+				...rest,
+				...(tags !== undefined && { tags: JSON.stringify(tags) }),
+				...(metadata !== undefined && { metadata: JSON.stringify(metadata) }),
+			},
 			include: { project: { select: { id: true, name: true } } },
 		});
 		return { success: true, data: note };
