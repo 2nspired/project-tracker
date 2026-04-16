@@ -6,21 +6,46 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 
 **The solution:** A shared workspace with persistent memory. You see cards, columns, and progress in the browser. Your agent sees structured context it can read and write through MCP tools. Session handoffs carry context between conversations — the next session picks up exactly where the last one left off.
 
+## Contents
+
+- [Features](#features)
+- [Quick Start](#quick-start)
+  - [Clone and install](#1-clone-and-install)
+  - [Run the setup wizard](#2-run-the-setup-wizard)
+  - [Start the web UI](#3-start-the-web-ui)
+  - [Connect your project](#4-connect-your-project)
+  - [Add tracking instructions](#5-add-tracking-instructions-to-your-project-optional)
+- [How It Works](#how-it-works)
+- [MCP Surface](#mcp-surface)
+  - [Essential tools](#essential-tools-11)
+  - [Extended tools](#extended-tools-72)
+  - [Prompts](#prompts-8)
+  - [Resources](#resources-5)
+- [Session Lifecycle](#session-lifecycle)
+- [Working with Multiple Projects](#working-with-multiple-projects)
+- [Multi-Agent Support](#multi-agent-support)
+- [Tags](#tags)
+- [Available Scripts](#available-scripts)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+
 ## Features
 
 **Board**
 - Kanban board with drag-and-drop columns and cards
-- Cards with priority, tags, checklists, markdown descriptions, comments, scope guards, and activity log
+- Cards with priority, tags, checklists, markdown descriptions, comments, and activity log
 - Card numbers (`#1`, `#2`) for easy reference in conversation
 - Card templates (Bug Report, Feature, Spike, Tech Debt, Epic)
-- Card dependencies — blocks, related, parent/child relationships with blocked indicators
+- Card dependencies — blocks, related, parent/child with blocked indicators
 - Card similarity detection — warns when creating duplicates
 - Column roles — customizable column purposes (backlog, active, done, parking)
 - Board Pulse — real-time health overview (velocity, bottlenecks, stale cards)
 - Work-Next Score — smart card ranking to suggest what to work on next
 
 **Views**
-- Roadmap view with horizon landscape (Now/Next/Later), draggable milestones, and progressive disclosure
+- Roadmap view with horizon landscape (Now/Next/Later), draggable milestones, progressive disclosure
 - Saved views — built-in presets (All Cards, Active Work, Stale Cards, Recently Done) and custom views with persistent filters/sort/grouping
 - Timeline view for card history
 - Cross-project dashboard with responsive layout
@@ -31,25 +56,26 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 - Project favorites and color coding for quick identification
 - Architectural decision records linked to cards
 - Git commit auto-linking — commits referencing `#N` are linked to cards
-- Commit summaries — on-demand aggregation of linked commits with files grouped by category, author breakdown, and time span
+- Commit summaries — on-demand aggregation of linked commits with files grouped by category, author breakdown, time span
 
 **Agent integration**
+- `briefMe` — one-shot session primer (~300-500 tokens) replacing the getBoard-on-every-session pattern
 - Session handoffs — agents save context for the next conversation
 - Agent scratchpad — ephemeral working memory that auto-expires
 - Multi-agent support (Claude, Codex, etc.) via `AGENT_NAME` env var
 - Real-time updates via SSE — board refreshes instantly when agents make changes (falls back to polling)
 - TOON encoding for ~40% token savings in agent responses
-- Board filtering — fetch specific columns, exclude Done, summary mode for lightweight views
+- Board filtering — fetch specific columns, exclude Done, summary mode
 - Bulk operations — update cards, add checklists, set milestones in batch
-- Board audit — find cards missing priority, tags, milestones, or checklists
+- Board audit — find cards missing priority, tags, milestones, checklists
 - Schema version detection with migration hints
 
 **Persistent context** ([design doc](docs/DESIGN-CONTEXT-MODEL.md))
-- Context entries — structured knowledge claims with rationale, cited files, and staleness tracking
+- Context entries — structured knowledge claims with rationale, cited files, staleness tracking
 - Code facts — file-cited structural facts about the codebase with auto-staleness detection
-- Measurement facts — environment-dependent numeric values (latency, build time, etc.) with TTL and env-drift staleness
+- Measurement facts — environment-dependent numeric values (latency, build time) with TTL and env-drift staleness
 - Optimistic locking — version-based conflict resolution for multi-agent writes with clear conflict errors
-- Knowledge search — FTS5 full-text search across cards, comments, decisions, notes, handoffs, code facts, and repo docs
+- Knowledge search — FTS5 full-text search across cards, comments, decisions, notes, handoffs, code facts, repo docs
 - Staleness warnings — auto-flags stale facts at session start based on git changes and age heuristics
 - Generated project status — `renderStatus` replaces hand-maintained STATUS.md with board-derived markdown
 
@@ -72,6 +98,7 @@ npm run setup
 ```
 
 The wizard walks you through:
+
 1. Creating the SQLite database
 2. Optionally seeding a tutorial project with sample cards
 3. Connecting an external project to the MCP server
@@ -91,7 +118,7 @@ npx prisma db push
 npm run service:install
 ```
 
-This builds the app and registers it as a macOS background service via launchd. The board is always available at [http://localhost:3100](http://localhost:3100) — it starts on login, restarts on crash, and uses no resources when idle. Run `npm run service:update` after pulling new code.
+Builds the app and registers it as a macOS background service via launchd. The board is always available at [http://localhost:3100](http://localhost:3100) — starts on login, restarts on crash, uses no resources when idle. Run `npm run service:update` after pulling new code.
 
 **Option B: Dev server**
 
@@ -99,19 +126,19 @@ This builds the app and registers it as a macOS background service via launchd. 
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see your boards. Use this when actively developing the tracker itself (hot reload, Turbopack, etc.). If the database doesn't exist yet, `npm run dev` creates it automatically.
+Open [http://localhost:3000](http://localhost:3000). Use this when actively developing the tracker itself (hot reload, Turbopack). If the database doesn't exist yet, `npm run dev` creates it automatically.
 
-> **Note:** The web UI is optional. The MCP server works independently — your agent can use the board even without the browser open. But the UI is where you'll visually track progress.
+> **Note:** The web UI is optional. The MCP server works independently — your agent can use the board even without the browser open. The UI is where you'll visually track progress.
 
 ### 4. Connect your project
 
-From your project directory, run the connect script:
+From your project directory:
 
 ```bash
 /path/to/project-tracker/scripts/connect.sh
 ```
 
-This creates a `.mcp.json` in your project that tells your agent where to find the tracker's MCP server. That's it — next time you start a conversation in that project, the tracker tools are available.
+Creates a `.mcp.json` in your project that tells your agent where to find the tracker's MCP server. Next time you start a conversation in that project, the tracker tools are available.
 
 For non-Claude agents, set the agent name:
 
@@ -119,31 +146,49 @@ For non-Claude agents, set the agent name:
 AGENT_NAME=Codex /path/to/project-tracker/scripts/connect.sh
 ```
 
+#### Prompt-based setup
+
+Or paste this prompt into Claude Code from your project directory and let Claude do it:
+
+```
+I want to connect this project to my Project Tracker board.
+
+The project tracker is installed at: /path/to/project-tracker
+
+Please run /path/to/project-tracker/scripts/connect.sh from this directory to
+create the .mcp.json file. Then add a "Project Tracking" section to this
+project's CLAUDE.md explaining that the project is tracked via project-tracker
+MCP tools, cards should be referenced by #number, and the agent should call
+briefMe({ boardId }) at the start of each conversation and end-session before
+wrapping up.
+```
+
+Replace `/path/to/project-tracker` with the actual path.
+
 ### 5. Add tracking instructions to your project (optional)
 
-Add this to your project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc.) so the agent knows to use the board:
+Add this to your project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc.):
 
 ```markdown
 ## Project Tracking
 
 This project uses a Project Tracker board via MCP.
 
-**Session lifecycle:** Use the `resume-session` MCP prompt (with boardId) at
-conversation start and `end-session` before wrapping up. These are MCP prompts,
-not tools — invoke them via prompts/get. If prompts aren't supported in your
-client, use `runTool({ tool: 'loadHandoff', params: { boardId } })` instead.
+**Session lifecycle:** Call `briefMe({ boardId })` at the start of each
+conversation for a one-shot session primer (handoff, top work, blockers,
+pulse). Use the `end-session` MCP prompt before wrapping up to save a
+handoff for the next session.
 
-**Tool architecture:** 10 essential tools are always visible (getBoard, createCard,
-updateCard, moveCard, addComment, searchCards, getRoadmap, checkOnboarding,
-getTools, runTool). 70+ extended tools live behind `getTools`/`runTool` — call
-`getTools()` with no args to see all categories.
+**Tool architecture:** 11 essential tools are always visible (getBoard,
+createCard, updateCard, moveCard, addComment, searchCards, getRoadmap,
+briefMe, checkOnboarding, getTools, runTool). Extended tools live behind
+`getTools`/`runTool` — call `getTools()` with no args to see all categories.
 
 **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
-reflect progress. Use `addComment` for decisions and blockers. Call
-`end-session` to save a handoff so the next conversation picks up in context.
+reflect progress. Use `addComment` for decisions and blockers.
 ```
 
-See [AGENTS.md](AGENTS.md) for the full agent guidelines (column definitions, workflow conventions, efficiency tips).
+See [AGENTS.md](AGENTS.md) for the full agent guidelines.
 
 ## How It Works
 
@@ -159,38 +204,25 @@ AI Agent (Claude Code)  <-->  MCP Server  --------------------|
 - **The web UI** runs as a background service via launchd (port 3100) — always available, no manual startup. Use `npm run dev` (port 3000) only when developing the tracker itself.
 - **No authentication** — this is a single-user local tool.
 
-## Setting Up with Claude Code (Prompt)
+## MCP Surface
 
-If you'd rather have Claude set things up for you, paste this prompt into Claude Code from your project directory:
+The tracker uses an **Essential + Catalog** pattern: 11 essential tools are always loaded in the agent's context. 72 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
 
-```
-I want to connect this project to my Project Tracker board.
-
-The project tracker is installed at: /path/to/project-tracker
-
-Please run the connect script at /path/to/project-tracker/scripts/connect.sh from this directory to create the .mcp.json file. Then add a "Project Tracking" section to this project's CLAUDE.md explaining that the project is tracked via the project-tracker MCP tools, cards should be referenced by #number, and the agent should use the resume-session prompt at the beginning of each conversation and end-session before wrapping up.
-```
-
-Replace `/path/to/project-tracker` with the actual path where you cloned this repo.
-
-## MCP Tools
-
-The tracker uses an **Essential + Catalog** pattern: 10 essential tools are always loaded in the agent's context. 72 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
-
-### Essential Tools (10)
+### Essential Tools (11)
 
 | Tool | What it does |
 | --- | --- |
+| `briefMe` | One-shot session primer — handoff, diff, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call first at session start. |
 | `getBoard` | Board state with filtering — `columns`, `excludeDone`, `summary`. TOON format by default. |
-| `createCard` | Create a card in a column (by name); auto-creates milestones |
-| `updateCard` | Update any card fields |
-| `moveCard` | Move to column by name (e.g. "In Progress") |
-| `addComment` | Add a comment — decisions, blockers, context |
-| `searchCards` | Search across all projects by text or tag |
-| `getRoadmap` | Cards grouped by milestone and horizon (now/next/later/done) with blocking info and assignee breakdown |
-| `checkOnboarding` | Detect setup state + return project/board list inline |
-| `getTools` | Browse extended tools by category |
-| `runTool` | Execute any extended tool by name |
+| `createCard` | Create a card in a column (by name); auto-creates milestones. |
+| `updateCard` | Update any card fields. |
+| `moveCard` | Move to column by name (e.g. "In Progress"). |
+| `addComment` | Add a comment — decisions, blockers, context. |
+| `searchCards` | Search across all projects by text or tag. |
+| `getRoadmap` | Cards grouped by milestone and horizon (now/next/later/done) with blocking info and assignee breakdown. |
+| `checkOnboarding` | Detect setup state + return project/board list inline. |
+| `getTools` | Browse extended tools by category. |
+| `runTool` | Execute any extended tool by name. |
 
 ### Extended Tools (72)
 
@@ -215,7 +247,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 
 | Prompt | Purpose |
 | --- | --- |
-| `resume-session` | Load board state + last handoff + diff since then. Use at conversation start. |
+| `resume-session` | Load board state + last handoff + diff since then. Use at conversation start (alternative to `briefMe`). |
 | `end-session` | Review board accuracy, save handoff, clean up. Use before wrapping up. |
 | `onboarding` | Guided setup — `tutorial` seeds a sample project, `quickstart` creates a real one. |
 | `deep-dive` | Load focused context for deep work on a specific card. |
@@ -244,35 +276,35 @@ The tracker is designed for multi-conversation workflows:
 
 ```
 Conversation 1:
-  resume-session → work on cards → end-session (saves handoff)
+  briefMe → work on cards → end-session (saves handoff)
 
 Conversation 2:
-  resume-session → loads handoff + diff → picks up where you left off
+  briefMe → loads handoff + diff → picks up where you left off
 ```
 
-**`resume-session`** loads the board state, the last agent's handoff (what they worked on, findings, next steps, blockers), and a diff of changes since then. The agent is immediately productive without re-explaining context.
+**`briefMe`** returns a compact session primer: the last agent's handoff (what they worked on, findings, next steps, blockers), a diff of changes since then, the top 3 work-next candidates, active blockers, open decisions, and staleness warnings — in ~300-500 tokens.
 
-**`end-session`** walks the agent through a checklist: review board accuracy, move completed cards, update checklists, save a handoff with context for the next session, and add comments on cards with important information.
+**`end-session`** walks the agent through a checklist: review board accuracy, move completed cards, update checklists, save a handoff, and add comments on cards with important information.
 
-## Example Agent Workflow
+### Example agent workflow
 
 ```
-Agent: [resume-session] → sees handoff from yesterday + 3 new changes
-Agent: [getCardContext #4] → loads card + relations + decisions + commits
-Agent: [moves #4 → "In Progress"]
+Agent: [briefMe] → sees handoff from yesterday + 3 new changes + top work
+Agent: [runTool getCardContext #4] → loads card + relations + decisions + commits
+Agent: [moveCard #4 → "In Progress"]
   ... writes the code ...
-Agent: [toggleChecklistItem] → checks off "Set up JWT middleware"
-Agent: [syncGitActivity] → links new commits to cards
-Agent: [getCommitSummary #4] → sees 3 commits, 5 files changed across source + schema
-Agent: [recordDecision] → "Used jose library for JWT — lightweight, no deps"
-Agent: [end-session] → saves handoff for next conversation
+Agent: [runTool toggleChecklistItem] → checks off "Set up JWT middleware"
+Agent: [runTool syncGitActivity] → links new commits to cards
+Agent: [runTool getCommitSummary #4] → sees 3 commits, 5 files changed
+Agent: [runTool recordDecision] → "Used jose library for JWT — lightweight"
+Agent: [end-session prompt] → saves handoff for next conversation
 ```
 
 You see all of this happen on your board in real-time via SSE.
 
-## Connecting Multiple Projects
+## Working with Multiple Projects
 
-One tracker instance can serve all your projects. Run the connect script from each project:
+One tracker instance can serve all your projects. Run the connect script from each:
 
 ```bash
 cd ~/projects/my-saas-app
@@ -287,8 +319,8 @@ Create a separate **Project** in the tracker for each codebase:
 ```
 Project Tracker
 ├── "my-saas-app"      → Board: "MVP Sprint"
-├── "api-service"       → Board: "Bug Fixes"
-└── "design-system"     → Board: "Components"
+├── "api-service"      → Board: "Bug Fixes"
+└── "design-system"    → Board: "Components"
 ```
 
 The cross-project **Dashboard** at `/dashboard` shows cards across all projects in one view.
@@ -323,7 +355,7 @@ AGENT_NAME=Codex /path/to/project-tracker/scripts/connect.sh
 }
 ```
 
-Multiple agents can connect to the same tracker simultaneously — they all share the same SQLite database. Comments, card moves, and activity entries are attributed to whichever agent made them. Session handoffs let agents pick up each other's work across conversations.
+Multiple agents can connect to the same tracker simultaneously — they share the same SQLite database. Comments, card moves, and activity entries are attributed to whichever agent made them. Session handoffs let agents pick up each other's work across conversations.
 
 ## Tags
 
@@ -340,26 +372,38 @@ No setup required — create tags as you go, like GitHub labels.
 
 ## Available Scripts
 
+**Development**
+
 | Script | Description |
 | --- | --- |
 | `npm run setup` | Interactive setup wizard (DB + tutorial + connect) |
 | `npm run dev` | Start dev server with hot reload (auto-creates DB if missing) |
 | `npm run build` | Production build |
+| `npm run lint` | Check code with Biome |
+| `npm run type-check` | TypeScript type checking |
+| `npm run mcp:dev` | Run MCP server standalone (for testing) |
+
+**Database**
+
+| Script | Description |
+| --- | --- |
 | `npm run db:push` | Push schema changes to SQLite |
 | `npm run db:seed` | Seed the tutorial project |
 | `npm run db:studio` | Browse database with Prisma Studio |
-| `npm run mcp:dev` | Run MCP server standalone (for testing) |
-| `npm run lint` | Check code with Biome |
-| `npm run type-check` | TypeScript type checking |
-| `npm run service:install` | Build and start as a background service (port 3100) |
-| `npm run service:uninstall` | Stop and remove the background service |
-| `npm run service:start` | Start the background service |
-| `npm run service:stop` | Stop the background service |
-| `npm run service:disable` | Stop and prevent auto-start on login |
+
+**Background service (launchd, port 3100)**
+
+| Script | Description |
+| --- | --- |
+| `npm run service:install` | Build and start as a background service |
+| `npm run service:uninstall` | Stop and remove the service |
+| `npm run service:start` | Start the service |
+| `npm run service:stop` | Stop the service |
 | `npm run service:enable` | Re-enable auto-start and start the service |
-| `npm run service:status` | Check if the background service is running |
-| `npm run service:logs` | Tail background service logs |
-| `npm run service:update` | Rebuild and restart the background service |
+| `npm run service:disable` | Stop and prevent auto-start on login |
+| `npm run service:status` | Check if the service is running |
+| `npm run service:logs` | Tail service logs |
+| `npm run service:update` | Rebuild and restart after code changes |
 
 ## Tech Stack
 
@@ -386,7 +430,7 @@ src/
 │   ├── services/                  # Business logic (ServiceResult pattern)
 │   └── api/routers/               # tRPC routers
 ├── mcp/
-│   ├── server.ts                  # MCP server (10 essential tools, 8 prompts)
+│   ├── server.ts                  # MCP server (11 essential tools, 8 prompts)
 │   ├── tool-registry.ts           # Extended tool catalog (72 tools, 14 categories)
 │   └── tools/                     # Domain-split tool files
 ├── lib/                           # Schemas, utilities, templates
@@ -438,7 +482,7 @@ The SQLite database (`data/tracker.db`) is gitignored — each install starts fr
 
 ### Schema version mismatch
 
-If `resume-session` shows a migration warning, run:
+If `briefMe` or `resume-session` shows a migration warning, run:
 
 ```bash
 npx prisma db push

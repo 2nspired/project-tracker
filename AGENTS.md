@@ -248,13 +248,12 @@ Then add to the project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc
 
 This project uses a Project Tracker board via MCP.
 
-**Session lifecycle:** Use the `resume-session` MCP prompt (with boardId) at
-conversation start and `end-session` before wrapping up. These are MCP prompts,
-not tools — invoke them via prompts/get. If prompts aren't supported in your
-client, use `runTool({ tool: 'loadHandoff', params: { boardId } })` instead.
+**Session lifecycle:** Call `briefMe({ boardId })` at the start of each
+conversation for a one-shot session primer (handoff, top work, blockers, pulse).
+Use the `end-session` MCP prompt before wrapping up to save a handoff.
 
-**Tool architecture:** 10 essential tools are always visible (getBoard, createCard,
-updateCard, moveCard, addComment, searchCards, getRoadmap, checkOnboarding,
+**Tool architecture:** 11 essential tools are always visible (getBoard, createCard,
+updateCard, moveCard, addComment, searchCards, getRoadmap, briefMe, checkOnboarding,
 getTools, runTool). ~47 extended tools live behind `getTools`/`runTool` — call
 `getTools()` with no args to see all categories.
 

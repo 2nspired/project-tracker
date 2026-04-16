@@ -9,6 +9,10 @@ import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js
 import { toToon } from "./toon.js";
 import { initFts5 } from "./fts.js";
 import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
+import { computeBoardDiff } from "../lib/services/board-diff.js";
+import { getLatestHandoff } from "../lib/services/handoff.js";
+import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
+import { computeWorkNextScore } from "../lib/work-next-score.js";
 import {
 	AGENT_NAME,
 	checkVersionConflict,
@@ -22,6 +26,17 @@ import {
 	safeExecute,
 } from "./utils.js";
 import { wrapEssentialHandler } from "./instrumentation.js";
+
+function humanizeAge(date: Date): string {
+	const ms = Date.now() - date.getTime();
+	const minutes = Math.floor(ms / 60000);
+	if (minutes < 1) return "just now";
+	if (minutes < 60) return `${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h`;
+	const days = Math.floor(hours / 24);
+	return `${days}d`;
+}
 
 // Initialize extended tools (registers them in the catalog)
 import "./extended-tools.js";
@@ -41,7 +56,7 @@ import "./tools/instrumentation-tools.js";
 
 const server = new McpServer({
 	name: "project-tracker",
-	version: "2.1.0",
+	version: "2.2.0",
 });
 
 // ─── Essential Tools (always loaded in LLM context) ────────────────
@@ -679,11 +694,11 @@ server.registerTool(
 		}
 		if (state === "returning") {
 			options.push(
-				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call runTool({ tool: 'loadHandoff', params: { boardId } }) as a tool-based alternative", description: "Continue where you left off" },
+				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer", description: "Continue where you left off" },
 			);
 		} else if (state === "existing") {
 			options.push(
-				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call runTool({ tool: 'loadHandoff', params: { boardId } }) as a tool-based alternative", description: "Start working on a board" },
+				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer", description: "Start working on a board" },
 			);
 		}
 
@@ -697,7 +712,7 @@ server.registerTool(
 			state,
 			stats: { projects: projectCount, boards: boardCount, cards: cardCount, handoffs: handoffCount },
 			toolArchitecture: {
-				essential: "10 tools are always visible: getBoard, createCard, updateCard, moveCard, addComment, searchCards, getRoadmap, checkOnboarding, getTools, runTool.",
+				essential: "11 tools are always visible: getBoard, createCard, updateCard, moveCard, addComment, searchCards, getRoadmap, briefMe, checkOnboarding, getTools, runTool.",
 				extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
 				prompts: "8 MCP prompts are available (resume-session, end-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
 			},
@@ -714,6 +729,137 @@ server.registerTool(
 			})),
 			options,
 			stalenessWarnings,
+		});
+	})
+);
+
+// ─── Session Primer (Essential) ──────────────────────────────────────
+
+server.registerTool(
+	"briefMe",
+	{
+		title: "Brief Me",
+		description:
+			"One-shot session primer: last handoff + diff since it, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call this first at session start instead of getBoard — ~300-500 tokens vs. full board. TOON by default.",
+		inputSchema: {
+			boardId: z.string().describe("Board UUID"),
+			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
+		},
+		annotations: { readOnlyHint: true },
+	},
+	wrapEssentialHandler("briefMe", async ({ boardId, format }) => {
+		return safeExecute(async () => {
+			const board = await db.board.findUnique({
+				where: { id: boardId },
+				include: {
+					project: { select: { id: true, name: true } },
+					columns: {
+						orderBy: { position: "asc" },
+						include: {
+							cards: {
+								orderBy: { position: "asc" },
+								select: {
+									id: true,
+									number: true,
+									title: true,
+									priority: true,
+									updatedAt: true,
+									dueDate: true,
+									checklists: { select: { completed: true } },
+									relationsTo: { where: { type: "blocks" }, select: { id: true } },
+									relationsFrom: { where: { type: "blocks" }, select: { id: true } },
+								},
+							},
+						},
+					},
+				},
+			});
+
+			if (!board) return err("Board not found.", "Use checkOnboarding to discover boards.");
+
+			const [lastHandoff, openDecisions, stalenessWarnings, blockerEntries] = await Promise.all([
+				getLatestHandoff(db, boardId),
+				db.decision.findMany({
+					where: { projectId: board.project.id, status: "proposed" },
+					orderBy: { createdAt: "desc" },
+					select: { id: true, title: true, card: { select: { number: true } } },
+				}),
+				checkStaleness(board.project.id),
+				getBlockersShared(db, boardId),
+			]);
+
+			const allCards = board.columns.flatMap((col) =>
+				col.cards.map((card) => ({ card, column: col }))
+			);
+			const openCards = allCards.filter(
+				({ column }) => !hasRole(column, "done") && !hasRole(column, "parking")
+			);
+			const inProgressCount = allCards.filter(({ column }) => hasRole(column, "active")).length;
+
+			const handoffAge = lastHandoff ? humanizeAge(lastHandoff.createdAt) : null;
+			const pulseParts = [
+				`${openCards.length} open`,
+				`${inProgressCount} in progress`,
+				`${blockerEntries.length} blocked`,
+			];
+			if (handoffAge) pulseParts.push(`handoff ${handoffAge} ago`);
+			const pulse = `${board.project.name} / ${board.name} · ${pulseParts.join(" · ")}`;
+
+			const diff = lastHandoff ? await computeBoardDiff(db, boardId, lastHandoff.createdAt) : null;
+
+			const topWork = openCards
+				.map(({ card, column }) => ({
+					ref: `#${card.number}`,
+					title: card.title,
+					column: column.name,
+					priority: card.priority,
+					score: computeWorkNextScore({
+						priority: card.priority,
+						updatedAt: card.updatedAt,
+						dueDate: card.dueDate,
+						checklists: card.checklists,
+						_blockedByCount: card.relationsTo.length,
+						_blocksOtherCount: card.relationsFrom.length,
+					}),
+				}))
+				.filter((c) => c.score >= 0)
+				.sort((a, b) => b.score - a.score)
+				.slice(0, 3);
+
+			const handoff = lastHandoff
+				? {
+					agentName: lastHandoff.agentName,
+					createdAt: lastHandoff.createdAt,
+					summary: lastHandoff.summary,
+					nextSteps: JSON.parse(lastHandoff.nextSteps) as string[],
+					blockers: JSON.parse(lastHandoff.blockers) as string[],
+				}
+				: null;
+
+			const blockers = blockerEntries.map((b) => ({
+				ref: `#${b.card.number}`,
+				title: b.card.title,
+				blockedBy: b.blockedBy.map((bb) => `#${bb.number}`),
+			}));
+
+			const decisions = openDecisions.map((d) => ({
+				id: d.id,
+				title: d.title,
+				card: d.card ? `#${d.card.number}` : null,
+			}));
+
+			return ok({
+				pulse,
+				handoff,
+				diff,
+				topWork,
+				blockers,
+				openDecisions: decisions,
+				stale: formatStalenessWarnings(stalenessWarnings),
+				_hint: lastHandoff
+					? "Continue via handoff.nextSteps or pick from topWork. Use runTool('getCardContext', { cardId }) for deep work."
+					: "No prior handoff — pick from topWork. Call end-session before wrapping to save context.",
+			}, format as "json" | "toon");
 		});
 	})
 );
@@ -1512,7 +1658,7 @@ async function main() {
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
 	console.error(
-		`Project Tracker MCP v2.1 — 10 essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
+		`Project Tracker MCP v2.2 — 11 essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
 	);
 }
 

@@ -50,7 +50,7 @@ registerExtendedTool("saveHandoff", {
 
 registerExtendedTool("loadHandoff", {
 	category: "session",
-	description: "Load latest handoff and changes since then.",
+	description: "Load latest handoff and changes since then. Prefer the essential `briefMe` tool for session-start — it includes this plus top work, blockers, and pulse.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 	}),
