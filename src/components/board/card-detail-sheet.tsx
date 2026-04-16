@@ -4,7 +4,10 @@ import {
 	Ban,
 	Bot,
 	CheckSquare,
+	ChevronDown,
+	ChevronRight,
 	Clock,
+	FileCode,
 	FileText,
 	GitCommit,
 	Link2,
@@ -674,6 +677,14 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 					{/* Decisions */}
 					<DecisionsSection cardId={card.id} projectId={card.projectId} />
 
+					{/* Commit Summary */}
+					{card.gitLinks && card.gitLinks.length > 0 && (
+						<>
+							<div className="border-t border-border/50" />
+							<CommitSummarySection cardId={card.id} />
+						</>
+					)}
+
 					{/* Commits */}
 					{card.gitLinks && card.gitLinks.length > 0 && (
 						<>
@@ -915,6 +926,107 @@ function DecisionsSection({ cardId, projectId }: { cardId: string; projectId: st
 					</div>
 				))}
 			</div>
+		</div>
+	);
+}
+
+// ─── Commit Summary Section ───────────────────────────────────────
+
+const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
+	source: { label: "Source", color: "text-blue-500" },
+	styles: { label: "Styles", color: "text-pink-500" },
+	config: { label: "Config", color: "text-amber-500" },
+	schema: { label: "Schema", color: "text-violet-500" },
+	tests: { label: "Tests", color: "text-green-500" },
+	docs: { label: "Docs", color: "text-cyan-500" },
+	other: { label: "Other", color: "text-muted-foreground" },
+};
+
+const CATEGORY_ORDER = ["source", "schema", "styles", "tests", "config", "docs", "other"];
+
+function CommitSummarySection({ cardId }: { cardId: string }) {
+	const [expanded, setExpanded] = useState(true);
+	const { data: summary } = api.card.getCommitSummary.useQuery(
+		{ cardId },
+		{ enabled: !!cardId },
+	);
+
+	if (!summary || summary.commitCount === 0) return null;
+
+	const sortedCategories = Object.keys(summary.filesByCategory).sort(
+		(a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b),
+	);
+
+	return (
+		<div className="space-y-3">
+			<button
+				type="button"
+				className="flex w-full items-center gap-1.5"
+				onClick={() => setExpanded(!expanded)}
+			>
+				{expanded ? (
+					<ChevronDown className="h-3 w-3 text-muted-foreground" />
+				) : (
+					<ChevronRight className="h-3 w-3 text-muted-foreground" />
+				)}
+				<SectionHeader>Commit Summary</SectionHeader>
+			</button>
+
+			{expanded && (
+				<div className="space-y-3">
+					{/* Stats row */}
+					<div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+						<span className="flex items-center gap-1">
+							<GitCommit className="h-3 w-3" />
+							{summary.commitCount} commit{summary.commitCount !== 1 ? "s" : ""}
+						</span>
+						<span className="flex items-center gap-1">
+							<FileCode className="h-3 w-3" />
+							{summary.totalFiles} file{summary.totalFiles !== 1 ? "s" : ""}
+						</span>
+						{summary.authors.length > 0 && (
+							<span className="flex items-center gap-1">
+								<User className="h-3 w-3" />
+								{summary.authors.join(", ")}
+							</span>
+						)}
+						{summary.timeSpan && (
+							<span className="flex items-center gap-1">
+								<Clock className="h-3 w-3" />
+								{formatDate(summary.timeSpan.first)} – {formatDate(summary.timeSpan.last)}
+							</span>
+						)}
+					</div>
+
+					{/* Files by category */}
+					<div className="space-y-2">
+						{sortedCategories.map((cat) => {
+							const meta = CATEGORY_LABELS[cat] ?? CATEGORY_LABELS.other;
+							const files = summary.filesByCategory[cat];
+							return (
+								<div key={cat}>
+									<span className={`text-xs font-medium ${meta.color}`}>
+										{meta.label}
+										<span className="ml-1 text-muted-foreground font-normal">
+											({files.length})
+										</span>
+									</span>
+									<div className="mt-0.5 flex flex-wrap gap-1">
+										{files.map((file) => (
+											<code
+												key={file}
+												className="rounded bg-muted px-1.5 py-0.5 text-2xs font-mono text-muted-foreground"
+											>
+												{file}
+											</code>
+										))}
+									</div>
+								</div>
+							);
+						})}
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
