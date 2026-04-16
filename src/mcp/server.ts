@@ -21,6 +21,7 @@ import {
 	safeExecute,
 } from "./utils.js";
 import { parseCardScope, scopeSchema } from "../lib/schemas/card-schemas.js";
+import { wrapEssentialHandler } from "./instrumentation.js";
 
 // Initialize extended tools (registers them in the catalog)
 import "./extended-tools.js";
@@ -38,6 +39,7 @@ import "./tools/context-entry-tools.js";
 import "./tools/codefact-tools.js";
 import "./tools/measurement-tools.js";
 import "./tools/knowledge-tools.js";
+import "./tools/instrumentation-tools.js";
 
 const server = new McpServer({
 	name: "project-tracker",
@@ -61,7 +63,7 @@ server.registerTool(
 		},
 		annotations: { readOnlyHint: true },
 	},
-	async ({ boardId, format, columns: columnFilter, excludeDone, summary: summaryMode }) => {
+	wrapEssentialHandler("getBoard", async ({ boardId, format, columns: columnFilter, excludeDone, summary: summaryMode }) => {
 		return safeExecute(async () => {
 			const board = await db.board.findUnique({
 				where: { id: boardId },
@@ -182,7 +184,7 @@ server.registerTool(
 
 			return ok(result, format as "json" | "toon");
 		});
-	}
+	})
 );
 
 server.registerTool(
@@ -208,7 +210,7 @@ server.registerTool(
 			}).optional().describe("Scope guards: acceptance criteria, out-of-scope, context budget, approach hint"),
 		},
 	},
-	async ({ boardId, columnName, title, description, priority, tags, assignee, milestoneName, metadata, scope }) => {
+	wrapEssentialHandler("createCard", async ({ boardId, columnName, title, description, priority, tags, assignee, milestoneName, metadata, scope }) => {
 		return safeExecute(async () => {
 			const column = await db.column.findFirst({
 				where: { boardId, name: { equals: columnName } },
@@ -279,7 +281,7 @@ server.registerTool(
 				column: columnName,
 			});
 		});
-	}
+	})
 );
 
 server.registerTool(
@@ -310,7 +312,7 @@ server.registerTool(
 		},
 		annotations: { idempotentHint: true },
 	},
-	async ({ cardId: cardRef, title, description, priority, tags, assignee, milestoneName, metadata, scope, version }) => {
+	wrapEssentialHandler("updateCard", async ({ cardId: cardRef, title, description, priority, tags, assignee, milestoneName, metadata, scope, version }) => {
 		return safeExecute(async () => {
 			const resolved = await resolveCardRef(cardRef);
 			if (!resolved.ok) return err(resolved.message);
@@ -381,7 +383,7 @@ server.registerTool(
 				},
 			});
 		});
-	}
+	})
 );
 
 server.registerTool(
@@ -395,7 +397,7 @@ server.registerTool(
 			position: z.number().int().min(0).optional().describe("0 = top, omit = bottom"),
 		},
 	},
-	async ({ cardId: cardRef, columnName, position }) => {
+	wrapEssentialHandler("moveCard", async ({ cardId: cardRef, columnName, position }) => {
 		return safeExecute(async () => {
 			const resolved = await resolveCardRef(cardRef);
 			if (!resolved.ok) return err(resolved.message);
@@ -464,7 +466,7 @@ server.registerTool(
 				to: columnName,
 			});
 		});
-	}
+	})
 );
 
 server.registerTool(
@@ -477,7 +479,7 @@ server.registerTool(
 			content: z.string().describe("Comment text (markdown)"),
 		},
 	},
-	async ({ cardId: cardRef, content }) => {
+	wrapEssentialHandler("addComment", async ({ cardId: cardRef, content }) => {
 		return safeExecute(async () => {
 			const resolved = await resolveCardRef(cardRef);
 			if (!resolved.ok) return err(resolved.message);
@@ -492,7 +494,7 @@ server.registerTool(
 
 			return ok({ id: comment.id, ref: `#${card.number}`, created: true });
 		});
-	}
+	})
 );
 
 server.registerTool(
@@ -507,7 +509,7 @@ server.registerTool(
 		},
 		annotations: { readOnlyHint: true },
 	},
-	async ({ query, tag }) => {
+	wrapEssentialHandler("searchCards", async ({ query, tag }) => {
 		return safeExecute(async () => {
 			const cards = await db.card.findMany({
 				where: {
@@ -539,7 +541,7 @@ server.registerTool(
 
 			return ok(results);
 		});
-	}
+	})
 );
 
 server.registerTool(
@@ -554,7 +556,7 @@ server.registerTool(
 		},
 		annotations: { readOnlyHint: true },
 	},
-	async ({ boardId, format }) => {
+	wrapEssentialHandler("getRoadmap", async ({ boardId, format }) => {
 		return safeExecute(async () => {
 			const board = await db.board.findUnique({
 				where: { id: boardId },
@@ -639,7 +641,7 @@ server.registerTool(
 
 			return ok(roadmap, format as "json" | "toon");
 		});
-	}
+	})
 );
 
 // ─── Onboarding (Essential) ──────────────────────────────────────────
@@ -653,7 +655,7 @@ server.registerTool(
 		inputSchema: {},
 		annotations: { readOnlyHint: true },
 	},
-	async () => {
+	wrapEssentialHandler("checkOnboarding", async () => {
 		const [projectCount, boardCount, cardCount, handoffCount, projects] = await Promise.all([
 			db.project.count(),
 			db.board.count(),
@@ -733,7 +735,7 @@ server.registerTool(
 			options,
 			stalenessWarnings,
 		});
-	}
+	})
 );
 
 // ─── Meta-Tools (Essential + Catalog pattern) ──────────────────────
@@ -749,7 +751,7 @@ server.registerTool(
 		},
 		annotations: { readOnlyHint: true },
 	},
-	async ({ category, tool }) => {
+	wrapEssentialHandler("getTools", async ({ category, tool }) => {
 		const result = getToolCatalog({ category, tool });
 		if (!result)
 			return err(
@@ -757,7 +759,7 @@ server.registerTool(
 				"Call getTools() with no args to see all categories."
 			);
 		return ok(result);
-	}
+	})
 );
 
 server.registerTool(
