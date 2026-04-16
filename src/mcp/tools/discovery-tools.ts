@@ -135,7 +135,6 @@ registerExtendedTool("getBoard", {
 									total: card.checklists.length,
 									done: card.checklists.filter((c) => c.completed).length,
 								},
-								assignee: card.assignee,
 							};
 						}
 						return {
@@ -146,7 +145,6 @@ registerExtendedTool("getBoard", {
 							description: card.description,
 							priority: card.priority,
 							tags: JSON.parse(card.tags),
-							assignee: card.assignee,
 							createdBy: card.createdBy,
 							lastEditedBy: card.lastEditedBy,
 							milestone: card.milestone
@@ -223,7 +221,7 @@ registerExtendedTool("searchCards", {
 registerExtendedTool("getRoadmap", {
 	category: "discovery",
 	description:
-		"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs, assignee breakdown, and progress per milestone. Horizons: In Progress/Review=Now, Up Next=Next, Backlog=Later, Done=Done.",
+		"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs and progress per milestone. Horizons: In Progress/Review=Now, Up Next=Next, Backlog=Later, Done=Done.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		format: z.enum(["json", "toon"]).default("json").describe("'json' (default) or 'toon' (flat tabular shapes only — loses on nested payloads)"),
@@ -267,7 +265,6 @@ registerExtendedTool("getRoadmap", {
 					ref: `#${card.number}`,
 					title: card.title,
 					priority: card.priority,
-					assignee: (card as { assignee?: string | null }).assignee ?? null,
 					column: col.name,
 					horizon: getHorizon(col),
 					milestone: card.milestone?.name ?? null,
@@ -306,10 +303,6 @@ registerExtendedTool("getRoadmap", {
 						done,
 						blocked,
 						progress: cards.length > 0 ? `${Math.round((done / cards.length) * 100)}%` : "0%",
-						assignees: {
-							human: cards.filter((c) => c.assignee === "HUMAN").length,
-							agent: cards.filter((c) => c.assignee === "AGENT").length,
-						},
 						now: cards.filter((c) => c.horizon === "now"),
 						next: cards.filter((c) => c.horizon === "next"),
 						later: cards.filter((c) => c.horizon === "later"),

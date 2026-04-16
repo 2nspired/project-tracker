@@ -325,12 +325,6 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 					</SheetTitle>
 					<p className="text-xs text-muted-foreground">
 						Created by {card.createdBy === "AGENT" ? "Agent" : "Human"}
-						{card.assignee && (
-							<>
-								<span className="mx-1.5">|</span>
-								Assigned to {card.assignee === "AGENT" ? "Agent" : "Human"}
-							</>
-						)}
 					</p>
 				</SheetHeader>
 
@@ -357,26 +351,6 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 										{PRIORITY_LABELS[p]}
 									</SelectItem>
 								))}
-							</SelectContent>
-						</Select>
-
-						{/* Assignee */}
-						<Select
-							value={card.assignee ?? "NONE"}
-							onValueChange={(value) =>
-								updateCard.mutate({
-									id: card.id,
-									data: { assignee: value === "NONE" ? null : (value as "HUMAN" | "AGENT") },
-								})
-							}
-						>
-							<SelectTrigger className="h-7 w-fit gap-1.5 rounded-full border px-2.5 text-xs font-medium shadow-none">
-								<SelectValue placeholder="Unassigned" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="NONE">Unassigned</SelectItem>
-								<SelectItem value="HUMAN">Human</SelectItem>
-								<SelectItem value="AGENT">Agent</SelectItem>
 							</SelectContent>
 						</Select>
 

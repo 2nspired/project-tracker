@@ -14,7 +14,6 @@ type ColumnCard = {
 	title: string;
 	priority: string;
 	tags: string;
-	assignee: string | null;
 	createdBy: string;
 	updatedAt: Date;
 	lastEditedBy: string | null;

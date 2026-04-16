@@ -83,7 +83,6 @@ registerExtendedTool("getCardContext", {
 				description: card.description,
 				priority: card.priority,
 				tags: cardTags,
-				assignee: card.assignee,
 				column: card.column.name,
 				milestone: card.milestone?.name ?? null,
 			},

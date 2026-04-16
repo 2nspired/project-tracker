@@ -240,7 +240,7 @@ Do this as part of your end-of-work flow, not after every small commit.
 
 ### Bulk Operations
 - Use `bulkCreateCards` instead of multiple `createCard` calls
-- Use `bulkUpdateCards` to set priority, tags, assignee, or milestone on multiple cards at once
+- Use `bulkUpdateCards` to set priority, tags, or milestone on multiple cards at once
 - Use `bulkAddChecklistItems` to add checklist items to one or more cards in one call
 - Batch your board updates — don't interleave code work with constant board updates
 

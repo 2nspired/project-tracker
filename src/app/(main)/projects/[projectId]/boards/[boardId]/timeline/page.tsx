@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bot, Clock, User } from "lucide-react";
+import { ArrowLeft, Clock } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
 
@@ -132,16 +132,6 @@ export default function TimelinePage({
 															{checkTotal > 0 && (
 																<span className={checkDone === checkTotal ? "text-green-500" : ""}>
 																	{checkDone}/{checkTotal} tasks
-																</span>
-															)}
-															{card.assignee && (
-																<span className="flex items-center gap-0.5">
-																	{card.assignee === "AGENT" ? (
-																		<Bot className="h-3 w-3 text-purple-500" />
-																	) : (
-																		<User className="h-3 w-3" />
-																	)}
-																	{card.assignee === "AGENT" ? "Agent" : "Human"}
 																</span>
 															)}
 															<span className="flex items-center gap-0.5">

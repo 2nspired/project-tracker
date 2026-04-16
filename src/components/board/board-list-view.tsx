@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Ban, Bot, CheckSquare, ChevronDown, ChevronRight, Clock, GripVertical, MessageSquare, User } from "lucide-react";
+import { Ban, CheckSquare, ChevronDown, ChevronRight, Clock, GripVertical, MessageSquare } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useDroppable } from "@dnd-kit/core";
@@ -59,10 +59,6 @@ function filterCards(cards: ListCard[], filters: BoardFilters): ListCard[] {
 			if (!matchesTitle && !matchesNumber) return false;
 		}
 		if (filters.priority !== "ALL" && card.priority !== filters.priority) return false;
-		if (filters.assignee !== "ALL") {
-			if (filters.assignee === "UNASSIGNED" && card.assignee !== null) return false;
-			if (filters.assignee !== "UNASSIGNED" && card.assignee !== filters.assignee) return false;
-		}
 		if (filters.tag !== "ALL") {
 			const tags: string[] = JSON.parse(card.tags);
 			if (!tags.includes(filters.tag)) return false;
@@ -526,12 +522,6 @@ function ListRowContent({ card }: { card: ListCard }) {
 			{/* Status column */}
 			<span className="w-24 shrink-0 text-right text-xs text-muted-foreground">
 				{card.columnName}
-			</span>
-
-			{/* Assignee */}
-			<span className="flex w-8 shrink-0 justify-center">
-				{card.assignee === "AGENT" && <Bot className="h-3.5 w-3.5 text-violet-500" />}
-				{card.assignee === "HUMAN" && <User className="h-3.5 w-3.5 text-muted-foreground" />}
 			</span>
 		</>
 	);

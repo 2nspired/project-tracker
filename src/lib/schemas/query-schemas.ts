@@ -3,7 +3,6 @@ import { z } from "zod";
 export const queryCardsSchema = z.object({
 	boardId: z.string().uuid(),
 	priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
-	assignee: z.enum(["HUMAN", "AGENT"]).nullable().optional(),
 	columnName: z.string().optional(),
 	tags: z.array(z.string()).optional(),
 	milestoneName: z.string().optional(),

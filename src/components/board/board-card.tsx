@@ -15,7 +15,6 @@ type BoardCardProps = {
 		title: string;
 		priority: string;
 		tags: string;
-		assignee: string | null;
 		createdBy: string;
 		updatedAt: Date;
 		lastEditedBy: string | null;
@@ -169,7 +168,6 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 
 				{(checklistTotal > 0 ||
 					card._count.comments > 0 ||
-					card.assignee ||
 					aging ||
 					blockedByCount > 0) && (
 					<div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -203,15 +201,6 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 							<span className="flex items-center gap-1">
 								<MessageSquare className="h-3 w-3" />
 								{card._count.comments}
-							</span>
-						)}
-						{card.assignee && (
-							<span className="ml-auto">
-								{card.assignee === "AGENT" ? (
-									<Bot className="h-3.5 w-3.5 text-violet-500" />
-								) : (
-									<User className="h-3.5 w-3.5" />
-								)}
 							</span>
 						)}
 					</div>

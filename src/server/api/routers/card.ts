@@ -12,7 +12,6 @@ export const cardRouter = createTRPCRouter({
 			z
 				.object({
 					priority: z.string().optional(),
-					assignee: z.string().optional(),
 					tag: z.string().optional(),
 					search: z.string().optional(),
 				})

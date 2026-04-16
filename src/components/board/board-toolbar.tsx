@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Check, Eye, Plus, Save, Search, Sparkles, Trash2, User, X } from "lucide-react";
+import { Check, Eye, Plus, Save, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -34,14 +34,12 @@ export type SortMode = "manual" | "smart";
 export type BoardFilters = {
 	search: string;
 	priority: string;
-	assignee: string;
 	tag: string;
 };
 
 const emptyFilters: BoardFilters = {
 	search: "",
 	priority: "ALL",
-	assignee: "ALL",
 	tag: "ALL",
 };
 
@@ -77,7 +75,6 @@ export function BoardToolbar({
 	const hasActiveFilters =
 		filters.search !== "" ||
 		filters.priority !== "ALL" ||
-		filters.assignee !== "ALL" ||
 		filters.tag !== "ALL";
 
 	const hasNonDefaultState = hasActiveFilters || hiddenRoles.length > 0 || sortMode !== "manual";
@@ -121,30 +118,6 @@ export function BoardToolbar({
 					<SelectItem value="MEDIUM">Medium</SelectItem>
 					<SelectItem value="LOW">Low</SelectItem>
 					<SelectItem value="NONE">None</SelectItem>
-				</SelectContent>
-			</Select>
-
-			{/* Assignee filter */}
-			<Select
-				value={filters.assignee}
-				onValueChange={(value) => onFiltersChange({ ...filters, assignee: value })}
-			>
-				<SelectTrigger className="h-8 w-32 text-xs">
-					<SelectValue placeholder="Assignee" />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="ALL">All assignees</SelectItem>
-					<SelectItem value="HUMAN">
-						<span className="flex items-center gap-1.5">
-							<User className="h-3 w-3" /> Human
-						</span>
-					</SelectItem>
-					<SelectItem value="AGENT">
-						<span className="flex items-center gap-1.5">
-							<Bot className="h-3.5 w-3.5 text-violet-500" /> Agent
-						</span>
-					</SelectItem>
-					<SelectItem value="UNASSIGNED">Unassigned</SelectItem>
 				</SelectContent>
 			</Select>
 

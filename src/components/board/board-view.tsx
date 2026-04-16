@@ -57,10 +57,6 @@ function filterCards(cards: BoardCardType[], filters: BoardFilters): BoardCardTy
 			if (!matchesTitle && !matchesNumber) return false;
 		}
 		if (filters.priority !== "ALL" && card.priority !== filters.priority) return false;
-		if (filters.assignee !== "ALL") {
-			if (filters.assignee === "UNASSIGNED" && card.assignee !== null) return false;
-			if (filters.assignee !== "UNASSIGNED" && card.assignee !== filters.assignee) return false;
-		}
 		if (filters.tag !== "ALL") {
 			const tags: string[] = JSON.parse(card.tags);
 			if (!tags.includes(filters.tag)) return false;

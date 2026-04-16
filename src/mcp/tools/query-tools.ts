@@ -8,11 +8,10 @@ import { ok, err, errWithToolHint, safeExecute } from "../utils.js";
 
 registerExtendedTool("queryCards", {
 	category: "discovery",
-	description: "Filter cards by priority, assignee, column, tags, milestone, age. Lightweight response.",
+	description: "Filter cards by priority, column, tags, milestone, age. Lightweight response.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional().describe("Filter by priority level"),
-		assignee: z.enum(["HUMAN", "AGENT"]).nullable().optional().describe("Filter by assignee (null = unassigned)"),
 		columnName: z.string().optional().describe("Filter by column name"),
 		tags: z.array(z.string()).optional().describe("Filter cards that have ALL specified tags"),
 		milestoneName: z.string().optional().describe("Filter by milestone name"),
@@ -23,7 +22,7 @@ registerExtendedTool("queryCards", {
 		limit: z.number().int().min(1).max(200).default(50).describe("Max results (1-200, default 50)"),
 	}),
 	annotations: { readOnlyHint: true },
-	handler: ({ boardId, priority, assignee, columnName, tags, milestoneName, createdBefore, updatedBefore, staleDays, hasBlockers, limit }) => safeExecute(async () => {
+	handler: ({ boardId, priority, columnName, tags, milestoneName, createdBefore, updatedBefore, staleDays, hasBlockers, limit }) => safeExecute(async () => {
 		// Find the board and its columns
 		const board = await db.board.findUnique({
 			where: { id: boardId as string },
@@ -50,10 +49,6 @@ registerExtendedTool("queryCards", {
 
 		if (priority !== undefined) {
 			filters.priority = priority as string;
-		}
-
-		if (assignee !== undefined) {
-			filters.assignee = assignee as string | null;
 		}
 
 		if (milestoneName) {
@@ -158,7 +153,6 @@ registerExtendedTool("queryCards", {
 				priority: card.priority,
 				column: card.column.name,
 				tags: JSON.parse(card.tags) as string[],
-				assignee: card.assignee,
 				milestone: card.milestone?.name ?? null,
 				updatedAt: card.updatedAt,
 			})),
@@ -179,13 +173,12 @@ registerExtendedTool("auditBoard", {
 			tags: z.number().default(1),
 			milestone: z.number().default(1),
 			checklist: z.number().default(1),
-			assignee: z.number().default(1),
-		}).default({ priority: 1, tags: 1, milestone: 1, checklist: 1, assignee: 1 }).describe("Custom weights for health score dimensions (default: all 1). Set to 0 to exclude a dimension.").optional(),
+		}).default({ priority: 1, tags: 1, milestone: 1, checklist: 1 }).describe("Custom weights for health score dimensions (default: all 1). Set to 0 to exclude a dimension.").optional(),
 	}),
 	annotations: { readOnlyHint: true },
 	handler: ({ boardId, excludeDone, weights: rawWeights }) => safeExecute(async () => {
-		const w = (rawWeights ?? { priority: 1, tags: 1, milestone: 1, checklist: 1, assignee: 1 }) as {
-			priority: number; tags: number; milestone: number; checklist: number; assignee: number;
+		const w = (rawWeights ?? { priority: 1, tags: 1, milestone: 1, checklist: 1 }) as {
+			priority: number; tags: number; milestone: number; checklist: number;
 		};
 		const board = await db.board.findUnique({
 			where: { id: boardId as string },
@@ -218,16 +211,14 @@ registerExtendedTool("auditBoard", {
 		const missingTags = allCards.filter((c) => { try { const t = JSON.parse(c.tags); return !Array.isArray(t) || t.length === 0; } catch { return true; } }).map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
 		const noMilestone = allCards.filter((c) => !c.milestone).map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
 		const emptyChecklist = allCards.filter((c) => c.checklists.length === 0).map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
-		const noAssignee = allCards.filter((c) => !c.assignee).map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
 
 		const totalCards = allCards.length;
-		const totalWeight = w.priority + w.tags + w.milestone + w.checklist + w.assignee;
+		const totalWeight = w.priority + w.tags + w.milestone + w.checklist;
 		const weightedIssues =
 			missingPriority.length * w.priority +
 			missingTags.length * w.tags +
 			noMilestone.length * w.milestone +
-			emptyChecklist.length * w.checklist +
-			noAssignee.length * w.assignee;
+			emptyChecklist.length * w.checklist;
 		const maxScore = totalCards * totalWeight;
 		const healthScore = maxScore > 0 ? `${Math.round(((maxScore - weightedIssues) / maxScore) * 100)}%` : "N/A";
 
@@ -241,14 +232,12 @@ registerExtendedTool("auditBoard", {
 					tags: { issues: missingTags.length, weight: w.tags },
 					milestone: { issues: noMilestone.length, weight: w.milestone },
 					checklist: { issues: emptyChecklist.length, weight: w.checklist },
-					assignee: { issues: noAssignee.length, weight: w.assignee },
 				},
 			},
 			missingPriority: { count: missingPriority.length, cards: missingPriority },
 			missingTags: { count: missingTags.length, cards: missingTags },
 			noMilestone: { count: noMilestone.length, cards: noMilestone },
 			emptyChecklist: { count: emptyChecklist.length, cards: emptyChecklist },
-			noAssignee: { count: noAssignee.length, cards: noAssignee },
 		});
 	}),
 });

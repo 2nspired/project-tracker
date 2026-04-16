@@ -98,7 +98,6 @@ export async function seedTutorialProject(
 				position,
 				priority: def.priority,
 				tags: JSON.stringify(def.tags),
-				assignee: "assignee" in def ? (def.assignee ?? null) : null,
 				createdBy: def.createdBy,
 				milestoneId: teachingProject.milestoneCards.includes(cardNumber)
 					? milestone.id

@@ -3,12 +3,10 @@
 import { useEffect, useState } from "react";
 import {
 	AlertTriangle,
-	Bot,
 	Calendar,
 	ChevronDown,
 	GripVertical,
 	Link2,
-	User,
 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -63,12 +61,6 @@ export function MilestoneCard({
 	const pct = milestone.total > 0 ? milestone.done / milestone.total : 0;
 	const blockedCount = milestone.cards.filter(
 		(c) => c.isBlocked && c.horizon !== "done",
-	).length;
-	const humanCount = milestone.cards.filter(
-		(c) => c.assignee === "HUMAN",
-	).length;
-	const agentCount = milestone.cards.filter(
-		(c) => c.assignee === "AGENT",
 	).length;
 
 	// Target date risk: warn if < 7 days away and < 80% done
@@ -193,22 +185,6 @@ export function MilestoneCard({
 							</span>
 						)}
 					</div>
-				</div>
-
-				{/* Assignee breakdown */}
-				<div className="flex items-center gap-2">
-					{humanCount > 0 && (
-						<span className="flex items-center gap-0.5 text-2xs text-muted-foreground">
-							<User className="h-3 w-3" />
-							{humanCount}
-						</span>
-					)}
-					{agentCount > 0 && (
-						<span className="flex items-center gap-0.5 text-2xs text-violet-500">
-							<Bot className="h-3 w-3" />
-							{agentCount}
-						</span>
-					)}
 				</div>
 
 				<button

@@ -181,21 +181,6 @@ export const teachingProject = {
 			tags: ["tutorial", "collaboration"],
 			createdBy: "AGENT",
 		},
-		{
-			title: "Assign Cards to Team Members",
-			description: [
-				"**What:** Cards can be assigned to either a human or an AI agent.",
-				"**When to use:** Assign cards to clarify ownership — who's responsible for completing this work?",
-				"**How to try:** Open this card and set the assignee. Try switching between Human and Agent.",
-				'**Tip:** Use assignees to coordinate between yourself and AI assistants. Assign cards to "Agent" for tasks you want AI to handle.',
-			].join("\n\n"),
-			column: "Review",
-			priority: "LOW",
-			tags: ["tutorial", "collaboration"],
-			assignee: "AGENT" as const,
-			createdBy: "AGENT",
-		},
-
 		// ── Backlog (3) ─────────────────────────────────────────────────
 		{
 			title: "Record Architectural Decisions",

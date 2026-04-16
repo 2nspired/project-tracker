@@ -120,7 +120,6 @@ async function create(data: CreateCardInput): Promise<ServiceResult<Card>> {
 					description: data.description,
 					priority: data.priority,
 					tags: JSON.stringify(data.tags),
-					assignee: data.assignee,
 					createdBy: data.createdBy,
 					dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
 					milestoneId: data.milestoneId ?? undefined,
@@ -162,7 +161,6 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 				description: data.description,
 				priority: data.priority,
 				tags: data.tags ? JSON.stringify(data.tags) : undefined,
-				assignee: data.assignee,
 				dueDate: data.dueDate !== undefined ? (data.dueDate ? new Date(data.dueDate) : null) : undefined,
 				milestoneId: data.milestoneId !== undefined ? data.milestoneId : undefined,
 				lastEditedBy: "HUMAN",
@@ -251,7 +249,6 @@ async function deleteCard(cardId: string): Promise<ServiceResult<Card>> {
 
 async function listAll(filters?: {
 	priority?: string;
-	assignee?: string;
 	tag?: string;
 	search?: string;
 }): Promise<ServiceResult<Array<Card & {
@@ -264,13 +261,6 @@ async function listAll(filters?: {
 
 		if (filters?.priority && filters.priority !== "ALL") {
 			where.priority = filters.priority;
-		}
-		if (filters?.assignee) {
-			if (filters.assignee === "UNASSIGNED") {
-				where.assignee = null;
-			} else if (filters.assignee !== "ALL") {
-				where.assignee = filters.assignee;
-			}
 		}
 		if (filters?.search) {
 			where.OR = [

@@ -12,7 +12,6 @@ export type BoardView = {
 const emptyFilters: BoardFilters = {
 	search: "",
 	priority: "ALL",
-	assignee: "ALL",
 	tag: "ALL",
 };
 
@@ -31,14 +30,6 @@ export const BUILT_IN_VIEWS: BoardView[] = [
 		filters: emptyFilters,
 		sortMode: "manual",
 		hiddenRoles: ["backlog", "todo", "parking"],
-		builtIn: true,
-	},
-	{
-		id: "agent-standup",
-		name: "Agent Standup",
-		filters: { ...emptyFilters, assignee: "AGENT" },
-		sortMode: "manual",
-		hiddenRoles: ["parking"],
 		builtIn: true,
 	},
 	{

@@ -136,7 +136,6 @@ registerExtendedTool("getCard", {
 			description: card.description,
 			priority: card.priority,
 			tags: JSON.parse(card.tags),
-			assignee: card.assignee,
 			createdBy: card.createdBy,
 			milestone: card.milestone,
 			column: card.column.name,
@@ -187,7 +186,7 @@ registerExtendedTool("getStats", {
 					orderBy: { position: "asc" },
 					include: {
 						cards: {
-							select: { priority: true, assignee: true, milestoneId: true },
+							select: { priority: true, milestoneId: true },
 						},
 					},
 				},
@@ -197,11 +196,8 @@ registerExtendedTool("getStats", {
 
 		const allCards = board.columns.flatMap((c) => c.cards);
 		const priorities: Record<string, number> = {};
-		const assignees: Record<string, number> = { HUMAN: 0, AGENT: 0, unassigned: 0 };
 		for (const card of allCards) {
 			priorities[card.priority] = (priorities[card.priority] ?? 0) + 1;
-			if (card.assignee) assignees[card.assignee]++;
-			else assignees.unassigned++;
 		}
 
 		return ok({
@@ -210,7 +206,6 @@ registerExtendedTool("getStats", {
 			totalCards: allCards.length,
 			columns: board.columns.map((c) => ({ name: c.name, cards: c.cards.length, isParking: c.isParking })),
 			byPriority: priorities,
-			byAssignee: assignees,
 		});
 	}),
 });
@@ -440,13 +435,12 @@ registerExtendedTool("bulkMoveCards", {
 
 registerExtendedTool("bulkUpdateCards", {
 	category: "cards",
-	description: "Update multiple cards in one call. Each entry can set priority, tags, assignee, and/or milestone. Omitted fields are unchanged.",
+	description: "Update multiple cards in one call. Each entry can set priority, tags, and/or milestone. Omitted fields are unchanged.",
 	parameters: z.object({
 		cards: z.array(z.object({
 			cardId: z.string().describe("Card UUID or #number"),
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
 			tags: z.array(z.string()).optional().describe("Replaces all tags"),
-			assignee: z.enum(["HUMAN", "AGENT"]).nullable().optional().describe("null to unassign"),
 			milestoneName: z.string().nullable().optional().describe("null to unassign; auto-creates if new"),
 			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (merged with existing; set key to null to delete)"),
 		}).strict()),
@@ -486,7 +480,6 @@ registerExtendedTool("bulkUpdateCards", {
 				data: {
 					priority: input.priority as string | undefined,
 					tags: input.tags ? JSON.stringify(input.tags) : undefined,
-					assignee: input.assignee as string | null | undefined,
 					milestoneId: milestoneId !== undefined ? milestoneId : undefined,
 					metadata: mergedMetadata,
 					lastEditedBy: AGENT_NAME,
@@ -499,7 +492,6 @@ registerExtendedTool("bulkUpdateCards", {
 				title: card.title,
 				priority: card.priority,
 				tags: JSON.parse(card.tags),
-				assignee: card.assignee,
 				milestone: card.milestone?.name ?? null,
 				...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
 			});
@@ -989,7 +981,6 @@ registerExtendedTool("getWorkNextSuggestion", {
 				}),
 				isBlocked: card.relationsTo.length > 0,
 				tags: JSON.parse(card.tags) as string[],
-				assignee: card.assignee,
 			})),
 		).sort((a, b) => b.score - a.score);
 

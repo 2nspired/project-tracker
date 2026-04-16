@@ -116,7 +116,6 @@ model Card {
   position    Int
   priority    String   @default("NONE")
   tags        String   @default("[]")
-  assignee    String?
   createdBy   String   @default("HUMAN") @map("created_by")
   milestoneId String?   @map("milestone_id")
   dueDate     DateTime? @map("due_date")
@@ -142,7 +141,6 @@ model Card {
   @@index([projectId])
   @@index([milestoneId])
   @@index([priority])
-  @@index([assignee])
   @@index([updatedAt])
   @@index([createdBy, projectId])
   @@map("card")

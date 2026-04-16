@@ -159,7 +159,6 @@ server.registerTool(
 			description: z.string().optional().describe("Markdown description"),
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).default("NONE"),
 			tags: z.array(z.string()).default([]).describe("e.g. ['bug', 'feature:auth']"),
-			assignee: z.enum(["HUMAN", "AGENT"]).optional(),
 			milestoneName: z.string().optional().describe("Auto-creates if new"),
 			metadata: z
 				.record(z.string(), z.unknown())
@@ -176,7 +175,6 @@ server.registerTool(
 			description,
 			priority,
 			tags,
-			assignee,
 			milestoneName,
 			metadata,
 		}) => {
@@ -222,7 +220,6 @@ server.registerTool(
 						description,
 						priority,
 						tags: JSON.stringify(tags),
-						assignee,
 						milestoneId,
 						metadata: metadata ? JSON.stringify(metadata) : undefined,
 						createdBy: "AGENT",
@@ -268,7 +265,6 @@ server.registerTool(
 			description: z.string().optional().describe("Markdown"),
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
 			tags: z.array(z.string()).optional().describe("Replaces all tags"),
-			assignee: z.enum(["HUMAN", "AGENT"]).nullable().optional().describe("null to unassign"),
 			milestoneName: z
 				.string()
 				.nullable()
@@ -295,7 +291,6 @@ server.registerTool(
 			description,
 			priority,
 			tags,
-			assignee,
 			milestoneName,
 			metadata,
 			intent,
@@ -334,7 +329,6 @@ server.registerTool(
 						description,
 						priority,
 						tags: tags ? JSON.stringify(tags) : undefined,
-						assignee,
 						milestoneId: milestoneId !== undefined ? milestoneId : undefined,
 						metadata: mergedMetadata,
 						lastEditedBy: AGENT_NAME,
@@ -363,7 +357,6 @@ server.registerTool(
 					fields: {
 						priority: card.priority,
 						tags: JSON.parse(card.tags),
-						assignee: card.assignee,
 						milestone: card.milestone?.name ?? null,
 						metadata: JSON.parse(card.metadata),
 					},
@@ -1436,7 +1429,6 @@ server.registerPrompt(
 				tags: JSON.parse(c.tags),
 				milestone: c.milestone?.name ?? null,
 				checklist: `${c.checklists.filter((i) => i.completed).length}/${c.checklists.length}`,
-				assignee: c.assignee,
 			})),
 		}));
 

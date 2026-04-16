@@ -12,7 +12,6 @@ export const createCardSchema = z.object({
 	description: z.string().max(5000).optional(),
 	priority: z.enum(priorityValues).default("NONE"),
 	tags: z.array(z.string().max(50)).default([]),
-	assignee: z.enum(actorValues).optional(),
 	dueDate: z.string().datetime().optional(),
 	milestoneId: z.string().uuid().nullable().optional(),
 	createdBy: z.enum(actorValues).default("HUMAN"),
@@ -23,7 +22,6 @@ export const updateCardSchema = z.object({
 	description: z.string().max(5000).optional(),
 	priority: z.enum(priorityValues).optional(),
 	tags: z.array(z.string().max(50)).optional(),
-	assignee: z.enum(actorValues).nullable().optional(),
 	dueDate: z.string().datetime().nullable().optional(),
 	milestoneId: z.string().uuid().nullable().optional(),
 });

@@ -53,7 +53,6 @@ async function main() {
 					description: card.description,
 					priority: card.priority,
 					tags: JSON.parse(card.tags),
-					assignee: card.assignee,
 					createdBy: card.createdBy,
 					lastEditedBy: card.lastEditedBy,
 					milestone: card.milestone,
@@ -89,7 +88,6 @@ async function main() {
 						total: card.checklists.length,
 						done: card.checklists.filter((c) => c.completed).length,
 					},
-					assignee: card.assignee,
 				})),
 			})),
 		};
@@ -111,14 +109,13 @@ async function main() {
 		select: { id: true, name: true, description: true, createdAt: true },
 	});
 	const cardList = await db.card.findMany({
-		select: { number: true, title: true, priority: true, assignee: true },
+		select: { number: true, title: true, priority: true },
 		take: 50,
 	});
 	const cardListFlat = cardList.map((c) => ({
 		number: c.number,
 		title: c.title,
 		priority: c.priority,
-		assignee: c.assignee,
 	}));
 
 	rows.push({

@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, Bot, User } from "lucide-react";
+import { Ban } from "lucide-react";
 
 import { PRIORITY_DOT, STATUS_BG, STATUS_BORDER, STATUS_DOT, STATUS_TEXT } from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";
@@ -70,17 +70,6 @@ export function CardChip({
 					}`}
 				>
 					{checkDone}/{checkTotal}
-				</span>
-			)}
-
-			{/* Assignee icon */}
-			{card.assignee && (
-				<span className="ml-auto shrink-0">
-					{card.assignee === "AGENT" ? (
-						<Bot className="h-3 w-3 text-violet-500" />
-					) : (
-						<User className="h-3 w-3 text-muted-foreground" />
-					)}
 				</span>
 			)}
 		</button>

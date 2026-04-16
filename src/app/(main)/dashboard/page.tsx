@@ -2,14 +2,12 @@
 
 import {
 	BookOpen,
-	Bot,
 	CheckSquare,
 	ExternalLink,
 	Loader2,
 	Rocket,
 	Search,
 	Target,
-	User,
 	X,
 } from "lucide-react";
 import Link from "next/link";
@@ -37,7 +35,6 @@ import { api } from "@/trpc/react";
 export default function DashboardPage() {
 	const [search, setSearch] = useState("");
 	const [priority, setPriority] = useState("ALL");
-	const [assignee, setAssignee] = useState("ALL");
 
 	const utils = api.useUtils();
 
@@ -51,10 +48,9 @@ export default function DashboardPage() {
 	const { data: cards, isLoading } = api.card.listAll.useQuery({
 		search: search || undefined,
 		priority: priority !== "ALL" ? priority : undefined,
-		assignee: assignee !== "ALL" ? assignee : undefined,
 	});
 
-	const hasFilters = search !== "" || priority !== "ALL" || assignee !== "ALL";
+	const hasFilters = search !== "" || priority !== "ALL";
 	const PREVIEW_COUNT = 5;
 
 	// Compute all derived data
@@ -310,15 +306,6 @@ export default function DashboardPage() {
 											))}
 										</div>
 									)}
-									{card.assignee && (
-										<span className="shrink-0">
-											{card.assignee === "AGENT" ? (
-												<Bot className="h-3.5 w-3.5 text-purple-500" />
-											) : (
-												<User className="h-3.5 w-3.5 text-muted-foreground" />
-											)}
-										</span>
-									)}
 									<Link
 										href={`/projects/${card.column.board.project.id}/boards/${card.column.board.id}`}
 										className="shrink-0"
@@ -358,18 +345,6 @@ export default function DashboardPage() {
 					</SelectContent>
 				</Select>
 
-				<Select value={assignee} onValueChange={setAssignee}>
-					<SelectTrigger className="h-8 w-32 text-xs">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="ALL">All assignees</SelectItem>
-						<SelectItem value="HUMAN">Human</SelectItem>
-						<SelectItem value="AGENT">Agent</SelectItem>
-						<SelectItem value="UNASSIGNED">Unassigned</SelectItem>
-					</SelectContent>
-				</Select>
-
 				{hasFilters && (
 					<Button
 						variant="ghost"
@@ -378,7 +353,6 @@ export default function DashboardPage() {
 						onClick={() => {
 							setSearch("");
 							setPriority("ALL");
-							setAssignee("ALL");
 						}}
 					>
 						<X className="mr-1 h-3 w-3" />
@@ -505,15 +479,6 @@ export default function DashboardPage() {
 															</Badge>
 														))}
 													</div>
-												)}
-												{card.assignee && (
-													<span className="shrink-0">
-														{card.assignee === "AGENT" ? (
-															<Bot className="h-3.5 w-3.5 text-purple-500" />
-														) : (
-															<User className="h-3.5 w-3.5 text-muted-foreground" />
-														)}
-													</span>
 												)}
 												<Link
 													href={`/projects/${group.projectId}/boards/${group.boardId}`}
