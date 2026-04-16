@@ -94,10 +94,10 @@ registerExtendedTool("updateProjectPrompt", {
 
 registerExtendedTool("getCard", {
 	category: "discovery",
-	description: "Full card detail: description, checklist, comments, activity history. TOON by default.",
+	description: "Full card detail: description, checklist, comments, activity history.",
 	parameters: z.object({
 		cardId: z.string().describe("Card UUID or #number"),
-		format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
+		format: z.enum(["json", "toon"]).default("json").describe("'json' (default) or 'toon' (flat tabular shapes only)"),
 	}),
 	annotations: { readOnlyHint: true },
 	handler: ({ cardId, format }) => safeExecute(async () => {

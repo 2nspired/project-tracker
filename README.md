@@ -64,7 +64,7 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 - Agent scratchpad — ephemeral working memory that auto-expires
 - Multi-agent support (Claude, Codex, etc.) via `AGENT_NAME` env var
 - Real-time updates via SSE — board refreshes instantly when agents make changes (falls back to polling)
-- TOON encoding for ~40% token savings in agent responses
+- Optional TOON encoding (opt-in via `format: "toon"` — wins on flat tabular payloads, larger than JSON on nested shapes)
 - Board filtering — fetch specific columns, exclude Done, summary mode
 - Bulk operations — update cards, add checklists, set milestones in batch
 - Board audit — find cards missing priority, tags, milestones, checklists

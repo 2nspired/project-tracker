@@ -626,7 +626,7 @@ server.registerTool(
 	{
 		title: "Brief Me",
 		description:
-			"One-shot session primer: last handoff + diff since it, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call this first at session start instead of getBoard — ~300-500 tokens vs. full board. With no args, auto-detects the project from the current git repo (after scripts/connect.sh). Pass boardId to override. TOON by default.",
+			"One-shot session primer: last handoff + diff since it, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call this first at session start instead of getBoard — ~300-500 tokens vs. full board. With no args, auto-detects the project from the current git repo (after scripts/connect.sh). Pass boardId to override.",
 		inputSchema: {
 			boardId: z
 				.string()
@@ -634,8 +634,8 @@ server.registerTool(
 				.describe("Board UUID (optional — auto-detected from cwd when omitted)"),
 			format: z
 				.enum(["json", "toon"])
-				.default("toon")
-				.describe("Default 'toon'; use 'json' for raw"),
+				.default("json")
+				.describe("'json' (default) or 'toon' (wins on flat tabular arrays, loses on nested payloads)"),
 		},
 		annotations: { readOnlyHint: true },
 	},
@@ -1446,7 +1446,6 @@ server.registerPrompt(
 			description: m.description,
 		}));
 
-		// TOON encoding for compact board state (~40% token savings)
 		const boardStateToon = toToon(boardState);
 
 		const prompt = [

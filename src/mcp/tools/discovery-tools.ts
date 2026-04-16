@@ -11,10 +11,10 @@ import { err, ok, safeExecute } from "../utils.js";
 registerExtendedTool("getBoard", {
 	category: "discovery",
 	description:
-		"Board state with filtering. Use 'columns' to fetch specific columns, 'excludeDone' to skip Done/Parking, 'summary' for lightweight view (no descriptions/checklists). TOON by default (~40% fewer tokens).",
+		"Board state with filtering. Use 'columns' to fetch specific columns, 'excludeDone' to skip Done/Parking, 'summary' for lightweight view (no descriptions/checklists).",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
-		format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
+		format: z.enum(["json", "toon"]).default("json").describe("'json' (default) or 'toon' (flat tabular shapes only — loses on nested payloads)"),
 		columns: z
 			.array(z.string())
 			.optional()
@@ -226,7 +226,7 @@ registerExtendedTool("getRoadmap", {
 		"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs, assignee breakdown, and progress per milestone. Horizons: In Progress/Review=Now, Up Next=Next, Backlog=Later, Done=Done.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
-		format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
+		format: z.enum(["json", "toon"]).default("json").describe("'json' (default) or 'toon' (flat tabular shapes only — loses on nested payloads)"),
 	}),
 	annotations: { readOnlyHint: true },
 	handler: (params) => {

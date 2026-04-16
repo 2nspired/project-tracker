@@ -8,11 +8,11 @@ import { resolveCardRef, ok, err, errWithToolHint, safeExecute } from "../utils.
 
 registerExtendedTool("getCardContext", {
 	category: "context",
-	description: "Deep context for a single card: description, checklist, comments, relations, decisions, commits, scratchpad, and related cards. TOON by default.",
+	description: "Deep context for a single card: description, checklist, comments, relations, decisions, commits, scratchpad, and related cards.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		cardId: z.string().describe("Card UUID or #number"),
-		format: z.enum(["json", "toon"]).default("toon").describe("Response format"),
+		format: z.enum(["json", "toon"]).default("json").describe("Response format"),
 	}),
 	annotations: { readOnlyHint: true },
 	handler: (params) => safeExecute(async () => {
@@ -106,11 +106,11 @@ registerExtendedTool("getCardContext", {
 
 registerExtendedTool("getMilestoneContext", {
 	category: "context",
-	description: "Cards and progress for a milestone, grouped by horizon (now/next/later/done). Includes decisions. TOON by default.",
+	description: "Cards and progress for a milestone, grouped by horizon (now/next/later/done). Includes decisions.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		milestone: z.string().describe("Milestone name"),
-		format: z.enum(["json", "toon"]).default("toon").describe("Response format"),
+		format: z.enum(["json", "toon"]).default("json").describe("Response format"),
 	}),
 	annotations: { readOnlyHint: true },
 	handler: (params) => safeExecute(async () => {
@@ -179,11 +179,11 @@ registerExtendedTool("getMilestoneContext", {
 
 registerExtendedTool("getTagContext", {
 	category: "context",
-	description: "All cards with a given tag, grouped by column. TOON by default.",
+	description: "All cards with a given tag, grouped by column.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		tag: z.string().describe("Tag to filter by"),
-		format: z.enum(["json", "toon"]).default("toon").describe("Response format"),
+		format: z.enum(["json", "toon"]).default("json").describe("Response format"),
 	}),
 	annotations: { readOnlyHint: true },
 	handler: (params) => safeExecute(async () => {
