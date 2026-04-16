@@ -77,6 +77,36 @@ Use `saveMeasurement` to record values like:
 
 **`needsRecheck`** — Auto-set when TTL expires, when a cited file's SHA drifts, or when the measurement ages past staleness thresholds. Use `listMeasurements` with `needsRecheck: true` to find measurements that need re-running.
 
+## Scope Guards
+
+Cards support optional scope guards — structured fields that define what an agent should and shouldn't do when working on a card. Set them via `updateCard` with the `scopeGuard` field.
+
+**Fields:**
+- `acceptanceCriteria` — array of strings defining what "done" looks like
+- `outOfScope` — array of strings listing what to avoid
+- `contextBudget` — `"quick-fix"`, `"standard"`, or `"deep-dive"` — signals expected effort level
+- `approachHint` — freeform string with implementation guidance
+
+**Example:**
+```json
+{
+  "scopeGuard": {
+    "acceptanceCriteria": ["tRPC endpoint returns summary data", "UI shows collapsible section"],
+    "outOfScope": ["Schema migrations", "Auto-trigger on card move"],
+    "contextBudget": "standard",
+    "approachHint": "Compute on-the-fly from existing GitLink data"
+  }
+}
+```
+
+Scope guards are visible in the card detail sheet UI so both humans and agents can see them. Use them to prevent agent sprawl on cards where boundaries matter.
+
+## Commit Summaries
+
+`getCommitSummary(cardId)` returns a structured aggregation of all commits linked to a card: commit count, authors, time span, and files grouped by category (source, schema, styles, tests, config, docs, other). Use it to quickly understand the scope of work done on a card without reading individual commits.
+
+The card detail sheet in the UI shows a collapsible "Commit Summary" section for any card with linked commits.
+
 ## Conflict Resolution
 
 When multiple agents (or an agent and a human) edit the same entity concurrently, optimistic locking prevents silent overwrites.
@@ -146,13 +176,15 @@ Before first use (or after significant changes), call `rebuildKnowledgeIndex(pro
 
 ## Linking Commits to Cards
 
-When you commit work related to a card, add a comment linking the commit:
+Reference card numbers in commit messages (e.g. `Add auth middleware (#7)`) and run `syncGitActivity` to auto-link them. Use `getCommitSummary(cardId)` to see a structured overview of all linked commits for a card.
+
+For manual linking, add a comment:
 
 ```
 addComment #7 "Commit: abc1234 — Add auth middleware"
 ```
 
-This keeps the card's history connected to the code without needing a formal model. Do this as part of your end-of-work flow, not after every small commit.
+Do this as part of your end-of-work flow, not after every small commit.
 
 ## Efficiency Tips
 

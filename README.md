@@ -10,7 +10,7 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 
 **Board**
 - Kanban board with drag-and-drop columns and cards
-- Cards with priority, tags, checklists, markdown descriptions, comments, and activity log
+- Cards with priority, tags, checklists, markdown descriptions, comments, scope guards, and activity log
 - Card numbers (`#1`, `#2`) for easy reference in conversation
 - Card templates (Bug Report, Feature, Spike, Tech Debt, Epic)
 - Card dependencies — blocks, related, parent/child relationships with blocked indicators
@@ -21,6 +21,7 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 
 **Views**
 - Roadmap view with horizon landscape (Now/Next/Later), draggable milestones, and progressive disclosure
+- Saved views — built-in presets (All Cards, Active Work, Stale Cards, Recently Done) and custom views with persistent filters/sort/grouping
 - Timeline view for card history
 - Cross-project dashboard with responsive layout
 - Notes scratch pad with promote-to-card
@@ -30,6 +31,7 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 - Project favorites and color coding for quick identification
 - Architectural decision records linked to cards
 - Git commit auto-linking — commits referencing `#N` are linked to cards
+- Commit summaries — on-demand aggregation of linked commits with files grouped by category, author breakdown, and time span
 
 **Agent integration**
 - Session handoffs — agents save context for the next conversation
@@ -163,7 +165,7 @@ Replace `/path/to/project-tracker` with the actual path where you cloned this re
 
 ## MCP Tools
 
-The tracker uses an **Essential + Catalog** pattern: 10 essential tools are always loaded in the agent's context. 71 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
+The tracker uses an **Essential + Catalog** pattern: 10 essential tools are always loaded in the agent's context. 72 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
 
 ### Essential Tools (10)
 
@@ -180,7 +182,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `getTools` | Browse extended tools by category |
 | `runTool` | Execute any extended tool by name |
 
-### Extended Tools (71)
+### Extended Tools (72)
 
 | Category | Count | Examples |
 | --- | --- | --- |
@@ -193,7 +195,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `session` | 5 | Save/load/list handoffs, board diff, review session facts |
 | `decisions` | 3 | Record, list, update architectural decisions |
 | `scratch` | 4 | Set, get, list, clear ephemeral agent notes |
-| `git` | 4 | Sync commits, get log, code map, card commits |
+| `git` | 5 | Sync commits, get log, code map, card commits, commit summary |
 | `comments` | 2 | List and delete comments |
 | `setup` | 4 | Create projects, columns, set repo path, seed tutorial |
 | `activity` | 1 | Recent activity history |
@@ -251,6 +253,7 @@ Agent: [moves #4 → "In Progress"]
   ... writes the code ...
 Agent: [toggleChecklistItem] → checks off "Set up JWT middleware"
 Agent: [syncGitActivity] → links new commits to cards
+Agent: [getCommitSummary #4] → sees 3 commits, 5 files changed across source + schema
 Agent: [recordDecision] → "Used jose library for JWT — lightweight, no deps"
 Agent: [end-session] → saves handoff for next conversation
 ```
@@ -365,7 +368,7 @@ src/
 │   └── api/routers/               # tRPC routers
 ├── mcp/
 │   ├── server.ts                  # MCP server (10 essential tools, 8 prompts)
-│   ├── tool-registry.ts           # Extended tool catalog (71 tools, 14 categories)
+│   ├── tool-registry.ts           # Extended tool catalog (72 tools, 14 categories)
 │   └── tools/                     # Domain-split tool files
 ├── lib/                           # Schemas, utilities, templates
 └── trpc/                          # tRPC React client
