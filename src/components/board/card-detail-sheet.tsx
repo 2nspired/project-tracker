@@ -12,6 +12,7 @@ import {
 	MessageSquare,
 	Pencil,
 	Plus,
+	ShieldCheck,
 	Trash2,
 	User,
 	X,
@@ -53,7 +54,7 @@ import {
 import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PRIORITY_BADGE } from "@/lib/priority-colors";
-import { priorityValues, type Priority } from "@/lib/schemas/card-schemas";
+import { priorityValues, type Priority, type ContextBudget, type CardScope, type CardScopePatch, parseCardScope, scopeSchema } from "@/lib/schemas/card-schemas";
 import { api } from "@/trpc/react";
 
 const PRIORITY_LABELS: Record<Priority, string> = {
@@ -87,11 +88,15 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 
 			utils.card.getById.setData({ id: cardId! }, (old) => {
 				if (!old) return old;
-				// Build a cache-compatible patch: tags are stored as JSON string in cache
-				const { tags, ...rest } = data;
+				// Build a cache-compatible patch: tags/scope are stored as JSON strings in cache
+				const { tags, scope, ...rest } = data;
 				const patch: Record<string, unknown> = { ...rest };
 				if (tags !== undefined) {
 					patch.tags = JSON.stringify(tags);
+				}
+				if (scope !== undefined) {
+					const existing = parseCardScope((old as { scope?: string }).scope);
+					patch.scope = JSON.stringify(scopeSchema.parse({ ...existing, ...scope }));
 				}
 				return { ...old, ...patch } as typeof old;
 			});
@@ -244,6 +249,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 	}, [card?.description, handleDescriptionSave]);
 
 	const tags: string[] = card ? JSON.parse(card.tags) : [];
+	const scope = card ? parseCardScope(card.scope) : parseCardScope(null);
 
 	const handleAddTag = () => {
 		if (!card || !tagInput.trim()) return;
@@ -467,6 +473,15 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 							</button>
 						)}
 					</div>
+
+					{/* Scope Guards */}
+					<ScopeSection
+						key={card.id}
+						scope={scope}
+						onUpdate={(patch) =>
+							updateCard.mutate({ id: card.id, data: { scope: patch } })
+						}
+					/>
 
 					{/* Tags */}
 					<div className="space-y-2">
@@ -992,6 +1007,177 @@ function MilestoneSelector({
 				</form>
 			)}
 		</>
+	);
+}
+
+// ─── Scope Section ────────────���───────────────────────────────────
+
+function ScopeSection({
+	scope,
+	onUpdate,
+}: {
+	scope: CardScope;
+	onUpdate: (patch: CardScopePatch) => void;
+}) {
+	const [acInput, setAcInput] = useState("");
+	const [oosInput, setOosInput] = useState("");
+
+	return (
+		<div className="space-y-4">
+			<div className="flex items-center gap-1.5">
+				<ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+				<SectionHeader>Scope</SectionHeader>
+			</div>
+
+			{/* Context Budget */}
+			<div className="space-y-1.5">
+				<span className="text-xs font-medium text-muted-foreground">Context Budget</span>
+				<div>
+					<Select
+						value={scope.contextBudget ?? "__none__"}
+						onValueChange={(value) =>
+							onUpdate({ contextBudget: value === "__none__" ? null : (value as ContextBudget) })
+						}
+					>
+						<SelectTrigger className="h-7 w-fit gap-1.5 rounded-full border px-2.5 text-xs font-medium shadow-none">
+							<SelectValue placeholder="Not set" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="__none__">Not set</SelectItem>
+							<SelectItem value="quick-fix">Quick Fix</SelectItem>
+							<SelectItem value="standard">Standard</SelectItem>
+							<SelectItem value="deep-dive">Deep Dive</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+			</div>
+
+			{/* Approach Hint */}
+			<div className="space-y-1.5">
+				<span className="text-xs font-medium text-muted-foreground">Approach Hint</span>
+				<Input
+					defaultValue={scope.approachHint ?? ""}
+					placeholder="e.g. Just update the CSS, no refactor needed"
+					className="text-sm"
+					onBlur={(e) => {
+						const val = e.target.value.trim() || null;
+						if (val !== (scope.approachHint ?? null)) {
+							onUpdate({ approachHint: val });
+						}
+					}}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							e.preventDefault();
+							(e.target as HTMLInputElement).blur();
+						}
+					}}
+				/>
+			</div>
+
+			{/* Acceptance Criteria */}
+			<div className="space-y-1.5">
+				<span className="text-xs font-medium text-muted-foreground">Acceptance Criteria</span>
+				{scope.acceptanceCriteria.length > 0 && (
+					<div className="space-y-1">
+						{scope.acceptanceCriteria.map((item, i) => (
+							<div key={i} className="flex items-center gap-2 py-0.5">
+								<CheckSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+								<span className="flex-1 text-sm">{item}</span>
+								<Button
+									variant="ghost"
+									size="icon-xs"
+									onClick={() =>
+										onUpdate({ acceptanceCriteria: scope.acceptanceCriteria.filter((_, idx) => idx !== i) })
+									}
+								>
+									<X className="h-3 w-3" />
+								</Button>
+							</div>
+						))}
+					</div>
+				)}
+				<div className="flex gap-2">
+					<Input
+						value={acInput}
+						onChange={(e) => setAcInput(e.target.value)}
+						placeholder="Add acceptance criterion..."
+						className="text-sm"
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								e.preventDefault();
+								if (!acInput.trim()) return;
+								onUpdate({ acceptanceCriteria: [...scope.acceptanceCriteria, acInput.trim()] });
+								setAcInput("");
+							}
+						}}
+					/>
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={!acInput.trim()}
+						onClick={() => {
+							if (!acInput.trim()) return;
+							onUpdate({ acceptanceCriteria: [...scope.acceptanceCriteria, acInput.trim()] });
+							setAcInput("");
+						}}
+					>
+						Add
+					</Button>
+				</div>
+			</div>
+
+			{/* Out of Scope */}
+			<div className="space-y-1.5">
+				<span className="text-xs font-medium text-muted-foreground">Out of Scope</span>
+				{scope.outOfScope.length > 0 && (
+					<div className="space-y-1">
+						{scope.outOfScope.map((item, i) => (
+							<div key={i} className="flex items-center gap-2 py-0.5">
+								<Ban className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+								<span className="flex-1 text-sm text-amber-700 dark:text-amber-400">{item}</span>
+								<Button
+									variant="ghost"
+									size="icon-xs"
+									onClick={() =>
+										onUpdate({ outOfScope: scope.outOfScope.filter((_, idx) => idx !== i) })
+									}
+								>
+									<X className="h-3 w-3" />
+								</Button>
+							</div>
+						))}
+					</div>
+				)}
+				<div className="flex gap-2">
+					<Input
+						value={oosInput}
+						onChange={(e) => setOosInput(e.target.value)}
+						placeholder="Add out-of-scope item..."
+						className="text-sm"
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								e.preventDefault();
+								if (!oosInput.trim()) return;
+								onUpdate({ outOfScope: [...scope.outOfScope, oosInput.trim()] });
+								setOosInput("");
+							}
+						}}
+					/>
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={!oosInput.trim()}
+						onClick={() => {
+							if (!oosInput.trim()) return;
+							onUpdate({ outOfScope: [...scope.outOfScope, oosInput.trim()] });
+							setOosInput("");
+						}}
+					>
+						Add
+					</Button>
+				</div>
+			</div>
+		</div>
 	);
 }
 

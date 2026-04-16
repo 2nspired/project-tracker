@@ -1,5 +1,6 @@
 import type { Card } from "prisma/generated/client";
 import type { CreateCardInput, MoveCardInput, UpdateCardInput } from "@/lib/schemas/card-schemas";
+import { parseCardScope, scopeSchema } from "@/lib/schemas/card-schemas";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
@@ -155,6 +156,12 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 			return { success: false, error: { code: "NOT_FOUND", message: "Card not found." } };
 		}
 
+		let mergedScope: string | undefined;
+		if (data.scope) {
+			const existingScope = parseCardScope(existing.scope);
+			mergedScope = JSON.stringify(scopeSchema.parse({ ...existingScope, ...data.scope }));
+		}
+
 		const card = await db.card.update({
 			where: { id: cardId },
 			data: {
@@ -165,6 +172,7 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 				assignee: data.assignee,
 				dueDate: data.dueDate !== undefined ? (data.dueDate ? new Date(data.dueDate) : null) : undefined,
 				milestoneId: data.milestoneId !== undefined ? data.milestoneId : undefined,
+				scope: mergedScope,
 			},
 		});
 		return { success: true, data: card };

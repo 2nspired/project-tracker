@@ -3,6 +3,7 @@ import { getHorizon } from "../../lib/column-roles.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, resolveCardRef, ok, err, errWithToolHint, safeExecute } from "../utils.js";
+import { parseCardScope } from "../../lib/schemas/card-schemas.js";
 
 // ─── Focus Context ─────────────────────────────────────────────────
 
@@ -94,6 +95,11 @@ registerExtendedTool("getFocusContext", {
 					assignee: card.assignee,
 					column: card.column.name,
 					milestone: card.milestone?.name ?? null,
+					...(() => {
+						const s = parseCardScope(card.scope);
+						const hasScope = s.acceptanceCriteria.length > 0 || s.outOfScope.length > 0 || s.contextBudget !== null || s.approachHint !== null;
+						return hasScope ? { scope: s } : {};
+					})(),
 				},
 				checklist: card.checklists,
 				comments: card.comments.map((c) => ({

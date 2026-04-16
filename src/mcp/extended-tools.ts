@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "./db.js";
 import { registerExtendedTool } from "./tool-registry.js";
 import { AGENT_NAME, resolveCardRef, resolveOrCreateMilestone, ok, err, errWithToolHint, safeExecute, checkVersionConflict } from "./utils.js";
+import { parseCardScope, scopeSchema } from "../lib/schemas/card-schemas.js";
 import { toToon } from "./toon.js";
 
 // ─── Discovery ──────────────────────────────────────────────────────
@@ -144,6 +145,7 @@ registerExtendedTool("getCard", {
 			boardId: card.column.board.id,
 			dueDate: card.dueDate,
 			...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
+			...(card.scope && card.scope !== "{}" && { scope: JSON.parse(card.scope) }),
 			createdAt: card.createdAt,
 			updatedAt: card.updatedAt,
 			version: card.version,
@@ -250,6 +252,12 @@ registerExtendedTool("bulkCreateCards", {
 			tags: z.array(z.string()).default([]),
 			milestoneName: z.string().optional().describe("Auto-creates if new"),
 			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata"),
+			scope: z.object({
+				acceptanceCriteria: z.array(z.string()).optional(),
+				outOfScope: z.array(z.string()).optional(),
+				contextBudget: z.enum(["quick-fix", "standard", "deep-dive"]).nullable().optional(),
+				approachHint: z.string().nullable().optional(),
+			}).optional().describe("Scope guards"),
 		})),
 	}),
 	handler: ({ boardId, cards }) => safeExecute(async () => {
@@ -295,6 +303,7 @@ registerExtendedTool("bulkCreateCards", {
 					tags: JSON.stringify(input.tags ?? []),
 					milestoneId,
 					metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
+					scope: input.scope ? JSON.stringify(scopeSchema.parse(input.scope)) : undefined,
 					createdBy: "AGENT",
 					position: (maxPos._max.position ?? -1) + 1,
 				},
@@ -327,26 +336,31 @@ registerExtendedTool("createCardFromTemplate", {
 		title: z.string().describe("Card title (auto-prefixed with template type)"),
 	}),
 	handler: ({ boardId, columnName, template, title }) => safeExecute(async () => {
-		const templates: Record<string, { prefix: string; description: string; priority: string; tags: string[]; checklist: string[] }> = {
+		const templates: Record<string, { prefix: string; description: string; priority: string; tags: string[]; checklist: string[]; scope?: Record<string, unknown> }> = {
 			"Bug Report": {
 				prefix: "Bug: ", description: "**What happened:**\n\n**Expected behavior:**\n\n**Steps to reproduce:**\n1. \n\n**Environment:**\n",
 				priority: "HIGH", tags: ["bug"], checklist: ["Reproduce the issue", "Identify root cause", "Write fix", "Test fix"],
+				scope: { contextBudget: "standard", acceptanceCriteria: ["Bug is no longer reproducible", "No regression in related flows"] },
 			},
 			Feature: {
 				prefix: "Feature: ", description: "**Goal:**\n\n**Approach:**\n\n**Acceptance criteria:**\n- \n",
 				priority: "MEDIUM", tags: ["feature"], checklist: ["Design approach", "Implement", "Add tests", "Update docs if needed"],
+				scope: { contextBudget: "standard" },
 			},
 			"Spike / Research": {
 				prefix: "Spike: ", description: "**Question to answer:**\n\n**Time-box:** 2 hours\n\n**Options to evaluate:**\n1. \n\n**Decision:**\n",
 				priority: "LOW", tags: ["spike"], checklist: ["Research options", "Prototype if needed", "Document findings", "Make recommendation"],
+				scope: { contextBudget: "quick-fix", approachHint: "Time-box strictly. Document findings in card comment." },
 			},
 			"Tech Debt": {
 				prefix: "Refactor: ", description: "**Current state:**\n\n**Desired state:**\n\n**Why now:**\n",
 				priority: "LOW", tags: ["debt"], checklist: ["Assess impact", "Refactor", "Verify no regressions"],
+				scope: { contextBudget: "standard", acceptanceCriteria: ["No regressions", "Code quality improved"] },
 			},
 			Epic: {
 				prefix: "Epic: ", description: "**Overview:**\n\n**Sub-tasks:**\nCreate individual cards for each sub-task.\n\n**Success criteria:**\n- \n",
 				priority: "MEDIUM", tags: ["epic"], checklist: ["Break down into cards", "Prioritize sub-tasks", "Track progress"],
+				scope: { contextBudget: "deep-dive" },
 			},
 		};
 
@@ -372,6 +386,7 @@ registerExtendedTool("createCardFromTemplate", {
 				columnId: column.id, projectId: board.projectId, number: cardNumber,
 				title: fullTitle, description: tmpl.description, priority: tmpl.priority,
 				tags: JSON.stringify(tmpl.tags), createdBy: "AGENT",
+				scope: tmpl.scope ? JSON.stringify(scopeSchema.parse(tmpl.scope)) : undefined,
 				position: (maxPos._max.position ?? -1) + 1,
 			},
 		});
@@ -443,6 +458,12 @@ registerExtendedTool("bulkUpdateCards", {
 			assignee: z.enum(["HUMAN", "AGENT"]).nullable().optional().describe("null to unassign"),
 			milestoneName: z.string().nullable().optional().describe("null to unassign; auto-creates if new"),
 			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (merged with existing; set key to null to delete)"),
+			scope: z.object({
+				acceptanceCriteria: z.array(z.string()).optional(),
+				outOfScope: z.array(z.string()).optional(),
+				contextBudget: z.enum(["quick-fix", "standard", "deep-dive"]).nullable().optional(),
+				approachHint: z.string().nullable().optional(),
+			}).optional().describe("Scope guards — each sub-field replaces its entry"),
 		}).strict()),
 	}),
 	handler: ({ cards }) => safeExecute(async () => {
@@ -480,6 +501,13 @@ registerExtendedTool("bulkUpdateCards", {
 				mergedMetadata = JSON.stringify(merged);
 			}
 
+			// Merge scope: per-sub-field replacement
+			let mergedScope: string | undefined;
+			if (input.scope) {
+				const existingScope = parseCardScope(existing.scope);
+				mergedScope = JSON.stringify(scopeSchema.parse({ ...existingScope, ...(input.scope as Record<string, unknown>) }));
+			}
+
 			const card = await db.card.update({
 				where: { id },
 				data: {
@@ -488,6 +516,7 @@ registerExtendedTool("bulkUpdateCards", {
 					assignee: input.assignee as string | null | undefined,
 					milestoneId: milestoneId !== undefined ? milestoneId : undefined,
 					metadata: mergedMetadata,
+					scope: mergedScope,
 					version: { increment: 1 },
 					lastEditedBy: AGENT_NAME,
 				},
@@ -502,6 +531,7 @@ registerExtendedTool("bulkUpdateCards", {
 				assignee: card.assignee,
 				milestone: card.milestone?.name ?? null,
 				...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
+				...(card.scope && card.scope !== "{}" && { scope: JSON.parse(card.scope) }),
 			});
 		}
 

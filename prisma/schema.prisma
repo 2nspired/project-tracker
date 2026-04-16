@@ -118,6 +118,7 @@ model Card {
   milestoneId String?   @map("milestone_id")
   dueDate     DateTime? @map("due_date")
   metadata     String   @default("{}") // JSON object for agent context (not rendered in UI)
+  scope        String   @default("{}") // JSON: acceptanceCriteria[], outOfScope[], contextBudget, approachHint
   version      Int      @default(0) // Optimistic locking for multi-agent conflict resolution
   lastEditedBy String?  @map("last_edited_by") // Agent/actor who last modified this card
   createdAt    DateTime @default(now()) @map("created_at")

@@ -6,6 +6,29 @@ export type Priority = (typeof priorityValues)[number];
 export const actorValues = ["HUMAN", "AGENT"] as const;
 export type ActorType = (typeof actorValues)[number];
 
+export const contextBudgetValues = ["quick-fix", "standard", "deep-dive"] as const;
+export type ContextBudget = (typeof contextBudgetValues)[number];
+
+export const scopeSchema = z.object({
+	acceptanceCriteria: z.array(z.string().max(500)).default([]),
+	outOfScope: z.array(z.string().max(500)).default([]),
+	contextBudget: z.enum(contextBudgetValues).nullable().default(null),
+	approachHint: z.string().max(2000).nullable().default(null),
+});
+
+export type CardScope = z.infer<typeof scopeSchema>;
+
+export const scopePatchSchema = scopeSchema.partial();
+export type CardScopePatch = z.infer<typeof scopePatchSchema>;
+
+export function parseCardScope(raw: string | null | undefined): CardScope {
+	try {
+		return scopeSchema.parse(JSON.parse(raw ?? "{}"));
+	} catch {
+		return scopeSchema.parse({});
+	}
+}
+
 export const createCardSchema = z.object({
 	columnId: z.string().uuid(),
 	title: z.string().min(1, "Title is required.").max(200),
@@ -26,6 +49,7 @@ export const updateCardSchema = z.object({
 	assignee: z.enum(actorValues).nullable().optional(),
 	dueDate: z.string().datetime().nullable().optional(),
 	milestoneId: z.string().uuid().nullable().optional(),
+	scope: scopePatchSchema.optional(),
 });
 
 export const moveCardSchema = z.object({
