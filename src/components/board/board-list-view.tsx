@@ -25,7 +25,9 @@ import type { Priority } from "@/lib/schemas/card-schemas";
 import { computeWorkNextScore } from "@/lib/work-next-score";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
-import { type BoardFilters, type SortMode, BoardToolbar, emptyFilters } from "./board-toolbar";
+import { type BoardFilters, type SortMode, BoardToolbar } from "./board-toolbar";
+import { hasRole } from "@/lib/column-roles";
+import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { CardDetailSheet } from "./card-detail-sheet";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
@@ -85,11 +87,31 @@ const listCollision: CollisionDetection = (args) => {
 	return rectIntersection(args);
 };
 
-export function BoardListView({ board }: { board: FullBoard }) {
+type BoardListViewProps = {
+	board: FullBoard;
+	filters: BoardFilters;
+	onFiltersChange: (filters: BoardFilters) => void;
+	sortMode: SortMode;
+	onSortModeChange: (mode: SortMode) => void;
+	hiddenRoles: string[];
+	onHiddenRolesChange: (roles: string[]) => void;
+	activeViewId: string | null;
+	onViewChange: (view: BoardViewType | null) => void;
+};
+
+export function BoardListView({
+	board,
+	filters,
+	onFiltersChange,
+	sortMode,
+	onSortModeChange,
+	hiddenRoles,
+	onHiddenRolesChange,
+	activeViewId,
+	onViewChange,
+}: BoardListViewProps) {
 	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 	const [activeCard, setActiveCard] = useState<ListCard | null>(null);
-	const [filters, setFilters] = useState<BoardFilters>(emptyFilters);
-	const [sortMode, setSortMode] = useState<SortMode>("manual");
 
 	const utils = api.useUtils();
 	const moveCard = api.card.move.useMutation({
@@ -178,7 +200,7 @@ export function BoardListView({ board }: { board: FullBoard }) {
 	const groupedByColumn: ColumnGroupData[] = useMemo(() => {
 		const horizonOrder = { now: 0, next: 1, later: 2, done: 3 };
 		const groups = board.columns
-			.filter((col) => !col.isParking)
+			.filter((col) => !col.isParking && !hiddenRoles.some((role) => hasRole(col, role)))
 			.map((col) => ({
 				id: col.id,
 				name: col.name,
@@ -188,7 +210,7 @@ export function BoardListView({ board }: { board: FullBoard }) {
 			}));
 		groups.sort((a, b) => horizonOrder[a.horizon as keyof typeof horizonOrder] - horizonOrder[b.horizon as keyof typeof horizonOrder]);
 		return groups;
-	}, [board.columns, filteredCards]);
+	}, [board.columns, filteredCards, hiddenRoles]);
 
 	const findColumnForCard = useCallback(
 		(cardId: string) => {
@@ -256,13 +278,18 @@ export function BoardListView({ board }: { board: FullBoard }) {
 		>
 			<div className="relative flex flex-1 flex-col overflow-hidden">
 				<BoardToolbar
+					boardId={board.id}
 					filters={filters}
-					onFiltersChange={setFilters}
+					onFiltersChange={onFiltersChange}
 					sortMode={sortMode}
-					onSortModeChange={setSortMode}
+					onSortModeChange={onSortModeChange}
+					hiddenRoles={hiddenRoles}
+					onHiddenRolesChange={onHiddenRolesChange}
+					activeViewId={activeViewId}
+					onViewChange={onViewChange}
 					availableTags={availableTags}
 					totalCards={allCards.length}
-					visibleCards={filteredCards.length}
+					visibleCards={groupedByColumn.reduce((sum, g) => sum + g.cards.length, 0)}
 				/>
 
 				<div className="flex-1 overflow-y-auto p-4">

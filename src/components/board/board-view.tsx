@@ -24,7 +24,8 @@ import { api } from "@/trpc/react";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
 import { BoardPulse } from "./board-pulse";
-import { type BoardFilters, type SortMode, BoardToolbar, emptyFilters } from "./board-toolbar";
+import { type BoardFilters, type SortMode, BoardToolbar } from "./board-toolbar";
+import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { CardCreateInline } from "./card-create-inline";
 import { CardDetailSheet } from "./card-detail-sheet";
 import { AddColumnButton } from "./column-header";
@@ -66,11 +67,31 @@ function filterCards(cards: BoardCardType[], filters: BoardFilters): BoardCardTy
 	});
 }
 
-export function BoardView({ board }: { board: FullBoard }) {
+type BoardViewProps = {
+	board: FullBoard;
+	filters: BoardFilters;
+	onFiltersChange: (filters: BoardFilters) => void;
+	sortMode: SortMode;
+	onSortModeChange: (mode: SortMode) => void;
+	hiddenRoles: string[];
+	onHiddenRolesChange: (roles: string[]) => void;
+	activeViewId: string | null;
+	onViewChange: (view: BoardViewType | null) => void;
+};
+
+export function BoardView({
+	board,
+	filters,
+	onFiltersChange,
+	sortMode,
+	onSortModeChange,
+	hiddenRoles,
+	onHiddenRolesChange,
+	activeViewId,
+	onViewChange,
+}: BoardViewProps) {
 	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 	const [activeCard, setActiveCard] = useState<BoardCardType | null>(null);
-	const [filters, setFilters] = useState<BoardFilters>(emptyFilters);
-	const [sortMode, setSortMode] = useState<SortMode>("manual");
 
 	const utils = api.useUtils();
 	const moveCard = api.card.move.useMutation({
@@ -161,27 +182,29 @@ export function BoardView({ board }: { board: FullBoard }) {
 	// Smart sort mode: sort by work-next score (descending) instead of position
 	const filteredColumns = useMemo(
 		() =>
-			board.columns.map((col) => {
-				let cards = filterCards(col.cards, filters);
-				if (hasRole(col, "done")) {
-					cards = [...cards].sort(
-						(a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-					);
-				} else if (sortMode === "smart") {
-					cards = [...cards]
-						.map((card) => ({
-							...card,
-							_workNextScore: computeWorkNextScore({
+			board.columns
+				.filter((col) => !hiddenRoles.some((role) => hasRole(col, role)))
+				.map((col) => {
+					let cards = filterCards(col.cards, filters);
+					if (hasRole(col, "done")) {
+						cards = [...cards].sort(
+							(a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+						);
+					} else if (sortMode === "smart") {
+						cards = [...cards]
+							.map((card) => ({
 								...card,
-								relationsTo: card.relationsTo,
-								_blocksOtherCount: blocksOtherMap.get(card.id) ?? 0,
-							}),
-						}))
-						.sort((a, b) => b._workNextScore - a._workNextScore);
-				}
-				return { ...col, cards };
-			}),
-		[board.columns, filters, sortMode, blocksOtherMap]
+								_workNextScore: computeWorkNextScore({
+									...card,
+									relationsTo: card.relationsTo,
+									_blocksOtherCount: blocksOtherMap.get(card.id) ?? 0,
+								}),
+							}))
+							.sort((a, b) => b._workNextScore - a._workNextScore);
+					}
+					return { ...col, cards };
+				}),
+		[board.columns, filters, sortMode, hiddenRoles, blocksOtherMap]
 	);
 
 	const totalCards = allCards.length;
@@ -262,10 +285,15 @@ export function BoardView({ board }: { board: FullBoard }) {
 		>
 			<div className="relative flex flex-1 flex-col overflow-hidden">
 				<BoardToolbar
+					boardId={board.id}
 					filters={filters}
-					onFiltersChange={setFilters}
+					onFiltersChange={onFiltersChange}
 					sortMode={sortMode}
-					onSortModeChange={setSortMode}
+					onSortModeChange={onSortModeChange}
+					hiddenRoles={hiddenRoles}
+					onHiddenRolesChange={onHiddenRolesChange}
+					activeViewId={activeViewId}
+					onViewChange={onViewChange}
 					availableTags={availableTags}
 					totalCards={totalCards}
 					visibleCards={visibleCards}

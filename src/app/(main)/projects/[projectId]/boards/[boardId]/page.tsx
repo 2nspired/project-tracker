@@ -1,18 +1,20 @@
 "use client";
 
-import { ArrowLeft, Bot, BrainCircuit, Check, Clock, Columns3, List, Map, NotebookPen, Pencil, Users, X } from "lucide-react";
+import { ArrowLeft, Bot, BrainCircuit, Clock, Columns3, List, Map, NotebookPen, Pencil, Users } from "lucide-react";
 import Link from "next/link";
-import { use, useRef, useState } from "react";
+import { use, useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ActivityFeedToggle } from "@/components/board/activity-feed";
 import { BoardListView } from "@/components/board/board-list-view";
+import { type BoardFilters, type SortMode, emptyFilters } from "@/components/board/board-toolbar";
 import { BoardView } from "@/components/board/board-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { useBoardEvents } from "@/hooks/use-board-events";
 import { api } from "@/trpc/react";
 
@@ -97,6 +99,26 @@ export default function BoardPage({
 	const [showScratch, setShowScratch] = useState(false);
 	const refetchInterval = useBoardEvents(boardId);
 
+	// Lifted filter state — shared across kanban and list views
+	const [filters, setFilters] = useState<BoardFilters>(emptyFilters);
+	const [sortMode, setSortMode] = useState<SortMode>("manual");
+	const [hiddenRoles, setHiddenRoles] = useState<string[]>([]);
+	const [activeViewId, setActiveViewId] = useState<string | null>(null);
+
+	const handleViewChange = useCallback((view: BoardViewType | null) => {
+		if (view) {
+			setFilters(view.filters);
+			setSortMode(view.sortMode);
+			setHiddenRoles(view.hiddenRoles);
+			setActiveViewId(view.id);
+		} else {
+			setFilters(emptyFilters);
+			setSortMode("manual");
+			setHiddenRoles([]);
+			setActiveViewId(null);
+		}
+	}, []);
+
 	const { data: board, isLoading } = api.board.getFull.useQuery(
 		{ id: boardId },
 		{ refetchInterval }
@@ -124,6 +146,17 @@ export default function BoardPage({
 			</div>
 		);
 	}
+
+	const viewProps = {
+		filters,
+		onFiltersChange: setFilters,
+		sortMode,
+		onSortModeChange: setSortMode,
+		hiddenRoles,
+		onHiddenRolesChange: setHiddenRoles,
+		activeViewId,
+		onViewChange: handleViewChange,
+	};
 
 	return (
 		<TooltipProvider>
@@ -237,7 +270,10 @@ export default function BoardPage({
 				</div>
 				{showHandoffs && <SessionHistoryPanel boardId={board.id} />}
 				{showScratch && <AgentNotesPanel boardId={board.id} />}
-				{viewMode === "kanban" ? <BoardView board={board} /> : <BoardListView board={board} />}
+				{viewMode === "kanban"
+					? <BoardView board={board} {...viewProps} />
+					: <BoardListView board={board} {...viewProps} />
+				}
 			</div>
 		</TooltipProvider>
 	);
