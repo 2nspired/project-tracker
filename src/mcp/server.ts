@@ -7,11 +7,12 @@ import { z } from "zod";
 import { getHorizon, hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
-import { getLatestHandoff } from "../lib/services/handoff.js";
+import { getLatestHandoff, saveHandoff } from "../lib/services/handoff.js";
 import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
 import { computeWorkNextScore } from "../lib/work-next-score.js";
 import { db } from "./db.js";
 import { initFts5 } from "./fts.js";
+import { syncGitActivityForProject } from "./git-sync.js";
 import { wrapEssentialHandler } from "./instrumentation.js";
 import {
 	ESSENTIAL_TOOLS,
@@ -628,7 +629,9 @@ server.registerTool(
 			format: z
 				.enum(["json", "toon"])
 				.default("json")
-				.describe("'json' (default) or 'toon' (wins on flat tabular arrays, loses on nested payloads)"),
+				.describe(
+					"'json' (default) or 'toon' (wins on flat tabular arrays, loses on nested payloads)"
+				),
 		},
 		annotations: { readOnlyHint: true },
 	},
@@ -787,6 +790,186 @@ server.registerTool(
 			);
 		});
 	})
+);
+
+// ─── Session Wrap-Up (Essential) ─────────────────────────────────────
+
+server.registerTool(
+	"endSession",
+	{
+		title: "End Session",
+		description:
+			"Session wrap-up companion to `briefMe`. Saves a handoff, links new commits via syncGitActivity, reports which cards the agent touched since the last handoff, and returns a copy-pasteable resume prompt for the next conversation. Does NOT auto-move cards — call `moveCard` with `intent` for any remaining transitions before wrapping up. With no boardId, auto-detects the project from the current git repo.",
+		inputSchema: {
+			boardId: z
+				.string()
+				.optional()
+				.describe("Board UUID (optional — auto-detected from cwd when omitted)"),
+			summary: z
+				.string()
+				.min(1, "summary is required — one paragraph describing what this session accomplished")
+				.describe("One-paragraph session summary (what was accomplished)"),
+			workingOn: z
+				.array(z.string())
+				.default([])
+				.describe("Cards or topics worked on (free text; card refs like '#7 auth' are fine)"),
+			findings: z
+				.array(z.string())
+				.default([])
+				.describe("Non-obvious discoveries worth carrying forward (code facts, gotchas)"),
+			nextSteps: z
+				.array(z.string())
+				.default([])
+				.describe("Concrete first actions for the next agent"),
+			blockers: z
+				.array(z.string())
+				.default([])
+				.describe("Anything waiting on a human decision or external change"),
+			syncGit: z
+				.boolean()
+				.default(true)
+				.describe("Run syncGitActivity to link new commits referencing #N (default true)"),
+		},
+	},
+	wrapEssentialHandler(
+		"endSession",
+		async ({
+			boardId: explicitBoardId,
+			summary,
+			workingOn,
+			findings,
+			nextSteps,
+			blockers,
+			syncGit,
+		}) => {
+			return safeExecute(async () => {
+				let boardId = explicitBoardId;
+				let autoResolved: { projectName: string; boardName: string } | null = null;
+				if (!boardId) {
+					const resolved = await resolveBoardFromCwd();
+					if (!resolved.ok) return err(resolved.reason, resolved.hint);
+					boardId = resolved.boardId;
+					autoResolved = { projectName: resolved.projectName, boardName: resolved.boardName };
+				}
+
+				const board = await db.board.findUnique({
+					where: { id: boardId },
+					include: { project: { select: { id: true, name: true } } },
+				});
+				if (!board) return err("Board not found.", "Use checkOnboarding to discover boards.");
+
+				// Optional: link new commits. Failures are non-fatal — endSession's
+				// primary job is the handoff; commit linkage is a bonus.
+				let gitSync: { commitsScanned: number; linksCreated: number; refsSkipped: number } | null =
+					null;
+				let gitSyncError: string | null = null;
+				if (syncGit !== false) {
+					const syncResult = await syncGitActivityForProject(board.project.id);
+					if (syncResult.ok) {
+						gitSync = {
+							commitsScanned: syncResult.commitsScanned,
+							linksCreated: syncResult.linksCreated,
+							refsSkipped: syncResult.refsSkipped,
+						};
+					} else {
+						gitSyncError = syncResult.message;
+					}
+				}
+
+				// Infer touched cards: agent activity since the prior handoff, or
+				// last 2 hours if there's no handoff yet. Last-write-wins doctrine
+				// forbids auto-moving cards here — we only *report* what the agent
+				// touched so the human sees the wake.
+				const lastHandoff = await getLatestHandoff(db, boardId);
+				const since = lastHandoff
+					? lastHandoff.createdAt
+					: new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+				const recentActivity = await db.activity.findMany({
+					where: {
+						actorType: "AGENT",
+						actorName: AGENT_NAME,
+						createdAt: { gte: since },
+						card: { column: { boardId } },
+					},
+					include: {
+						card: {
+							select: {
+								number: true,
+								title: true,
+								column: { select: { name: true } },
+							},
+						},
+					},
+					orderBy: { createdAt: "asc" },
+				});
+
+				const touchedMap = new Map<
+					number,
+					{ ref: string; title: string; column: string; activityCount: number }
+				>();
+				for (const a of recentActivity) {
+					const existing = touchedMap.get(a.card.number);
+					if (existing) {
+						existing.activityCount++;
+					} else {
+						touchedMap.set(a.card.number, {
+							ref: `#${a.card.number}`,
+							title: a.card.title,
+							column: a.card.column.name,
+							activityCount: 1,
+						});
+					}
+				}
+				const touchedCards = Array.from(touchedMap.values()).sort((a, b) =>
+					a.ref.localeCompare(b.ref, undefined, { numeric: true })
+				);
+
+				const handoff = await saveHandoff(db, {
+					boardId,
+					agentName: AGENT_NAME,
+					workingOn: (workingOn as string[]) ?? [],
+					findings: (findings as string[]) ?? [],
+					nextSteps: (nextSteps as string[]) ?? [],
+					blockers: (blockers as string[]) ?? [],
+					summary: summary as string,
+				});
+
+				const projectName = autoResolved?.projectName ?? board.project.name;
+				const boardName = autoResolved?.boardName ?? board.name;
+
+				// Copy-pasteable resume prompt for the next chat. References cards
+				// by #number so the next agent can resolve them via briefMe.
+				const resumeLines = [
+					`Continue the ${projectName} session. Call \`briefMe()\` first to load the handoff, then pick up from the next steps.`,
+				];
+				if (touchedCards.length > 0) {
+					const refs = touchedCards.map((c) => c.ref).join(", ");
+					resumeLines.push(`Recent focus: ${refs}.`);
+				}
+				if ((blockers as string[])?.length > 0) {
+					resumeLines.push(`Open blockers: ${(blockers as string[]).join("; ")}.`);
+				}
+				const resumePrompt = resumeLines.join(" ");
+
+				return ok({
+					handoff: {
+						id: handoff.id,
+						boardId: handoff.boardId,
+						agentName: handoff.agentName,
+						createdAt: handoff.createdAt,
+					},
+					board: { id: boardId, project: projectName, name: boardName },
+					touchedCards,
+					gitSync,
+					...(gitSyncError ? { gitSyncError } : {}),
+					resumePrompt,
+					_hint:
+						"Paste `resumePrompt` into the next conversation — the next session calls briefMe() and picks up from there.",
+				});
+			});
+		}
+	)
 );
 
 // ─── Meta-Tools (Essential + Catalog pattern) ──────────────────────
@@ -992,84 +1175,37 @@ server.registerPrompt(
 server.registerPrompt(
 	"end-session",
 	{
-		title: "End Session",
-		description: "Review board accuracy, save handoff, and clean up before ending a conversation.",
+		title: "End Session (superseded)",
+		description:
+			"Superseded by the `endSession` essential tool. Kept as a pointer for older clients.",
 		argsSchema: {
-			boardId: z.string().describe("Board ID"),
+			boardId: z.string().describe("Board ID").optional(),
 		},
 	},
 	async ({ boardId }) => {
-		const board = await db.board.findUnique({
-			where: { id: boardId },
-			include: {
-				project: { select: { name: true } },
-				columns: {
-					orderBy: { position: "asc" },
-					include: {
-						cards: {
-							orderBy: { position: "asc" },
-							include: { checklists: { select: { text: true, completed: true } } },
-						},
-					},
-				},
-			},
-		});
-
-		if (!board) {
-			return {
-				messages: [
-					{ role: "user" as const, content: { type: "text" as const, text: "Board not found." } },
-				],
-			};
-		}
-
-		const inProgress = board.columns.find((c) => hasRole(c, "active"))?.cards ?? [];
-
-		const prompt = [
-			`# End Session — ${board.project.name} / ${board.name}`,
+		const text = [
+			"# End Session — superseded",
 			"",
-			"Before wrapping up, complete this checklist:",
+			"This prompt has been replaced by the **`endSession`** essential tool. Call it directly instead of walking a checklist:",
 			"",
-			"## 1. Review board accuracy",
-			"Check each In Progress card — is it still accurate?",
-			...inProgress.map((c) => {
-				const done = c.checklists.filter((i) => i.completed).length;
-				const total = c.checklists.length;
-				return `- #${c.number} ${c.title}${total > 0 ? ` [${done}/${total}]` : ""}`;
-			}),
-			"",
-			"## 2. Move completed cards",
-			"Any cards fully done? → `moveCard` to Done",
-			"",
-			"## 3. Update checklists",
-			"Mark completed items → `runTool('toggleChecklistItem', ...)`",
-			"",
-			"## 4. Save handoff",
 			"```",
-			`runTool('saveHandoff', {`,
-			`  boardId: '${boardId}',`,
-			`  workingOn: ['what you worked on'],`,
-			`  findings: ['key findings'],`,
-			`  nextSteps: ['what to do next'],`,
-			`  blockers: ['any blockers'],`,
-			`  summary: 'Brief summary of this session'`,
-			`})`,
+			"endSession({",
+			`  ${boardId ? `boardId: '${boardId}',` : "// boardId auto-detected from cwd"}`,
+			"  summary: 'one paragraph — what this session accomplished',",
+			"  workingOn: ['cards or topics'],",
+			"  findings: ['non-obvious discoveries'],",
+			"  nextSteps: ['concrete first actions for the next agent'],",
+			"  blockers: ['anything waiting on a human or external change'],",
+			"})",
 			"```",
 			"",
-			"## 5. Add context comments",
-			"Add comments on cards with important context for the next session.",
+			"`endSession` saves the handoff, runs `syncGitActivity`, reports which cards you touched this session, and returns a copy-pasteable resume prompt for the next conversation.",
 			"",
-			"## 6. Report summary",
-			"Tell the user what was accomplished.",
-		];
+			"Before calling it, move any finished cards with `moveCard({ intent })` — the tool won't auto-move cards because the intent contract requires a human-readable reason on every transition.",
+		].join("\n");
 
 		return {
-			messages: [
-				{
-					role: "user" as const,
-					content: { type: "text" as const, text: prompt.join("\n") },
-				},
-			],
+			messages: [{ role: "user" as const, content: { type: "text" as const, text } }],
 		};
 	}
 );

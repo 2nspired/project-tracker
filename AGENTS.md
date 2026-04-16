@@ -6,6 +6,16 @@ Shared guidelines for any AI agent (Claude, Codex, etc.) using the Project Track
 
 When this MCP is connected to a project, use the board as your shared workspace with the user. These guidelines keep it useful without burning tokens.
 
+## Tool Migration (v2.3)
+
+New essential tool `endSession` supersedes the `end-session` MCP prompt. Essential tool count: 8 → 9.
+
+| Old path | New equivalent |
+|---|---|
+| MCP prompt `end-session` + manual `runTool('saveHandoff', ...)` | `endSession({ summary, workingOn?, findings?, nextSteps?, blockers? })` — auto-detects boardId, saves handoff, runs syncGitActivity, reports touched cards, returns a resume prompt |
+
+The `end-session` prompt still exists but now returns a one-shot pointer to the new tool. The `saveHandoff` extended tool remains for clients that need the raw insert (no commit linkage, no touched-cards report).
+
 ## Tool Migration (v2.4)
 
 Pruning pass: 18 tools removed or consolidated. Tool count: 75 → 57.
@@ -274,17 +284,19 @@ Then add to the project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc
 
 This project uses a Project Tracker board via MCP.
 
-**Session lifecycle:** Call `briefMe({ boardId })` at the start of each
-conversation for a one-shot session primer (handoff, top work, blockers, pulse).
-Use the `end-session` MCP prompt before wrapping up to save a handoff.
+**Session lifecycle:** Call `briefMe()` at the start of each conversation for
+a one-shot session primer (handoff, top work, blockers, pulse). Call
+`endSession({ summary, ... })` before wrapping up — it saves the handoff,
+links new commits, reports the cards you touched, and returns a resume prompt
+for the next chat. Both tools auto-detect the board from your git repo.
 
-**Tool architecture:** 8 essential tools are always visible (briefMe, createCard,
-updateCard, moveCard, addComment, checkOnboarding, getTools, runTool). Extended
-tools — including getBoard, searchCards, getRoadmap — live behind
-`getTools`/`runTool`; briefMe composes the common session-start views.
-Call `getTools()` with no args to see all categories.
+**Tool architecture:** 9 essential tools are always visible (briefMe,
+endSession, createCard, updateCard, moveCard, addComment, checkOnboarding,
+getTools, runTool). Extended tools — including getBoard, searchCards,
+getRoadmap — live behind `getTools`/`runTool`; briefMe composes the common
+session-start views. Call `getTools()` with no args to see all categories.
 
 **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
 reflect progress. Use `addComment` for decisions and blockers. Call
-`end-session` to save a handoff so the next conversation picks up in context.
+`endSession` to save a handoff so the next conversation picks up in context.
 ```

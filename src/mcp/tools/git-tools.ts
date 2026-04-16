@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { db } from "../db.js";
+import { syncGitActivityForProject } from "../git-sync.js";
+import { detectGitRepo, gitLog, validateRepo } from "../git-utils.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { ok, err, errWithToolHint, safeExecute } from "../utils.js";
-import { validateRepo, detectGitRepo, gitLog, gitDiffFiles } from "../git-utils.js";
+import { err, errWithToolHint, ok, safeExecute } from "../utils.js";
 
 // ─── Git ──────────────────────────────────────────────────────────
 
@@ -13,20 +14,25 @@ registerExtendedTool("setRepoPath", {
 		projectId: z.string().describe("Project UUID"),
 		repoPath: z.string().min(1).describe("Absolute path to local git repo"),
 	}),
-	handler: ({ projectId, repoPath }) => safeExecute(async () => {
-		const valid = await validateRepo(repoPath as string);
-		if (!valid) return err(`"${repoPath}" is not a valid git repository.`, "Provide an absolute path to a directory containing a .git folder.");
+	handler: ({ projectId, repoPath }) =>
+		safeExecute(async () => {
+			const valid = await validateRepo(repoPath as string);
+			if (!valid)
+				return err(
+					`"${repoPath}" is not a valid git repository.`,
+					"Provide an absolute path to a directory containing a .git folder."
+				);
 
-		const project = await db.project.findUnique({ where: { id: projectId as string } });
-		if (!project) return errWithToolHint("Project not found.", "listProjects", {});
+			const project = await db.project.findUnique({ where: { id: projectId as string } });
+			if (!project) return errWithToolHint("Project not found.", "listProjects", {});
 
-		await db.project.update({
-			where: { id: projectId as string },
-			data: { repoPath: repoPath as string },
-		});
+			await db.project.update({
+				where: { id: projectId as string },
+				data: { repoPath: repoPath as string },
+			});
 
-		return ok({ projectId, repoPath, saved: true });
-	}),
+			return ok({ projectId, repoPath, saved: true });
+		}),
 });
 
 registerExtendedTool("syncGitActivity", {
@@ -34,89 +40,44 @@ registerExtendedTool("syncGitActivity", {
 	description: "Scan git commits for #N card refs and create links.",
 	parameters: z.object({
 		projectId: z.string().describe("Project UUID"),
-		since: z.string().optional().describe("ISO datetime, git date string like '2 weeks ago', or 'all' for full history"),
+		since: z
+			.string()
+			.optional()
+			.describe("ISO datetime, git date string like '2 weeks ago', or 'all' for full history"),
 	}),
-	handler: ({ projectId, since }) => safeExecute(async () => {
-		const project = await db.project.findUnique({ where: { id: projectId as string } });
-		if (!project) return errWithToolHint("Project not found.", "listProjects", {});
+	handler: ({ projectId, since }) =>
+		safeExecute(async () => {
+			const result = await syncGitActivityForProject(projectId as string, {
+				since: since as string | undefined,
+			});
 
-		let repoPath = project.repoPath;
-		let autoDetected = false;
-		if (!repoPath) {
-			const detected = await detectGitRepo();
-			if (detected) {
-				repoPath = detected;
-				autoDetected = true;
-			} else {
-				return errWithToolHint("No repo path set for this project.", "setRepoPath", { projectId: `"${projectId}"`, repoPath: '"/path/to/repo"' });
-			}
-		}
-
-		const valid = await validateRepo(repoPath);
-		if (!valid) return errWithToolHint(`Repo path "${repoPath}" is no longer valid.`, "setRepoPath", { projectId: `"${projectId}"`, repoPath: '"/path/to/repo"' });
-
-		const isFullHistory = (since as string) === "all";
-		const sinceValue = isFullHistory ? undefined : ((since as string) || "2 weeks ago");
-		const maxCount = isFullHistory ? 500 : 100;
-		const commits = await gitLog(repoPath, maxCount, sinceValue);
-
-		let linked = 0;
-		let skipped = 0;
-		const errors: string[] = [];
-
-		for (const commit of commits) {
-			if (commit.cardRefs.length === 0) continue;
-
-			let filePaths: string[];
-			try {
-				filePaths = await gitDiffFiles(repoPath, commit.hash);
-			} catch {
-				errors.push(`Failed to get files for ${commit.hash.slice(0, 7)}`);
-				filePaths = [];
-			}
-
-			for (const cardNum of commit.cardRefs) {
-				const card = await db.card.findUnique({
-					where: { projectId_number: { projectId: projectId as string, number: cardNum } },
-					select: { id: true },
-				});
-				if (!card) {
-					skipped++;
-					continue;
+			if (!result.ok) {
+				if (result.reason === "project_not_found")
+					return errWithToolHint("Project not found.", "listProjects", {});
+				if (result.reason === "no_repo_path") {
+					return errWithToolHint(result.message, "setRepoPath", {
+						projectId: `"${projectId}"`,
+						repoPath: '"/path/to/repo"',
+					});
 				}
-
-				await db.gitLink.upsert({
-					where: {
-						projectId_commitHash_cardId: {
-							projectId: projectId as string,
-							commitHash: commit.hash,
-							cardId: card.id,
-						},
-					},
-					create: {
-						projectId: projectId as string,
-						cardId: card.id,
-						commitHash: commit.hash,
-						message: commit.message,
-						author: commit.author,
-						commitDate: commit.date,
-						filePaths: JSON.stringify(filePaths),
-					},
-					update: {},
+				// repo_invalid
+				return errWithToolHint(result.message, "setRepoPath", {
+					projectId: `"${projectId}"`,
+					repoPath: '"/path/to/repo"',
 				});
-				linked++;
 			}
-		}
 
-		return ok({
-			commitsScanned: commits.length,
-			linksCreated: linked,
-			refsSkipped: skipped,
-			since: isFullHistory ? "all" : sinceValue,
-			...(autoDetected && { _note: `Auto-detected repo at "${repoPath}". Run setRepoPath to persist this.` }),
-			errors: errors.length > 0 ? errors : undefined,
-		});
-	}),
+			return ok({
+				commitsScanned: result.commitsScanned,
+				linksCreated: result.linksCreated,
+				refsSkipped: result.refsSkipped,
+				since: result.since,
+				...(result.autoDetected && {
+					_note: `Auto-detected repo at "${result.repoPath}". Run setRepoPath to persist this.`,
+				}),
+				errors: result.errors.length > 0 ? result.errors : undefined,
+			});
+		}),
 });
 
 registerExtendedTool("getGitLog", {
@@ -127,33 +88,42 @@ registerExtendedTool("getGitLog", {
 		limit: z.number().int().min(1).max(100).default(20).describe("Max commits (1–100)"),
 	}),
 	annotations: { readOnlyHint: true },
-	handler: ({ projectId, limit }) => safeExecute(async () => {
-		const project = await db.project.findUnique({ where: { id: projectId as string } });
-		if (!project) return errWithToolHint("Project not found.", "listProjects", {});
+	handler: ({ projectId, limit }) =>
+		safeExecute(async () => {
+			const project = await db.project.findUnique({ where: { id: projectId as string } });
+			if (!project) return errWithToolHint("Project not found.", "listProjects", {});
 
-		let repoPath = project.repoPath;
-		if (!repoPath) {
-			const detected = await detectGitRepo();
-			if (detected) {
-				repoPath = detected;
-			} else {
-				return errWithToolHint("No repo path set for this project.", "setRepoPath", { projectId: `"${projectId}"`, repoPath: '"/path/to/repo"' });
+			let repoPath = project.repoPath;
+			if (!repoPath) {
+				const detected = await detectGitRepo();
+				if (detected) {
+					repoPath = detected;
+				} else {
+					return errWithToolHint("No repo path set for this project.", "setRepoPath", {
+						projectId: `"${projectId}"`,
+						repoPath: '"/path/to/repo"',
+					});
+				}
 			}
-		}
 
-		const valid = await validateRepo(repoPath);
-		if (!valid) return errWithToolHint(`Repo path "${repoPath}" is no longer valid.`, "setRepoPath", { projectId: `"${projectId}"`, repoPath: '"/path/to/repo"' });
+			const valid = await validateRepo(repoPath);
+			if (!valid)
+				return errWithToolHint(`Repo path "${repoPath}" is no longer valid.`, "setRepoPath", {
+					projectId: `"${projectId}"`,
+					repoPath: '"/path/to/repo"',
+				});
 
-		const commits = await gitLog(repoPath, (limit as number) ?? 20);
+			const commits = await gitLog(repoPath, (limit as number) ?? 20);
 
-		return ok(commits.map((c) => ({
-			hash: c.hash.slice(0, 7),
-			fullHash: c.hash,
-			message: c.message,
-			author: c.author,
-			date: c.date,
-			cardRefs: c.cardRefs.map((n) => `#${n}`),
-		})));
-	}),
+			return ok(
+				commits.map((c) => ({
+					hash: c.hash.slice(0, 7),
+					fullHash: c.hash,
+					message: c.message,
+					author: c.author,
+					date: c.date,
+					cardRefs: c.cardRefs.map((n) => `#${n}`),
+				}))
+			);
+		}),
 });
-

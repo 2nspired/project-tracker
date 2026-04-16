@@ -5,7 +5,7 @@ import { SCHEMA_VERSION } from "./utils.js";
 
 const execFileAsync = promisify(execFile);
 
-export const MCP_SERVER_VERSION = "2.2.0";
+export const MCP_SERVER_VERSION = "2.3.0";
 
 /**
  * Source of truth for what counts as an essential tool.
@@ -20,6 +20,11 @@ export const ESSENTIAL_TOOLS: Array<{ name: string; description: string }> = [
 		name: "briefMe",
 		description:
 			"One-shot session primer — handoff, diff, top work, blockers, open decisions, pulse.",
+	},
+	{
+		name: "endSession",
+		description:
+			"Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt.",
 	},
 	{ name: "createCard", description: "Create a card in a column (by name)." },
 	{ name: "updateCard", description: "Update card fields; optional `intent`." },

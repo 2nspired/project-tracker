@@ -17,7 +17,7 @@ A local-first kanban board with MCP integration for AI-assisted development. You
   - [Add tracking instructions](#5-add-tracking-instructions-to-your-project-optional)
 - [How It Works](#how-it-works)
 - [MCP Surface](#mcp-surface)
-  - [Essential tools](#essential-tools-8)
+  - [Essential tools](#essential-tools-9)
   - [Extended tools](#extended-tools-by-category)
   - [Prompts](#prompts-8)
   - [Resources](#resources-5)
@@ -60,6 +60,7 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 
 **Agent integration**
 - `briefMe` — one-shot session primer (~300-500 tokens) replacing the getBoard-on-every-session pattern
+- `endSession` — session wrap-up that saves a handoff, links new commits, and emits a resume prompt for the next chat
 - Session handoffs — agents save context for the next conversation
 - Agent scratchpad — ephemeral working memory that auto-expires
 - Multi-agent support (Claude, Codex, etc.) via `AGENT_NAME` env var
@@ -159,8 +160,8 @@ Please run /path/to/project-tracker/scripts/connect.sh from this directory to
 create the .mcp.json file. Then add a "Project Tracking" section to this
 project's CLAUDE.md explaining that the project is tracked via project-tracker
 MCP tools, cards should be referenced by #number, and the agent should call
-briefMe({ boardId }) at the start of each conversation and end-session before
-wrapping up.
+briefMe() at the start of each conversation and endSession() before wrapping
+up.
 ```
 
 Replace `/path/to/project-tracker` with the actual path.
@@ -174,16 +175,17 @@ Add this to your project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, et
 
 This project uses a Project Tracker board via MCP.
 
-**Session lifecycle:** Call `briefMe({ boardId })` at the start of each
-conversation for a one-shot session primer (handoff, top work, blockers,
-pulse). Use the `end-session` MCP prompt before wrapping up to save a
-handoff for the next session.
+**Session lifecycle:** Call `briefMe()` at the start of each conversation
+for a one-shot session primer (handoff, top work, blockers, pulse). Call
+`endSession({ summary, ... })` before wrapping up — it saves the handoff,
+links new commits, reports touched cards, and returns a resume prompt for
+the next chat. Both auto-detect the board from your git repo.
 
-**Tool architecture:** 8 essential tools are always visible (briefMe,
-createCard, updateCard, moveCard, addComment, checkOnboarding, getTools,
-runTool). Extended tools — including getBoard, searchCards, getRoadmap —
-live behind `getTools`/`runTool`; briefMe composes the common session-start
-views. Call `getTools()` with no args to see all categories.
+**Tool architecture:** 9 essential tools are always visible (briefMe,
+endSession, createCard, updateCard, moveCard, addComment, checkOnboarding,
+getTools, runTool). Extended tools — including getBoard, searchCards,
+getRoadmap — live behind `getTools`/`runTool`; briefMe composes the common
+session-start views. Call `getTools()` with no args to see all categories.
 
 **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
 reflect progress. Use `addComment` for decisions and blockers.
@@ -207,14 +209,15 @@ AI Agent (Claude Code)  <-->  MCP Server  --------------------|
 
 ## MCP Surface
 
-The tracker uses an **Essential + Catalog** pattern: 8 essential tools are always loaded in the agent's context. Extended tools (including `getBoard`, `searchCards`, `getRoadmap`) are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
+The tracker uses an **Essential + Catalog** pattern: 9 essential tools are always loaded in the agent's context. Extended tools (including `getBoard`, `searchCards`, `getRoadmap`) are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
 
 <!-- tracker:essentials:start -->
-### Essential Tools (8)
+### Essential Tools (9)
 
 | Tool | What it does |
 | --- | --- |
 | `briefMe` | One-shot session primer — handoff, diff, top work, blockers, open decisions, pulse. |
+| `endSession` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. |
 | `createCard` | Create a card in a column (by name). |
 | `updateCard` | Update card fields; optional `intent`. |
 | `moveCard` | Move a card to a column. Requires `intent`. |
@@ -250,7 +253,7 @@ The tracker uses an **Essential + Catalog** pattern: 8 essential tools are alway
 | Prompt | Purpose |
 | --- | --- |
 | `resume-session` | Load board state + last handoff + diff since then. Use at conversation start (alternative to `briefMe`). |
-| `end-session` | Review board accuracy, save handoff, clean up. Use before wrapping up. |
+| `end-session` | Superseded — returns a pointer to the `endSession` essential tool. |
 | `onboarding` | Guided setup — `tutorial` seeds a sample project, `quickstart` creates a real one. |
 | `deep-dive` | Load focused context for deep work on a specific card. |
 | `sprint-review` | Velocity, milestone progress, stale cards, blockers. |
@@ -278,7 +281,8 @@ The tracker is designed for multi-conversation workflows:
 
 ```
 Conversation 1:
-  briefMe → work on cards → end-session (saves handoff)
+  briefMe → work on cards → endSession (saves handoff, links commits,
+                                         returns resume prompt)
 
 Conversation 2:
   briefMe → loads handoff + diff → picks up where you left off
@@ -286,20 +290,20 @@ Conversation 2:
 
 **`briefMe`** returns a compact session primer: the last agent's handoff (what they worked on, findings, next steps, blockers), a diff of changes since then, the top 3 work-next candidates, active blockers, open decisions, and staleness warnings — in ~300-500 tokens.
 
-**`end-session`** walks the agent through a checklist: review board accuracy, move completed cards, update checklists, save a handoff, and add comments on cards with important information.
+**`endSession`** saves a structured handoff, runs `syncGitActivity` to link new commits referencing `#N`, reports which cards the agent touched since the last handoff, and returns a copy-pasteable resume prompt for the next conversation. It does **not** auto-move cards — the `moveCard` intent contract requires a human-readable reason on every transition, so cards should already match reality before wrapping up. A `/handoff` slash command calls the tool for you.
 
 ### Example agent workflow
 
 ```
 Agent: [briefMe] → sees handoff from yesterday + 3 new changes + top work
 Agent: [runTool getCardContext #4] → loads card + relations + decisions + commits
-Agent: [moveCard #4 → "In Progress"]
+Agent: [moveCard #4 → "In Progress", intent: "starting auth impl"]
   ... writes the code ...
 Agent: [runTool toggleChecklistItem] → checks off "Set up JWT middleware"
-Agent: [runTool syncGitActivity] → links new commits to cards
 Agent: [runTool getCommitSummary #4] → sees 3 commits, 5 files changed
 Agent: [runTool recordDecision] → "Used jose library for JWT — lightweight"
-Agent: [end-session prompt] → saves handoff for next conversation
+Agent: [moveCard #4 → "Review", intent: "tests green, ready for verify"]
+Agent: [endSession summary: "...", nextSteps: [...]]  → handoff + commit linkage
 ```
 
 You see all of this happen on your board in real-time via SSE.
