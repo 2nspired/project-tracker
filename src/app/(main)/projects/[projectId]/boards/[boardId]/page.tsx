@@ -5,7 +5,6 @@ import Link from "next/link";
 import { use, useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { ActivityFeedToggle } from "@/components/board/activity-feed";
 import { BoardListView } from "@/components/board/board-list-view";
 import { type BoardFilters, type SortMode, emptyFilters } from "@/components/board/board-toolbar";
 import { BoardView } from "@/components/board/board-view";
@@ -364,7 +363,6 @@ export default function BoardPage({
 						</TooltipTrigger>
 						<TooltipContent>Notes from AI agents</TooltipContent>
 					</Tooltip>
-					<ActivityFeedToggle boardId={board.id} onCardClick={() => {}} />
 				</div>
 				{showHandoffs && <SessionHistoryPanel boardId={board.id} />}
 				{showScratch && <AgentNotesPanel boardId={board.id} />}

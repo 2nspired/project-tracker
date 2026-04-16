@@ -28,6 +28,7 @@ import { type BoardFilters, type SortMode, BoardToolbar } from "./board-toolbar"
 import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { CardCreateInline } from "./card-create-inline";
 import { CardDetailSheet } from "./card-detail-sheet";
+import { ActivityStrip } from "./activity-strip";
 import { AddColumnButton } from "./column-header";
 import { SortableCard } from "./sortable-card";
 
@@ -334,6 +335,12 @@ export function BoardView({
 					cardId={selectedCardId}
 					boardId={board.id}
 					onClose={() => setSelectedCardId(null)}
+				/>
+
+				<ActivityStrip
+					boardId={board.id}
+					selectedCardId={selectedCardId}
+					onCardClick={setSelectedCardId}
 				/>
 			</div>
 

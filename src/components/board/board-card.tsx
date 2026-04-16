@@ -79,6 +79,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 		<div
 			role="button"
 			tabIndex={0}
+			data-card-id={card.id}
 			className={`cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-ring/20 ${priority !== "NONE" ? `border-l-[3px] ${PRIORITY_BORDER[priority]}` : ""}`}
 			onClick={onClick}
 			onKeyDown={(e) => {
