@@ -119,30 +119,6 @@ Record latency, memory usage, build times, bundle sizes, etc.
 - **`ttl`** — Time-to-live in days. Set for measurements that should be re-run periodically (e.g. `ttl: 30`).
 - **`needsRecheck`** — Auto-set on TTL expiry, SHA drift, or age thresholds. Use `listFacts({ type: "measurement", needsRecheck: true })`.
 
-## Scope Guards
-
-Cards support optional scope guards — structured fields that define what an agent should and shouldn't do when working on a card. Set them via `updateCard` with the `scopeGuard` field.
-
-**Fields:**
-- `acceptanceCriteria` — array of strings defining what "done" looks like
-- `outOfScope` — array of strings listing what to avoid
-- `contextBudget` — `"quick-fix"`, `"standard"`, or `"deep-dive"` — signals expected effort level
-- `approachHint` — freeform string with implementation guidance
-
-**Example:**
-```json
-{
-  "scopeGuard": {
-    "acceptanceCriteria": ["tRPC endpoint returns summary data", "UI shows collapsible section"],
-    "outOfScope": ["Schema migrations", "Auto-trigger on card move"],
-    "contextBudget": "standard",
-    "approachHint": "Compute on-the-fly from existing GitLink data"
-  }
-}
-```
-
-Scope guards are visible in the card detail sheet UI so both humans and agents can see them. Use them to prevent agent sprawl on cards where boundaries matter.
-
 ## Commit Summaries
 
 `getCommitSummary(cardId)` returns a structured aggregation of all commits linked to a card: commit count, authors, time span, and files grouped by category (source, schema, styles, tests, config, docs, other). Use it to quickly understand the scope of work done on a card without reading individual commits.

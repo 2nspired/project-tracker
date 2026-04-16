@@ -21,7 +21,6 @@ import {
 	SCHEMA_VERSION,
 	safeExecute,
 } from "./utils.js";
-import { parseCardScope, scopeSchema } from "../lib/schemas/card-schemas.js";
 import { wrapEssentialHandler } from "./instrumentation.js";
 
 // Initialize extended tools (registers them in the catalog)
@@ -172,7 +171,6 @@ server.registerTool(
 							},
 							commentCount: card._count.comments,
 							...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
-							...(card.scope && card.scope !== "{}" && { scope: JSON.parse(card.scope) }),
 						};
 					}),
 				})),
@@ -198,15 +196,9 @@ server.registerTool(
 			assignee: z.enum(["HUMAN", "AGENT"]).optional(),
 			milestoneName: z.string().optional().describe("Auto-creates if new"),
 			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (not rendered in UI)"),
-			scope: z.object({
-				acceptanceCriteria: z.array(z.string()).optional(),
-				outOfScope: z.array(z.string()).optional(),
-				contextBudget: z.enum(["quick-fix", "standard", "deep-dive"]).nullable().optional(),
-				approachHint: z.string().nullable().optional(),
-			}).optional().describe("Scope guards: acceptance criteria, out-of-scope, context budget, approach hint"),
 		},
 	},
-	wrapEssentialHandler("createCard", async ({ boardId, columnName, title, description, priority, tags, assignee, milestoneName, metadata, scope }) => {
+	wrapEssentialHandler("createCard", async ({ boardId, columnName, title, description, priority, tags, assignee, milestoneName, metadata }) => {
 		return safeExecute(async () => {
 			const column = await db.column.findFirst({
 				where: { boardId, name: { equals: columnName } },
@@ -252,7 +244,6 @@ server.registerTool(
 					assignee,
 					milestoneId,
 					metadata: metadata ? JSON.stringify(metadata) : undefined,
-					scope: scope ? JSON.stringify(scopeSchema.parse(scope)) : undefined,
 					createdBy: "AGENT",
 					lastEditedBy: AGENT_NAME,
 					position: (maxPosition._max.position ?? -1) + 1,
@@ -299,17 +290,11 @@ server.registerTool(
 				.optional()
 				.describe("null to unassign; auto-creates if new"),
 			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (merged with existing; set key to null to delete)"),
-			scope: z.object({
-				acceptanceCriteria: z.array(z.string()).optional(),
-				outOfScope: z.array(z.string()).optional(),
-				contextBudget: z.enum(["quick-fix", "standard", "deep-dive"]).nullable().optional(),
-				approachHint: z.string().nullable().optional(),
-			}).optional().describe("Scope guards — each sub-field replaces its entry; omit sub-fields to leave unchanged"),
 			version: z.number().int().optional().describe("Expected version for optimistic locking — pass to detect conflicts"),
 		},
 		annotations: { idempotentHint: true },
 	},
-	wrapEssentialHandler("updateCard", async ({ cardId: cardRef, boardId, title, description, priority, tags, assignee, milestoneName, metadata, scope, version }) => {
+	wrapEssentialHandler("updateCard", async ({ cardId: cardRef, boardId, title, description, priority, tags, assignee, milestoneName, metadata, version }) => {
 		return safeExecute(async () => {
 			const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
 			const resolved = await resolveCardRef(cardRef, projectId);
@@ -340,13 +325,6 @@ server.registerTool(
 				mergedMetadata = JSON.stringify(merged);
 			}
 
-			// Merge scope: per-sub-field replacement
-			let mergedScope: string | undefined;
-			if (scope) {
-				const existingScope = parseCardScope(existing.scope);
-				mergedScope = JSON.stringify(scopeSchema.parse({ ...existingScope, ...(scope as Record<string, unknown>) }));
-			}
-
 			const card = await db.card.update({
 				where: { id: cardId },
 				data: {
@@ -357,7 +335,6 @@ server.registerTool(
 					assignee,
 					milestoneId: milestoneId !== undefined ? milestoneId : undefined,
 					metadata: mergedMetadata,
-					scope: mergedScope,
 					version: { increment: 1 },
 					lastEditedBy: AGENT_NAME,
 				},
@@ -377,7 +354,6 @@ server.registerTool(
 					assignee: card.assignee,
 					milestone: card.milestone?.name ?? null,
 					metadata: JSON.parse(card.metadata),
-					...(card.scope && card.scope !== "{}" && { scope: JSON.parse(card.scope) }),
 				},
 				...(resolved.warning && { _warning: resolved.warning }),
 			});
