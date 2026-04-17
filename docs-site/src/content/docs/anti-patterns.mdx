@@ -1,0 +1,159 @@
+---
+title: Anti-patterns
+description: The ways people trip themselves up with Project Tracker — and the small adjustments that fix them.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Every tool has a grain. Go with it and things are easy; go against it and you're fighting. Here are the patterns that reliably cause pain, and what to do instead.
+
+## Skipping `briefMe`
+
+### The pattern
+
+"I remember where we were — let's just keep going."
+
+### Why it fails
+
+You usually don't remember as precisely as you think, and the agent definitely doesn't. You end up re-explaining decisions that were already made, or worse, silently *undoing* them. The 300–500 tokens of `briefMe` pay for themselves on the first decision it prevents you from re-litigating.
+
+### Do this instead
+
+Make it a reflex: new conversation → `briefMe`. No exceptions. If `briefMe` tells you nothing interesting, you're done in 2 seconds and no harm done. If it catches one thing, you just saved 5 minutes of re-work.
+
+## Writing prose, not structure, into `endSession`
+
+### The pattern
+
+```ts
+endSession({
+	summary: "Today we worked on the auth middleware. It was a long session. We discussed several options including jsonwebtoken, jose, and writing our own. Eventually we landed on jose because..."
+})
+```
+
+### Why it fails
+
+`briefMe` includes `summary` verbatim. A 2,000-token summary eats the session-primer budget. And the structured fields — `findings`, `nextSteps`, `blockers` — are what the next agent actually *acts* on.
+
+### Do this instead
+
+Short summary. Put the substance in the structured fields.
+
+```ts
+endSession({
+	summary: "Wired up JWT middleware end-to-end.",
+	findings: ["jose chosen over jsonwebtoken — lighter, native ESM"],
+	nextSteps: ["Add rate-limit test for token rotation", "Write the ADR"],
+	blockers: ["Legal review of token storage pending"],
+})
+```
+
+## Moving cards without `intent`
+
+### The pattern
+
+Agent moves `#12` to `Review` with no `intent`. Activity feed reads *"moved #12 to Review"*. You have no idea why.
+
+### Why it fails
+
+`intent` is required on `moveCard` by design. If the agent is skipping it, you're either running an older version of the tool or the agent is silently retrying without it. Either way, the board turns into a noisy stream of unexplained state changes, and you stop reading it.
+
+### Do this instead
+
+Every move gets a one-sentence reason. `"tests green, ready for verify"`. `"blocked on legal review"`. `"parking — waiting on upstream library fix"`. If the agent moves something without a good reason, that's the agent telling you the move might be premature.
+
+## Letting cards drift from reality
+
+### The pattern
+
+Agent writes the code for `#12`, commits, opens a PR — but leaves the card in `Backlog` the whole session. At `endSession`, the board is a lie.
+
+### Why it fails
+
+`endSession` deliberately does *not* auto-move cards. Moves carry `intent`, and intent is a judgment call the agent should make *when it makes sense*, not as a cleanup pass at the end. A stale board poisons the next session's `briefMe`.
+
+### Do this instead
+
+Move cards as you work. "Starting on `#12`" → move to `In Progress`. "Tests pass, PR open" → move to `Review`. "Merged" → move to `Done`. The activity feed reads like a narrative of the work.
+
+## Dumping the whole board into context
+
+### The pattern
+
+First thing the agent does: `runTool({ tool: "getBoard" })` and stuffs the full board into context.
+
+### Why it fails
+
+This is the pattern `briefMe` was built to replace. `getBoard` returns every card in every column — rarely what the agent actually needs, and the cost scales with board size. Over a week of sessions this adds up to real money.
+
+### Do this instead
+
+- `briefMe` at session start. That's it.
+- Reach for `getBoard` only when you specifically need the full board — reorganizing, auditing, planning a sprint.
+- For "what's relevant right now," use `getCardContext`, `getMilestoneContext`, or `getTagContext` — scoped reads.
+
+## Using the tracker as a dumping ground
+
+### The pattern
+
+One card per thought. Cards like "investigate the thing," "fix that one issue," "look into auth." Fifty cards in `Backlog`, none of them actionable.
+
+### Why it fails
+
+Work-next ranking, board audits, and milestone progress all depend on cards being **units of work the agent can close**. Vague cards confuse the ranker and bloat the board.
+
+### Do this instead
+
+Keep cards actionable: clear title, ≥1 checklist item, a priority, a tag. The `auditBoard` extended tool will find cards missing these — use it when the board starts feeling noisy. Use the `notes` table (or `scratch` tool) for "I want to remember this but it's not a unit of work yet."
+
+## Treating the tracker like team software
+
+### The pattern
+
+"My teammate and I both want to use this on the same project."
+
+### Why it fails
+
+The tracker is single-user by design. There's no auth, no user model, no concept of "Alice assigned this to Bob." Two humans pointing at the same SQLite file will race-condition each other's writes, and both will lose.
+
+### Do this instead
+
+If you're collaborating with a human, pick a tool built for that. This one is for **one human + any number of agents** on a given board. Multiple agents sharing a tracker works great — they identify themselves via `AGENT_NAME`.
+
+## Expecting cloud-like availability
+
+### The pattern
+
+Closing your laptop, opening the tracker on a different machine, expecting the data to be there.
+
+### Why it fails
+
+The data is in a file on disk. No cloud, no sync.
+
+### Do this instead
+
+Put `data/tracker.db` in a synced folder (Dropbox, iCloud, Syncthing) if you want it on multiple machines. Or commit it to a private repo if you trust git with your data. Or accept that it's tied to one machine — which is often fine.
+
+<Aside type="caution" title="Don't sync while both ends are writing">
+	SQLite doesn't love two processes writing to the same file over a network sync. Close the tracker on machine A before opening it on machine B, or you'll corrupt the file.
+</Aside>
+
+## Reading the README instead of this site
+
+### The pattern
+
+Landing on the GitHub README, scrolling for ten minutes trying to figure out where to start.
+
+### Why it fails
+
+The README is deliberately slim now — it points here. The README's job is "what is this, how do I install it in 60 seconds." This site's job is "how do I use it well."
+
+### Do this instead
+
+Bookmark [this site](../). Read [Quickstart](../quickstart/) once, [The session loop](../workflow/) twice, and come back to the [MCP tools reference](../tools/) as needed.
+
+## Read next
+
+- **[The session loop](../workflow/)** — the workflow these anti-patterns bend around.
+- **[Design rationale](../why/)** — the choices that explain why the anti-patterns are anti-patterns.
+- **[MCP tools](../tools/)** — the full tool surface, for reference.

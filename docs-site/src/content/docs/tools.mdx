@@ -1,0 +1,139 @@
+---
+title: MCP tools
+description: Reference for every tool the agent can call — 9 essential tools and 50+ extended tools, split by category.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The tracker exposes a two-tier MCP surface: **9 essential tools always loaded** plus **50+ extended tools** discoverable via `getTools` and executable via `runTool`. This page covers the shape of each tier so you know what the agent sees.
+
+<Aside type="tip" title="Authoritative source">
+	The running MCP server is the ground truth. Ask your agent to run `getTools()` to see the current catalog — tool counts drift between releases as surface is consolidated. This page reflects the v2.5 shape.
+</Aside>
+
+## Essential tools — always loaded (9)
+
+These are in the agent's context on every session. They cover the hot path: start, work, end.
+
+| Tool | Purpose |
+| --- | --- |
+| `briefMe` | One-shot session primer — handoff + diff + top work + blockers + pulse in one call. |
+| `endSession` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. |
+| `createCard` | Create a card in a column (by name). |
+| `updateCard` | Update card fields. Optional `intent` when the edit reflects a decision. |
+| `moveCard` | Move a card to a column. **Requires `intent`.** |
+| `addComment` | Add a comment to a card. |
+| `checkOnboarding` | Detect DB state, list projects/boards. Used at session start if no board is connected yet. |
+| `getTools` | Browse extended tools by category. |
+| `runTool` | Execute any extended tool by name. |
+
+That's the entire baseline agent context. Everything else is one `runTool` call away.
+
+## Extended tools — on demand
+
+Browsed via `getTools({ category })` and executed via `runTool({ tool, params })`. Categories (v2.5):
+
+| Category | Count | Tools |
+| --- | --- | --- |
+| `activity` | 1 | `listActivity` |
+| `cards` | 5 | `bulkCreateCards`, `bulkMoveCards`, `bulkUpdateCards`, `createCardFromTemplate`, `deleteCard` |
+| `checklist` | 3 | `addChecklistItem`, `bulkAddChecklistItems`, `toggleChecklistItem` |
+| `comments` | 1 | `listComments` |
+| `context` | 8 | `getCardContext`, `getMilestoneContext`, `getTagContext`, `listClaims`, `listFacts`, `queryKnowledge`, `saveClaim`, `saveFact` |
+| `decisions` | 3 | `getDecisions`, `recordDecision`, `updateDecision` |
+| `discovery` | 13 | `auditBoard`, `getBoard`, `getCard`, `getRoadmap`, `getStats`, `getToolUsageStats`, `getWorkNextSuggestion`, `listBoards`, `listProjects`, `queryCards`, `renderStatus`, `searchCards`, `updateProjectPrompt` |
+| `git` | 3 | `getCommitSummary`, `getGitLog`, `syncGitActivity` |
+| `milestones` | 3 | `createMilestone`, `listMilestones`, `updateMilestone` |
+| `notes` | 3 | `createNote`, `listNotes`, `updateNote` |
+| `relations` | 3 | `getBlockers`, `linkCards`, `unlinkCards` |
+| `scratch` | 1 | `scratch` |
+| `session` | 3 | `listHandoffs`, `loadHandoff`, `saveHandoff` |
+| `setup` | 4 | `createColumn`, `createProject`, `seedTutorial`, `setRepoPath` |
+
+### How categories compose
+
+```mermaid
+flowchart LR
+	A[Session start] --> B[briefMe]
+	B --> C{Need more?}
+	C -->|drill into card| D[runTool getCardContext]
+	C -->|plan a sprint| E[runTool getRoadmap]
+	C -->|search| F[runTool searchCards]
+	C -->|work| G[moveCard / updateCard / addComment]
+	G --> H[endSession]
+```
+
+Most sessions never reach past `briefMe` + the essentials + one or two `runTool` calls.
+
+## Prompts (8)
+
+MCP prompts are reusable session openers. Useful when you want to trigger a specific workflow.
+
+| Prompt | Purpose |
+| --- | --- |
+| `resume-session` | Loads board state + last handoff + diff. Alternative to `briefMe`. |
+| `end-session` | Superseded — returns a pointer to the `endSession` essential tool. |
+| `onboarding` | Guided setup — `tutorial` seeds a sample project, `quickstart` creates a real one. |
+| `deep-dive` | Loads focused context for deep work on a specific card. |
+| `sprint-review` | Velocity, milestone progress, stale cards, blockers. |
+| `plan-work` | Template for breaking work into cards + checklists. |
+| `setup-project` | Step-by-step guide for setting up a new project on the tracker. |
+| `holistic-review` | Reviews the board against the actual codebase — syncs state with reality. |
+
+## Resources (5)
+
+MCP resources are read-only URIs the agent can reference without a tool call.
+
+| Resource URI | Provides |
+| --- | --- |
+| `tracker://board/{boardId}` | Full board state |
+| `tracker://board/{boardId}/card/{number}` | Single card with all details |
+| `tracker://board/{boardId}/handoff` | Latest session handoff |
+| `tracker://project/{projectId}/decisions` | All project decisions |
+| `status://project/{slug}` | Board-derived project status (replaces STATUS.md) |
+
+## Card references
+
+Cards get sequential numbers per project (`#1`, `#2`, `#3`). Reference them naturally — "working on #7", "move #12 to Done" — and the agent resolves them automatically against the board scope.
+
+## Data model at a glance
+
+```mermaid
+flowchart LR
+	P[Project] --> B[Board]
+	B --> C[Card]
+	C --> CM[Comment]
+	C --> CK[ChecklistItem]
+	C --> CR[CardRelation]
+	C --> CD[Decision]
+	C --> CN[Note]
+	P --> M[Milestone]
+	M --> C
+	P --> F[Fact]
+	P --> CL[Claim]
+	B --> H[SessionHandoff]
+	B --> A[AgentScratch]
+	B --> G[GitLink]
+```
+
+- **Cards** are the primary unit of work.
+- **Notes** + **Claims** are the two knowledge primitives (the older `Fact` table is being consolidated into them — see `docs/` in the repo).
+- **SessionHandoff** is the handoff artifact `endSession` writes and `briefMe` reads.
+- **GitLink** connects commits to cards via `#N` references.
+
+## Extending the surface
+
+If you want to add a tool, the pattern is:
+
+1. Add the handler in `src/mcp/tools/<domain>.ts` following `ToolHandler<ParamsSchema>`.
+2. Register it in `src/mcp/tool-registry.ts` with a category, description, and schema.
+3. Bump `SCHEMA_VERSION` in `src/mcp/utils.ts` if you changed the data model.
+4. Run `npm run docs:check` to keep the README tables honest (they're auto-generated from the registry).
+
+The repo's `AGENTS.md` has the longer contributor guide.
+
+## Read next
+
+- **[The session loop](../workflow/)** — how these tools compose into a working session.
+- **[Design rationale](../why/)** — why the essential + catalog split exists.
+- **[Anti-patterns](../anti-patterns/)** — which tools to reach for when, and which to avoid.

@@ -29,7 +29,11 @@
 		"service:enable": "tsx scripts/service.ts enable",
 		"service:status": "tsx scripts/service.ts status",
 		"service:logs": "tsx scripts/service.ts logs",
-		"service:update": "tsx scripts/service.ts update"
+		"service:update": "tsx scripts/service.ts update",
+		"docs:dev": "npm --prefix docs-site run dev",
+		"docs:build": "npm --prefix docs-site run build",
+		"docs:preview": "npm --prefix docs-site run preview",
+		"docs:install": "npm --prefix docs-site install"
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",

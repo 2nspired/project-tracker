@@ -1,0 +1,37 @@
+/* Palette mirrors the main app (shadcn new-york, OKLCH).
+ * Accent: indigo oklch(0.488 0.243 264.376).
+ * Only overrides a few Starlight tokens so light/dark remain consistent.
+ */
+:root {
+	--sl-color-accent-low: oklch(0.92 0.05 264);
+	--sl-color-accent: oklch(0.488 0.243 264.376);
+	--sl-color-accent-high: oklch(0.35 0.2 264);
+	--sl-color-text-accent: oklch(0.488 0.243 264.376);
+}
+
+:root[data-theme="dark"] {
+	--sl-color-accent-low: oklch(0.28 0.12 264);
+	--sl-color-accent: oklch(0.62 0.2 264);
+	--sl-color-accent-high: oklch(0.82 0.08 264);
+	--sl-color-text-accent: oklch(0.72 0.16 264);
+}
+
+/* Tighten Mermaid diagram spacing and make them respect theme backgrounds. */
+.mermaid {
+	display: flex;
+	justify-content: center;
+	margin-block: 1.5rem;
+}
+
+.mermaid svg {
+	max-width: 100%;
+	height: auto;
+}
+
+/* Card list on the landing page. */
+.sl-markdown-content .card-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+	gap: 1rem;
+	margin-block: 1.5rem;
+}
