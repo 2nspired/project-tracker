@@ -1,0 +1,46 @@
+---
+title: Project Tracker
+description: Local-first kanban board with MCP integration for AI-assisted development. A shared workspace for you and your coding agent.
+template: splash
+hero:
+  tagline: A kanban board for you and your AI coding agent. Local-first. MCP-native. No accounts, no cloud.
+  actions:
+    - text: Quickstart — under 10 minutes
+      link: ./quickstart/
+      icon: right-arrow
+      variant: primary
+    - text: See the session loop
+      link: ./workflow/
+      icon: external
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## Why it exists
+
+When you work with a coding agent, context is expensive and it evaporates at the end of every conversation. You open a new chat and re-explain what was planned, what's done, what was decided, and what's stuck.
+
+Project Tracker gives you and the agent a shared workspace. You look at a kanban board. The agent reads and writes the same board through MCP tools. Nothing leaves your machine.
+
+<CardGrid>
+	<Card title="You see a board" icon="puzzle">
+		Cards, columns, priorities, checklists, activity. Drag-and-drop in your browser. Everything the agent does shows up live.
+	</Card>
+	<Card title="The agent sees structure" icon="setting">
+		Essential MCP tools are always on. Extended tools are discoverable on demand. The context footprint stays small.
+	</Card>
+	<Card title="Sessions hand off cleanly" icon="rocket">
+		`endSession` writes a handoff. The next chat calls `briefMe` and picks up exactly where the last one stopped.
+	</Card>
+	<Card title="Local-first by design" icon="laptop">
+		SQLite file on disk. No accounts, no cloud sync, no server to babysit. You own the data and the history.
+	</Card>
+</CardGrid>
+
+## What you'll read next
+
+- **[Quickstart](./quickstart/)** — clone, install, connect a project, run your first `briefMe` call.
+- **[The session loop](./workflow/)** — the centerpiece workflow: `briefMe` → work → `endSession` → fresh chat.
+- **[Design rationale](./why/)** — why local-first, why MCP-native, why the essential + catalog split.
+- **[Anti-patterns](./anti-patterns/)** — the ways people trip themselves up, and how to avoid them.
+- **[MCP tools](./tools/)** — reference for every tool the agent can call.

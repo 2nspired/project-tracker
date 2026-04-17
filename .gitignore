@@ -8,6 +8,10 @@ out/
 # build
 dist/
 
+# astro (docs site)
+docs-site/.astro/
+docs-site/dist/
+
 # prisma
 prisma/generated/
 
