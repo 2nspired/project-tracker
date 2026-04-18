@@ -1,7 +1,28 @@
 import { z } from "zod";
+import { createClaimService } from "@/server/services/claim-service";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, err, ok, resolveCardRef, safeExecute } from "../utils.js";
+
+const claimService = createClaimService(db);
+
+// Map the new 3-value Claim status back to the legacy 4-value Decision
+// enum so existing agents keep seeing familiar strings. "active" claims
+// are reported as "accepted" — in the cutover, proposed/accepted legacy
+// rows both collapsed into "active", so "accepted" is the safer default.
+const STATUS_CLAIM_TO_LEGACY: Record<string, string> = {
+	active: "accepted",
+	superseded: "superseded",
+	retired: "rejected",
+};
+
+// Inverse for accepting a legacy status filter on read / write.
+const STATUS_LEGACY_TO_CLAIM: Record<string, string> = {
+	proposed: "active",
+	accepted: "active",
+	superseded: "superseded",
+	rejected: "retired",
+};
 
 // ─── Decisions ─────────────────────────────────────────────────────
 
@@ -41,47 +62,42 @@ registerExtendedTool("recordDecision", {
 				resolvedCardId = resolved.id;
 			}
 
-			const record = await db.decision.create({
-				data: {
-					projectId: projectId as string,
-					cardId: resolvedCardId,
-					title: title as string,
-					status: (status as string) ?? "proposed",
-					decision: decision as string,
-					alternatives: JSON.stringify(alternatives ?? []),
-					rationale: (rationale as string) ?? "",
-					author: AGENT_NAME,
-				},
-				include: { card: { select: { id: true, number: true, title: true } } },
+			const body = rationale
+				? `${decision as string}\n\n${rationale as string}`
+				: (decision as string);
+
+			const result = await claimService.create({
+				projectId: projectId as string,
+				kind: "decision",
+				statement: title as string,
+				body,
+				evidence: {},
+				payload: { alternatives: (alternatives as string[] | undefined) ?? [] },
+				author: AGENT_NAME,
+				cardId: resolvedCardId,
+				status: STATUS_LEGACY_TO_CLAIM[(status as string) ?? "proposed"] as
+					| "active"
+					| "superseded"
+					| "retired",
+				...(supersedesId ? { supersedesId: supersedesId as string } : {}),
 			});
+			if (!result.success) return err(result.error.message);
 
-			if (supersedesId) {
-				const oldDecision = await db.decision.findUnique({ where: { id: supersedesId as string } });
-				if (!oldDecision) return err("Superseded decision not found.", "Check the supersedesId.");
-				await db.decision.update({
-					where: { id: supersedesId as string },
-					data: { status: "superseded", supersededBy: record.id },
-				});
-				await db.decision.update({
-					where: { id: record.id },
-					data: { supersedes: supersedesId as string },
-				});
-			}
-
-			const final = supersedesId
-				? await db.decision.findUnique({
-						where: { id: record.id },
-						include: { card: { select: { id: true, number: true, title: true } } },
+			const created = result.data;
+			const card = created.cardId
+				? await db.card.findUnique({
+						where: { id: created.cardId },
+						select: { number: true, title: true },
 					})
-				: record;
+				: null;
 
 			return ok({
-				id: final!.id,
-				title: final!.title,
-				status: final!.status,
-				supersedes: final!.supersedes,
-				supersededBy: final!.supersededBy,
-				card: final!.card ? { ref: `#${final!.card.number}`, title: final!.card.title } : null,
+				id: created.id,
+				title: created.statement,
+				status: STATUS_CLAIM_TO_LEGACY[created.status] ?? created.status,
+				supersedes: created.supersedesId,
+				supersededBy: created.supersededById,
+				card: card ? { ref: `#${card.number}`, title: card.title } : null,
 				created: true,
 			});
 		}),
@@ -105,30 +121,40 @@ registerExtendedTool("getDecisions", {
 				resolvedCardId = resolved.id;
 			}
 
-			const where: Record<string, unknown> = { projectId: projectId as string };
+			const where: Record<string, unknown> = {
+				projectId: projectId as string,
+				kind: "decision",
+			};
 			if (resolvedCardId) where.cardId = resolvedCardId;
-			if (status) where.status = status as string;
+			if (status) where.status = STATUS_LEGACY_TO_CLAIM[status as string] ?? status;
 
-			const decisions = await db.decision.findMany({
+			const claims = await db.claim.findMany({
 				where,
 				orderBy: { createdAt: "desc" },
 				include: { card: { select: { id: true, number: true, title: true } } },
 			});
 
 			return ok(
-				decisions.map((d) => ({
-					id: d.id,
-					title: d.title,
-					status: d.status,
-					decision: d.decision,
-					alternatives: JSON.parse(d.alternatives) as string[],
-					rationale: d.rationale,
-					author: d.author,
-					supersedes: d.supersedes,
-					supersededBy: d.supersededBy,
-					card: d.card ? { ref: `#${d.card.number}`, title: d.card.title } : null,
-					createdAt: d.createdAt,
-				}))
+				claims.map((c) => {
+					const payload = JSON.parse(c.payload) as { alternatives?: string[] };
+					// Body was stored as "decision\n\nrationale" during the
+					// backfill; split on the first blank line to reconstruct
+					// the legacy shape for readers.
+					const [decisionText, ...rationaleLines] = c.body.split(/\n{2,}/);
+					return {
+						id: c.id,
+						title: c.statement,
+						status: STATUS_CLAIM_TO_LEGACY[c.status] ?? c.status,
+						decision: decisionText ?? c.body,
+						alternatives: payload.alternatives ?? [],
+						rationale: rationaleLines.join("\n\n"),
+						author: c.author,
+						supersedes: c.supersedesId,
+						supersededBy: c.supersededById,
+						card: c.card ? { ref: `#${c.card.number}`, title: c.card.title } : null,
+						createdAt: c.createdAt,
+					};
+				})
 			);
 		}),
 });
@@ -152,44 +178,89 @@ registerExtendedTool("updateDecision", {
 	annotations: { idempotentHint: true },
 	handler: ({ decisionId, status, decision, rationale, alternatives, supersedesId }) =>
 		safeExecute(async () => {
-			const existing = await db.decision.findUnique({ where: { id: decisionId as string } });
-			if (!existing)
+			const existing = await db.claim.findUnique({ where: { id: decisionId as string } });
+			if (!existing || existing.kind !== "decision")
 				return err("Decision not found.", "Use getDecisions to find valid decision IDs.");
 
-			const data: Record<string, unknown> = {};
-			if (status !== undefined) data.status = status;
-			if (decision !== undefined) data.decision = decision;
-			if (rationale !== undefined) data.rationale = rationale;
-			if (alternatives !== undefined) data.alternatives = JSON.stringify(alternatives);
-
-			const updated = await db.decision.update({
-				where: { id: decisionId as string },
-				data,
-			});
-
+			// Supersession: create a NEW claim via claimService (which flips
+			// the old one to status="superseded" atomically). Otherwise plain
+			// update on the existing claim.
 			if (supersedesId) {
-				const oldDecision = await db.decision.findUnique({ where: { id: supersedesId as string } });
-				if (!oldDecision) return err("Superseded decision not found.", "Check the supersedesId.");
-				await db.decision.update({
-					where: { id: supersedesId as string },
-					data: { status: "superseded", supersededBy: updated.id },
+				const old = await db.claim.findUnique({ where: { id: supersedesId as string } });
+				if (!old || old.kind !== "decision")
+					return err("Superseded decision not found.", "Check the supersedesId.");
+
+				const existingPayload = JSON.parse(existing.payload) as { alternatives?: string[] };
+				const existingBody = existing.body;
+				const [oldDecisionText, ...oldRationale] = existingBody.split(/\n{2,}/);
+				const nextDecision =
+					decision !== undefined ? (decision as string) : (oldDecisionText ?? existingBody);
+				const nextRationale =
+					rationale !== undefined ? (rationale as string) : oldRationale.join("\n\n");
+				const nextBody = nextRationale ? `${nextDecision}\n\n${nextRationale}` : nextDecision;
+				const nextAlternatives =
+					alternatives !== undefined
+						? (alternatives as string[])
+						: (existingPayload.alternatives ?? []);
+
+				const result = await claimService.create({
+					projectId: existing.projectId,
+					kind: "decision",
+					statement: existing.statement,
+					body: nextBody,
+					evidence: {},
+					payload: { alternatives: nextAlternatives },
+					author: existing.author,
+					cardId: existing.cardId,
+					status: status
+						? (STATUS_LEGACY_TO_CLAIM[status as string] as "active" | "superseded" | "retired")
+						: "active",
+					supersedesId: supersedesId as string,
 				});
-				await db.decision.update({
-					where: { id: updated.id },
-					data: { supersedes: supersedesId as string },
+				if (!result.success) return err(result.error.message);
+				const created = result.data;
+				return ok({
+					id: created.id,
+					title: created.statement,
+					status: STATUS_CLAIM_TO_LEGACY[created.status] ?? created.status,
+					supersedes: created.supersedesId,
+					supersededBy: created.supersededById,
+					updated: true,
 				});
 			}
 
-			const final = supersedesId
-				? await db.decision.findUnique({ where: { id: updated.id } })
-				: updated;
+			const existingPayload = JSON.parse(existing.payload) as { alternatives?: string[] };
+			const [oldDecisionText, ...oldRationale] = existing.body.split(/\n{2,}/);
+			const updates: Parameters<typeof claimService.update>[1] = {};
+			if (decision !== undefined || rationale !== undefined) {
+				const nextDecision =
+					decision !== undefined ? (decision as string) : (oldDecisionText ?? existing.body);
+				const nextRationale =
+					rationale !== undefined ? (rationale as string) : oldRationale.join("\n\n");
+				updates.body = nextRationale ? `${nextDecision}\n\n${nextRationale}` : nextDecision;
+			}
+			if (alternatives !== undefined) {
+				updates.payload = { alternatives: alternatives as string[] };
+			} else {
+				// payload revalidates if we pass it; keep existing structure
+			}
+			if (status !== undefined) {
+				updates.status = STATUS_LEGACY_TO_CLAIM[status as string] as
+					| "active"
+					| "superseded"
+					| "retired";
+			}
+
+			const result = await claimService.update(decisionId as string, updates);
+			if (!result.success) return err(result.error.message);
+			const updated = result.data;
 
 			return ok({
-				id: final!.id,
-				title: final!.title,
-				status: final!.status,
-				supersedes: final!.supersedes,
-				supersededBy: final!.supersededBy,
+				id: updated.id,
+				title: updated.statement,
+				status: STATUS_CLAIM_TO_LEGACY[updated.status] ?? updated.status,
+				supersedes: updated.supersedesId,
+				supersededBy: updated.supersededById,
 				updated: true,
 			});
 		}),

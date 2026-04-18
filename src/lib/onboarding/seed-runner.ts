@@ -14,9 +14,7 @@ export interface SeedResult {
 	boardId: string;
 }
 
-export async function seedTutorialProject(
-	db: PrismaClient,
-): Promise<SeedResult | null> {
+export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult | null> {
 	// Idempotency: skip if tutorial project already exists
 	const existing = await db.project.findUnique({
 		where: { slug: TUTORIAL_SLUG },
@@ -99,9 +97,7 @@ export async function seedTutorialProject(
 				priority: def.priority,
 				tags: JSON.stringify(def.tags),
 				createdBy: def.createdBy,
-				milestoneId: teachingProject.milestoneCards.includes(cardNumber)
-					? milestone.id
-					: null,
+				milestoneId: teachingProject.milestoneCards.includes(cardNumber) ? milestone.id : null,
 			},
 		});
 
@@ -146,32 +142,45 @@ export async function seedTutorialProject(
 		});
 	}
 
-	// Create decision record (attached to card #13)
+	// Create decision claim (attached to card #13)
 	const dec = teachingProject.decision;
-	await db.decision.create({
+	const decisionStatusMap: Record<string, string> = {
+		proposed: "active",
+		accepted: "active",
+		superseded: "superseded",
+		rejected: "retired",
+	};
+	await db.claim.create({
 		data: {
 			projectId: project.id,
 			cardId: numberToId.get(dec.cardNumber)!,
-			title: dec.title,
-			status: dec.status,
-			decision: dec.decision,
-			alternatives: JSON.stringify(dec.alternatives),
-			rationale: dec.rationale,
+			kind: "decision",
+			statement: dec.title,
+			body: dec.rationale ? `${dec.decision}\n\n${dec.rationale}` : dec.decision,
+			evidence: JSON.stringify({}),
+			payload: JSON.stringify({ alternatives: dec.alternatives }),
 			author: dec.author,
+			status: decisionStatusMap[dec.status] ?? "active",
 		},
 	});
 
-	// Create session handoff
+	// Create session handoff as a Note(kind="handoff")
 	const hoff = teachingProject.handoff;
-	await db.sessionHandoff.create({
+	await db.note.create({
 		data: {
 			boardId: board.id,
-			agentName: hoff.agentName,
-			summary: hoff.summary,
-			workingOn: JSON.stringify(hoff.workingOn),
-			findings: JSON.stringify(hoff.findings),
-			nextSteps: JSON.stringify(hoff.nextSteps),
-			blockers: JSON.stringify(hoff.blockers),
+			projectId: project.id,
+			kind: "handoff",
+			title: `Handoff by ${hoff.agentName}`,
+			content: hoff.summary,
+			author: hoff.agentName,
+			tags: "[]",
+			metadata: JSON.stringify({
+				workingOn: hoff.workingOn,
+				findings: hoff.findings,
+				nextSteps: hoff.nextSteps,
+				blockers: hoff.blockers,
+			}),
 		},
 	});
 

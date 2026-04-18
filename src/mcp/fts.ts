@@ -1,5 +1,5 @@
-import { readdir, readFile, stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { promisify } from "node:util";
 import { db } from "./db.js";
@@ -39,12 +39,11 @@ type FtsRow = {
 /**
  * Rebuild the FTS5 index for a project from all knowledge sources.
  */
-export async function rebuildIndex(projectId: string): Promise<{ indexed: Record<string, number> }> {
+export async function rebuildIndex(
+	projectId: string
+): Promise<{ indexed: Record<string, number> }> {
 	// Clear existing entries for this project
-	await db.$executeRawUnsafe(
-		"DELETE FROM knowledge_fts WHERE project_id = ?",
-		projectId,
-	);
+	await db.$executeRawUnsafe("DELETE FROM knowledge_fts WHERE project_id = ?", projectId);
 
 	const rows: FtsRow[] = [];
 
@@ -55,7 +54,9 @@ export async function rebuildIndex(projectId: string): Promise<{ indexed: Record
 	});
 	for (const card of cards) {
 		const tags = JSON.parse(card.tags) as string[];
-		const content = [card.description ?? "", tags.length > 0 ? `Tags: ${tags.join(", ")}` : ""].filter(Boolean).join("\n");
+		const content = [card.description ?? "", tags.length > 0 ? `Tags: ${tags.join(", ")}` : ""]
+			.filter(Boolean)
+			.join("\n");
 		rows.push({
 			source_type: "card",
 			source_id: card.id,
@@ -80,109 +81,84 @@ export async function rebuildIndex(projectId: string): Promise<{ indexed: Record
 		});
 	}
 
-	// Source 3: Decisions
-	const decisions = await db.decision.findMany({
+	// Source 3: Claims (decision / context / code / measurement)
+	const claims = await db.claim.findMany({
 		where: { projectId },
-		select: { id: true, title: true, decision: true, rationale: true, status: true },
+		select: {
+			id: true,
+			kind: true,
+			statement: true,
+			status: true,
+			body: true,
+			evidence: true,
+			payload: true,
+		},
 	});
-	for (const d of decisions) {
+	for (const c of claims) {
+		const evidence = JSON.parse(c.evidence) as {
+			files?: string[];
+			symbols?: string[];
+			urls?: string[];
+		};
+		const payload = JSON.parse(c.payload) as Record<string, unknown>;
+		const evidenceParts = [
+			...(evidence.files ?? []),
+			...(evidence.symbols ?? []),
+			...(evidence.urls ?? []),
+		];
+		const payloadParts = Object.entries(payload)
+			.map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+			.filter((s) => s.length < 500);
 		rows.push({
-			source_type: "decision",
-			source_id: d.id,
+			source_type: `claim_${c.kind}`,
+			source_id: c.id,
 			project_id: projectId,
-			title: `[${d.status}] ${d.title}`,
-			content: [d.decision, d.rationale].filter(Boolean).join("\n"),
+			title: `[${c.kind}${c.kind === "decision" ? ` · ${c.status}` : ""}] ${c.statement}`,
+			content: [c.body, evidenceParts.join(" · "), payloadParts.join(" · ")]
+				.filter(Boolean)
+				.join("\n"),
 		});
 	}
 
-	// Source 4: Notes
+	// Source 4: Notes (general + handoff)
 	const notes = await db.note.findMany({
 		where: { projectId },
-		select: { id: true, title: true, content: true },
+		select: {
+			id: true,
+			kind: true,
+			title: true,
+			content: true,
+			author: true,
+			metadata: true,
+			createdAt: true,
+		},
 	});
 	for (const note of notes) {
-		rows.push({
-			source_type: "note",
-			source_id: note.id,
-			project_id: projectId,
-			title: note.title,
-			content: note.content,
-		});
-	}
-
-	// Source 5: Session handoffs
-	const project = await db.project.findUnique({
-		where: { id: projectId },
-		select: { boards: { select: { id: true } }, repoPath: true },
-	});
-	const boardIds = project?.boards.map((b) => b.id) ?? [];
-
-	if (boardIds.length > 0) {
-		const handoffs = await db.sessionHandoff.findMany({
-			where: { boardId: { in: boardIds } },
-			select: { id: true, summary: true, findings: true, agentName: true, createdAt: true },
-		});
-		for (const h of handoffs) {
-			const findings = JSON.parse(h.findings) as string[];
+		if (note.kind === "handoff") {
+			const metadata = JSON.parse(note.metadata || "{}") as { findings?: string[] };
 			rows.push({
 				source_type: "handoff",
-				source_id: h.id,
+				source_id: note.id,
 				project_id: projectId,
-				title: `Handoff by ${h.agentName} (${h.createdAt.toISOString().slice(0, 10)})`,
-				content: [h.summary, ...findings].filter(Boolean).join("\n"),
+				title: `Handoff by ${note.author} (${note.createdAt.toISOString().slice(0, 10)})`,
+				content: [note.content, ...(metadata.findings ?? [])].filter(Boolean).join("\n"),
+			});
+		} else {
+			rows.push({
+				source_type: "note",
+				source_id: note.id,
+				project_id: projectId,
+				title: note.title,
+				content: note.content,
 			});
 		}
 	}
 
-	// Source 6: Code facts
-	const codeFacts = await db.codeFact.findMany({
-		where: { projectId },
-		select: { id: true, path: true, symbol: true, fact: true },
+	// Indexed repo markdown files
+	const project = await db.project.findUnique({
+		where: { id: projectId },
+		select: { repoPath: true },
 	});
-	for (const f of codeFacts) {
-		rows.push({
-			source_type: "code_fact",
-			source_id: f.id,
-			project_id: projectId,
-			title: f.symbol ? `${f.path}#${f.symbol}` : f.path,
-			content: f.fact,
-		});
-	}
-
-	// Source 7: Persistent context entries
-	const entries = await db.persistentContextEntry.findMany({
-		where: { projectId },
-		select: { id: true, claim: true, rationale: true, application: true, details: true },
-	});
-	for (const e of entries) {
-		const details = JSON.parse(e.details) as string[];
-		rows.push({
-			source_type: "context_entry",
-			source_id: e.id,
-			project_id: projectId,
-			title: e.claim,
-			content: [e.rationale, e.application, ...details].filter(Boolean).join("\n"),
-		});
-	}
-
-	// Source 9: Measurement facts
-	const measurements = await db.measurementFact.findMany({
-		where: { projectId },
-		select: { id: true, description: true, value: true, unit: true, env: true, path: true, symbol: true },
-	});
-	for (const m of measurements) {
-		const envObj = JSON.parse(m.env) as Record<string, string>;
-		const envStr = Object.entries(envObj).map(([k, v]) => `${k}: ${v}`).join(", ");
-		rows.push({
-			source_type: "measurement",
-			source_id: m.id,
-			project_id: projectId,
-			title: `[measurement] ${m.description}`,
-			content: `${m.value} ${m.unit}${m.path ? ` (${m.path}${m.symbol ? `#${m.symbol}` : ""})` : ""}${envStr ? ` — env: ${envStr}` : ""}`,
-		});
-	}
-
-	// Source 8: Indexed repo markdown files
 	if (project?.repoPath) {
 		const docRows = await indexRepoMarkdown(projectId, project.repoPath);
 		rows.push(...docRows);
@@ -196,7 +172,7 @@ export async function rebuildIndex(projectId: string): Promise<{ indexed: Record
 			row.source_id,
 			row.project_id,
 			row.title,
-			row.content,
+			row.content
 		);
 	}
 
@@ -228,7 +204,7 @@ async function indexRepoMarkdown(projectId: string, repoPath: string): Promise<F
 					const { stdout } = await execFileAsync(
 						"git",
 						["log", "-1", "--format=%H", "--", relative(repoPath, filePath)],
-						{ ...EXEC_OPTS, cwd: repoPath },
+						{ ...EXEC_OPTS, cwd: repoPath }
 					);
 					sha = stdout.trim() || undefined;
 				} catch {
@@ -243,10 +219,7 @@ async function indexRepoMarkdown(projectId: string, repoPath: string): Promise<F
 					title: relPath,
 					content: content.slice(0, 50_000), // Cap at 50KB per file
 				});
-			} catch {
-				// Skip unreadable files
-				continue;
-			}
+			} catch {}
 		}
 	} catch {
 		// Repo path doesn't exist or isn't accessible
@@ -255,7 +228,16 @@ async function indexRepoMarkdown(projectId: string, repoPath: string): Promise<F
 	return rows;
 }
 
-const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", "coverage", "vendor", ".turbo"]);
+const SKIP_DIRS = new Set([
+	"node_modules",
+	".git",
+	"dist",
+	"build",
+	".next",
+	"coverage",
+	"vendor",
+	".turbo",
+]);
 
 async function findMarkdownFiles(dir: string, depth = 0): Promise<string[]> {
 	if (depth > 5) return []; // Max depth to prevent runaway traversal
@@ -277,7 +259,8 @@ async function findMarkdownFiles(dir: string, depth = 0): Promise<string[]> {
 			} else if (entry.name.endsWith(".md")) {
 				// Skip very large files
 				const fileStat = await stat(fullPath);
-				if (fileStat.size <= 100_000) { // 100KB max
+				if (fileStat.size <= 100_000) {
+					// 100KB max
 					results.push(fullPath);
 				}
 			}
@@ -305,7 +288,7 @@ export type KnowledgeResult = {
 export async function queryKnowledge(
 	projectId: string,
 	topic: string,
-	limit = 20,
+	limit = 20
 ): Promise<KnowledgeResult[]> {
 	// Sanitize the query for FTS5 — escape special characters and wrap terms
 	const sanitized = sanitizeFts5Query(topic);
@@ -332,7 +315,7 @@ export async function queryKnowledge(
 		LIMIT ?`,
 		sanitized,
 		projectId,
-		limit,
+		limit
 	);
 
 	return results.map((r) => ({

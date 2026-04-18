@@ -62,8 +62,8 @@ export async function detectFeatures(): Promise<FeatureAvailability> {
 
 	const [relations, decisions, handoffs, gitLinks] = await Promise.all([
 		probe(() => db.cardRelation.count()),
-		probe(() => db.decision.count()),
-		probe(() => db.sessionHandoff.count()),
+		probe(() => db.claim.count({ where: { kind: "decision" } })),
+		probe(() => db.note.count({ where: { kind: "handoff" } })),
 		probe(() => db.gitLink.count()),
 	]);
 

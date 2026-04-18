@@ -7,7 +7,7 @@ import { z } from "zod";
 import { getHorizon, hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
-import { getLatestHandoff, saveHandoff } from "../lib/services/handoff.js";
+import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
 import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
 import { computeWorkNextScore } from "../lib/work-next-score.js";
 import { db } from "./db.js";
@@ -522,7 +522,7 @@ server.registerTool(
 			db.project.count(),
 			db.board.count(),
 			db.card.count(),
-			db.sessionHandoff.count(),
+			db.note.count({ where: { kind: "handoff" } }),
 			db.project.findMany({
 				orderBy: { createdAt: "desc" },
 				include: {
@@ -678,10 +678,10 @@ server.registerTool(
 			const [lastHandoff, openDecisions, stalenessWarnings, blockerEntries, recentAgentActivity] =
 				await Promise.all([
 					getLatestHandoff(db, boardId),
-					db.decision.findMany({
-						where: { projectId: board.project.id, status: "proposed" },
+					db.claim.findMany({
+						where: { projectId: board.project.id, kind: "decision", status: "active" },
 						orderBy: { createdAt: "desc" },
-						select: { id: true, title: true, card: { select: { number: true } } },
+						select: { id: true, statement: true, card: { select: { number: true } } },
 					}),
 					checkStaleness(board.project.id),
 					getBlockersShared(db, boardId),
@@ -734,13 +734,14 @@ server.registerTool(
 				.sort((a, b) => b.score - a.score)
 				.slice(0, 3);
 
-			const handoff = lastHandoff
+			const parsedHandoff = lastHandoff ? parseHandoff(lastHandoff) : null;
+			const handoff = parsedHandoff
 				? {
-						agentName: lastHandoff.agentName,
-						createdAt: lastHandoff.createdAt,
-						summary: lastHandoff.summary,
-						nextSteps: JSON.parse(lastHandoff.nextSteps) as string[],
-						blockers: JSON.parse(lastHandoff.blockers) as string[],
+						agentName: parsedHandoff.agentName,
+						createdAt: parsedHandoff.createdAt,
+						summary: parsedHandoff.summary,
+						nextSteps: parsedHandoff.nextSteps,
+						blockers: parsedHandoff.blockers,
 					}
 				: null;
 
@@ -752,7 +753,7 @@ server.registerTool(
 
 			const decisions = openDecisions.map((d) => ({
 				id: d.id,
-				title: d.title,
+				title: d.statement,
 				card: d.card ? `#${d.card.number}` : null,
 			}));
 
@@ -956,7 +957,7 @@ server.registerTool(
 					handoff: {
 						id: handoff.id,
 						boardId: handoff.boardId,
-						agentName: handoff.agentName,
+						agentName: handoff.author,
 						createdAt: handoff.createdAt,
 					},
 					board: { id: boardId, project: projectName, name: boardName },
@@ -1060,10 +1061,7 @@ server.registerPrompt(
 		}
 
 		// Last handoff
-		const lastHandoff = await db.sessionHandoff.findFirst({
-			where: { boardId },
-			orderBy: { createdAt: "desc" },
-		});
+		const lastHandoff = await getLatestHandoff(db, boardId);
 
 		// Board diff since last handoff
 		let diffSummary = "";
@@ -1109,16 +1107,17 @@ server.registerPrompt(
 		}
 
 		if (lastHandoff) {
+			const parsed = parseHandoff(lastHandoff);
 			const handoffData = {
-				agent: lastHandoff.agentName,
-				summary: lastHandoff.summary,
-				nextSteps: JSON.parse(lastHandoff.nextSteps) as string[],
-				blockers: JSON.parse(lastHandoff.blockers) as string[],
+				agent: parsed.agentName,
+				summary: parsed.summary,
+				nextSteps: parsed.nextSteps,
+				blockers: parsed.blockers,
 			};
 			lines.push(
 				"",
 				"## Last Handoff",
-				`Agent: ${handoffData.agent} | ${lastHandoff.createdAt.toISOString()}`
+				`Agent: ${handoffData.agent} | ${parsed.createdAt.toISOString()}`
 			);
 			if (handoffData.summary) lines.push(handoffData.summary);
 			if (handoffData.nextSteps.length > 0) {

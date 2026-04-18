@@ -180,21 +180,27 @@ export function registerResources(server: McpServer) {
 		new ResourceTemplate("tracker://board/{boardId}/handoff", { list: undefined }),
 		{ title: "Latest Handoff", description: "Most recent agent session handoff" },
 		async (uri, { boardId }) => {
-			const handoff = await db.sessionHandoff.findFirst({
-				where: { boardId: boardId as string },
+			const note = await db.note.findFirst({
+				where: { kind: "handoff", boardId: boardId as string },
 				orderBy: { createdAt: "desc" },
 			});
-			if (!handoff)
+			if (!note)
 				return { contents: [{ uri: uri.href, text: "No handoff found", mimeType: "text/plain" }] };
 
+			const metadata = JSON.parse(note.metadata || "{}") as {
+				workingOn?: string[];
+				findings?: string[];
+				nextSteps?: string[];
+				blockers?: string[];
+			};
 			const data = {
-				agentName: handoff.agentName,
-				summary: handoff.summary,
-				workingOn: JSON.parse(handoff.workingOn),
-				findings: JSON.parse(handoff.findings),
-				nextSteps: JSON.parse(handoff.nextSteps),
-				blockers: JSON.parse(handoff.blockers),
-				createdAt: handoff.createdAt,
+				agentName: note.author,
+				summary: note.content,
+				workingOn: metadata.workingOn ?? [],
+				findings: metadata.findings ?? [],
+				nextSteps: metadata.nextSteps ?? [],
+				blockers: metadata.blockers ?? [],
+				createdAt: note.createdAt,
 			};
 
 			return {
@@ -215,22 +221,26 @@ export function registerResources(server: McpServer) {
 		new ResourceTemplate("tracker://project/{projectId}/decisions", { list: undefined }),
 		{ title: "Project Decisions", description: "All architectural decision records for a project" },
 		async (uri, { projectId }) => {
-			const decisions = await db.decision.findMany({
-				where: { projectId: projectId as string },
+			const claims = await db.claim.findMany({
+				where: { projectId: projectId as string, kind: "decision" },
 				include: { card: { select: { number: true, title: true } } },
 				orderBy: { createdAt: "desc" },
 			});
 
-			const data = decisions.map((d) => ({
-				title: d.title,
-				status: d.status,
-				decision: d.decision,
-				rationale: d.rationale,
-				alternatives: JSON.parse(d.alternatives),
-				card: d.card ? `#${d.card.number}` : null,
-				author: d.author,
-				createdAt: d.createdAt,
-			}));
+			const data = claims.map((c) => {
+				const payload = JSON.parse(c.payload) as { alternatives?: string[] };
+				const [decisionText, ...rationaleLines] = c.body.split(/\n{2,}/);
+				return {
+					title: c.statement,
+					status: c.status,
+					decision: decisionText ?? c.body,
+					rationale: rationaleLines.join("\n\n"),
+					alternatives: payload.alternatives ?? [],
+					card: c.card ? `#${c.card.number}` : null,
+					author: c.author,
+					createdAt: c.createdAt,
+				};
+			});
 
 			return {
 				contents: [
