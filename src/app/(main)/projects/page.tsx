@@ -1,6 +1,15 @@
 "use client";
 
-import { BookOpen, Bot, FolderOpen, Loader2, MoreHorizontal, Pencil, Star, Trash2 } from "lucide-react";
+import {
+	BookOpen,
+	Bot,
+	FolderOpen,
+	Loader2,
+	MoreHorizontal,
+	Pencil,
+	Star,
+	Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -18,7 +27,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Dialog,
 	DialogContent,
@@ -32,6 +40,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -73,6 +82,7 @@ export default function ProjectsPage() {
 	const [editName, setEditName] = useState("");
 	const [editDescription, setEditDescription] = useState("");
 	const [editColor, setEditColor] = useState<ProjectColor>("slate");
+	const [editRepoPath, setEditRepoPath] = useState("");
 
 	const utils = api.useUtils();
 	const { data: projects, isLoading } = api.project.list.useQuery();
@@ -110,7 +120,7 @@ export default function ProjectsPage() {
 			await utils.project.list.cancel();
 			const prev = utils.project.list.getData();
 			utils.project.list.setData(undefined, (old) =>
-				old?.map((p) => (p.id === id ? { ...p, favorite: !p.favorite } : p)),
+				old?.map((p) => (p.id === id ? { ...p, favorite: !p.favorite } : p))
 			);
 			return { prev };
 		},
@@ -127,22 +137,26 @@ export default function ProjectsPage() {
 		name: string;
 		description: string | null;
 		color: string;
+		repoPath: string | null;
 	}) => {
 		setEditId(project.id);
 		setEditName(project.name);
 		setEditDescription(project.description ?? "");
 		setEditColor(project.color as ProjectColor);
+		setEditRepoPath(project.repoPath ?? "");
 	};
 
 	const handleUpdate = (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!editId || !editName.trim()) return;
+		const trimmedPath = editRepoPath.trim();
 		updateProject.mutate({
 			id: editId,
 			data: {
 				name: editName.trim(),
 				description: editDescription.trim() || undefined,
 				color: editColor,
+				repoPath: trimmedPath === "" ? null : trimmedPath,
 			},
 		});
 	};
@@ -202,7 +216,9 @@ export default function ProjectsPage() {
 										<CardHeader className="pb-3">
 											<CardTitle className="text-lg">{project.name}</CardTitle>
 											{project.description && (
-												<CardDescription className="line-clamp-2">{project.description}</CardDescription>
+												<CardDescription className="line-clamp-2">
+													{project.description}
+												</CardDescription>
 											)}
 										</CardHeader>
 										<div className="flex items-center gap-3 px-6 pb-4 text-xs text-muted-foreground">
@@ -330,6 +346,20 @@ export default function ProjectsPage() {
 							<div className="space-y-2">
 								<Label>Color</Label>
 								<ColorPicker value={editColor} onChange={setEditColor} />
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="edit-project-repo">Repo path</Label>
+								<Input
+									id="edit-project-repo"
+									value={editRepoPath}
+									onChange={(e) => setEditRepoPath(e.target.value)}
+									placeholder="/Users/you/Projects/my-repo"
+									spellCheck={false}
+								/>
+								<p className="text-xs text-muted-foreground">
+									Absolute path to the git repo. Lets <code>briefMe</code> auto-detect this project
+									when an agent runs inside it. Leave empty to unbind.
+								</p>
 							</div>
 						</div>
 						<DialogFooter className="mt-6">

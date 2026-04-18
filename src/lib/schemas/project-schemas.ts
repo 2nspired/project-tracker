@@ -1,9 +1,24 @@
 import { z } from "zod";
 
 export const PROJECT_COLORS = [
-	"slate", "red", "orange", "amber", "yellow", "lime", "green",
-	"emerald", "teal", "cyan", "sky", "blue", "indigo", "violet",
-	"purple", "fuchsia", "pink", "rose",
+	"slate",
+	"red",
+	"orange",
+	"amber",
+	"yellow",
+	"lime",
+	"green",
+	"emerald",
+	"teal",
+	"cyan",
+	"sky",
+	"blue",
+	"indigo",
+	"violet",
+	"purple",
+	"fuchsia",
+	"pink",
+	"rose",
 ] as const;
 
 export type ProjectColor = (typeof PROJECT_COLORS)[number];
@@ -20,6 +35,7 @@ export const updateProjectSchema = z.object({
 	color: z.enum(PROJECT_COLORS).optional(),
 	favorite: z.boolean().optional(),
 	defaultBoardId: z.string().uuid().nullable().optional(),
+	repoPath: z.string().trim().max(500).nullable().optional(),
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;

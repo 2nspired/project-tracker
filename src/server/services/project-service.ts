@@ -92,15 +92,34 @@ async function create(data: CreateProjectInput): Promise<ServiceResult<Project>>
 		return { success: true, data: project };
 	} catch (error) {
 		console.error("[PROJECT_SERVICE] create error:", error);
-		return { success: false, error: { code: "CREATE_FAILED", message: "Failed to create project." } };
+		return {
+			success: false,
+			error: { code: "CREATE_FAILED", message: "Failed to create project." },
+		};
 	}
 }
 
-async function update(projectId: string, data: UpdateProjectInput): Promise<ServiceResult<Project>> {
+async function update(
+	projectId: string,
+	data: UpdateProjectInput
+): Promise<ServiceResult<Project>> {
 	try {
 		const existing = await db.project.findUnique({ where: { id: projectId } });
 		if (!existing) {
 			return { success: false, error: { code: "NOT_FOUND", message: "Project not found." } };
+		}
+
+		if (data.repoPath) {
+			const collision = await db.project.findUnique({ where: { repoPath: data.repoPath } });
+			if (collision && collision.id !== projectId) {
+				return {
+					success: false,
+					error: {
+						code: "REPO_PATH_TAKEN",
+						message: `Repo path is already bound to project "${collision.name}".`,
+					},
+				};
+			}
 		}
 
 		const project = await db.project.update({
@@ -110,7 +129,10 @@ async function update(projectId: string, data: UpdateProjectInput): Promise<Serv
 		return { success: true, data: project };
 	} catch (error) {
 		console.error("[PROJECT_SERVICE] update error:", error);
-		return { success: false, error: { code: "UPDATE_FAILED", message: "Failed to update project." } };
+		return {
+			success: false,
+			error: { code: "UPDATE_FAILED", message: "Failed to update project." },
+		};
 	}
 }
 
@@ -125,7 +147,10 @@ async function deleteProject(projectId: string): Promise<ServiceResult<Project>>
 		return { success: true, data: project };
 	} catch (error) {
 		console.error("[PROJECT_SERVICE] delete error:", error);
-		return { success: false, error: { code: "DELETE_FAILED", message: "Failed to delete project." } };
+		return {
+			success: false,
+			error: { code: "DELETE_FAILED", message: "Failed to delete project." },
+		};
 	}
 }
 
