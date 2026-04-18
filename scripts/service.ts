@@ -37,8 +37,8 @@ const PROJECT_DIR = resolve(__dirname, "..");
 const HOME = homedir();
 const PLIST_PATH = resolve(HOME, "Library/LaunchAgents", `${SERVICE_LABEL}.plist`);
 const LOG_DIR = resolve(HOME, "Library/Logs/project-tracker");
-const NODE_BIN_DIR = resolve(HOME, ".local/share/fnm/aliases/default/bin");
-const NODE_PATH = resolve(NODE_BIN_DIR, "node");
+const NODE_PATH = process.execPath;
+const NODE_BIN_DIR = dirname(NODE_PATH);
 const NEXT_BIN = resolve(PROJECT_DIR, "node_modules/next/dist/bin/next");
 
 const UID = execSync("id -u", { encoding: "utf-8" }).trim();
@@ -156,12 +156,6 @@ function bootstrap() {
 // ---------------------------------------------------------------------------
 
 function install() {
-	if (!existsSync(NODE_PATH)) {
-		console.error(`Node not found at ${NODE_PATH}`);
-		console.error("Make sure fnm has a default alias set: fnm alias <version> default");
-		process.exit(1);
-	}
-
 	ensureBuild();
 	writePlist();
 
