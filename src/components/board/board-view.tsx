@@ -22,7 +22,6 @@ import { hasRole } from "@/lib/column-roles";
 import { computeWorkNextScore } from "@/lib/work-next-score";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
-import { ActivityStrip } from "./activity-strip";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
 import { BoardPulse } from "./board-pulse";
@@ -75,6 +74,8 @@ type BoardViewProps = {
 	onHiddenRolesChange: (roles: string[]) => void;
 	activeViewId: string | null;
 	onViewChange: (view: BoardViewType | null) => void;
+	selectedCardId: string | null;
+	onCardSelect: (cardId: string | null) => void;
 };
 
 export function BoardView({
@@ -87,8 +88,9 @@ export function BoardView({
 	onHiddenRolesChange,
 	activeViewId,
 	onViewChange,
+	selectedCardId,
+	onCardSelect,
 }: BoardViewProps) {
-	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 	const [activeCard, setActiveCard] = useState<BoardCardType | null>(null);
 
 	const utils = api.useUtils();
@@ -306,7 +308,7 @@ export function BoardView({
 								column={column}
 								boardId={board.id}
 								sortMode={sortMode}
-								onCardClick={setSelectedCardId}
+								onCardClick={onCardSelect}
 							/>
 						))}
 						<div className="flex shrink-0 items-start pt-1">
@@ -330,13 +332,7 @@ export function BoardView({
 					<CardDetailSheet
 						cardId={selectedCardId}
 						boardId={board.id}
-						onClose={() => setSelectedCardId(null)}
-					/>
-
-					<ActivityStrip
-						boardId={board.id}
-						selectedCardId={selectedCardId}
-						onCardClick={setSelectedCardId}
+						onClose={() => onCardSelect(null)}
 					/>
 				</div>
 

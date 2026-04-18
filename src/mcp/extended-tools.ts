@@ -548,8 +548,13 @@ registerExtendedTool("bulkMoveCards", {
 		boardId: z.string().describe("Board UUID"),
 		cardIds: z.array(z.string()).describe("UUIDs or #numbers"),
 		columnName: z.string().describe("Target column name"),
+		intent: z
+			.string()
+			.min(1)
+			.max(120)
+			.describe("Why these cards are being moved (≤120 chars). Shown in the activity feed."),
 	}),
-	handler: ({ boardId, cardIds, columnName }) =>
+	handler: ({ boardId, cardIds, columnName, intent }) =>
 		safeExecute(async () => {
 			const projectId = await getProjectIdForBoard(boardId as string);
 			const column = await db.column.findFirst({
@@ -565,6 +570,12 @@ registerExtendedTool("bulkMoveCards", {
 					`Available: ${cols.map((c) => c.name).join(", ")}`
 				);
 			}
+
+			const maxPosAgg = await db.card.aggregate({
+				where: { columnId: column.id },
+				_max: { position: true },
+			});
+			let nextPos = (maxPosAgg._max.position ?? -1) + 1;
 
 			const moved: string[] = [];
 			const errors: string[] = [];
@@ -583,26 +594,29 @@ registerExtendedTool("bulkMoveCards", {
 					continue;
 				}
 
-				const maxPos = await db.card.aggregate({
-					where: { columnId: column.id },
-					_max: { position: true },
-				});
+				// Skip reindexing cards already in the target column — but still emit no-op
+				// so the loop order is consistent. Only cards moving to a new column claim
+				// a fresh slot at the end.
+				if (card.columnId === column.id) {
+					moved.push(`#${card.number}`);
+					continue;
+				}
+
 				await db.card.update({
 					where: { id },
-					data: { columnId: column.id, position: (maxPos._max.position ?? -1) + 1 },
+					data: { columnId: column.id, position: nextPos++ },
 				});
 
-				if (card.column.name !== columnName) {
-					await db.activity.create({
-						data: {
-							cardId: id,
-							action: "moved",
-							details: `Moved from "${card.column.name}" to "${columnName}"`,
-							actorType: "AGENT",
-							actorName: AGENT_NAME,
-						},
-					});
-				}
+				await db.activity.create({
+					data: {
+						cardId: id,
+						action: "moved",
+						details: `Moved from "${card.column.name}" to "${columnName}"`,
+						intent: intent as string,
+						actorType: "AGENT",
+						actorName: AGENT_NAME,
+					},
+				});
 				moved.push(`#${card.number}`);
 			}
 

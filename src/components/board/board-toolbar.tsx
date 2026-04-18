@@ -187,6 +187,7 @@ export function BoardToolbar({
 					)}
 				</>
 			)}
+
 		</div>
 	);
 }

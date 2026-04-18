@@ -338,17 +338,15 @@ server.registerTool(
 					include: { milestone: { select: { name: true } } },
 				});
 
-				if (intent) {
-					await db.activity.create({
-						data: {
-							cardId,
-							action: "updated",
-							intent: intent as string,
-							actorType: "AGENT",
-							actorName: AGENT_NAME,
-						},
-					});
-				}
+				await db.activity.create({
+					data: {
+						cardId,
+						action: "updated",
+						...(intent ? { intent: intent as string } : {}),
+						actorType: "AGENT",
+						actorName: AGENT_NAME,
+					},
+				});
 
 				return ok({
 					id: card.id,

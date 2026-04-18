@@ -1,8 +1,10 @@
 "use client";
 
-import { Ban, Bot, CheckSquare, Clock, MessageSquare, Sparkles, User, X } from "lucide-react";
+import { Ban, CheckSquare, Clock, MessageSquare, Sparkles, X } from "lucide-react";
 
+import { ActorDot } from "@/components/ui/actor-dot";
 import { Badge } from "@/components/ui/badge";
+import { getAccentBorderStyle, getActorIdentity } from "@/lib/actor-colors";
 import { PRIORITY_BORDER, STATUS_TEXT } from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";
 import { formatScore, scoreColor } from "@/lib/work-next-score";
@@ -75,6 +77,9 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 	const aging = getAgeIndicator(ageDays);
 	const authorship = getAuthorshipPill(card.lastEditedBy, card.updatedAt);
 	const { banner, dismiss } = useIntentBanner(card.id);
+	const bannerColor = banner
+		? getActorIdentity(banner.actorType, banner.actorName).color
+		: null;
 
 	return (
 		<div
@@ -90,25 +95,26 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 				}
 			}}
 		>
-			{banner && (
+			{banner && bannerColor && (
 				<button
 					type="button"
-					className="mb-2 flex w-full items-start gap-1.5 rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-left text-2xs text-violet-700 dark:text-violet-300"
+					className="mb-2 flex w-full items-start gap-2 rounded-md px-2 py-1 text-left text-2xs text-foreground/80"
+					style={getAccentBorderStyle(bannerColor, {
+						hasIntent: true,
+						withBackground: true,
+					})}
 					onClick={(e) => {
 						e.stopPropagation();
 						dismiss();
 					}}
 					title="Click to dismiss"
 				>
-					{banner.actorType === "AGENT" ? (
-						<Bot className="mt-0.5 h-3 w-3 shrink-0" />
-					) : (
-						<User className="mt-0.5 h-3 w-3 shrink-0" />
-					)}
-					<span className="line-clamp-2 flex-1 italic">
-						{banner.actorName ?? (banner.actorType === "AGENT" ? "Agent" : "Human")}: “
-						{banner.intent}”
-					</span>
+					<ActorDot
+						actorType={banner.actorType}
+						actorName={banner.actorName}
+						className="mt-1"
+					/>
+					<span className="line-clamp-2 flex-1 italic">{banner.intent}</span>
 					<X className="mt-0.5 h-3 w-3 shrink-0 opacity-60" />
 				</button>
 			)}
@@ -131,20 +137,19 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 
 				{authorship && (
 					<span
-						className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[0.625rem] leading-4 ${
-							authorship.isHuman
-								? "border-border text-muted-foreground"
-								: "border-violet-500/30 bg-violet-500/5 text-violet-600 dark:text-violet-400"
-						}`}
+						className="inline-flex items-center gap-1.5 text-[0.625rem] leading-4 text-muted-foreground"
 						title={authorship.tooltip}
 					>
-						{authorship.isHuman ? (
-							<User className="h-2.5 w-2.5" />
-						) : (
-							<Sparkles className="h-2.5 w-2.5" />
-						)}
-						<span>{authorship.name}</span>
-						<span className="opacity-60">· {authorship.relative}</span>
+						<ActorDot
+							actorType={authorship.isHuman ? "HUMAN" : "AGENT"}
+							actorName={authorship.name}
+						/>
+						<span className="font-medium text-foreground/80">
+							{authorship.name}
+						</span>
+						<span className="font-mono tabular-nums opacity-60">
+							{authorship.relative}
+						</span>
 					</span>
 				)}
 

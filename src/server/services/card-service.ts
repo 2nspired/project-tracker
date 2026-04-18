@@ -31,6 +31,7 @@ async function getById(cardId: string): Promise<
 				id: string;
 				action: string;
 				details: string | null;
+				intent: string | null;
 				actorType: string;
 				actorName: string | null;
 				createdAt: Date;
@@ -154,18 +155,44 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 			return { success: false, error: { code: "NOT_FOUND", message: "Card not found." } };
 		}
 
-		const card = await db.card.update({
-			where: { id: cardId },
-			data: {
-				title: data.title,
-				description: data.description,
-				priority: data.priority,
-				tags: data.tags ? JSON.stringify(data.tags) : undefined,
-				dueDate: data.dueDate !== undefined ? (data.dueDate ? new Date(data.dueDate) : null) : undefined,
-				milestoneId: data.milestoneId !== undefined ? data.milestoneId : undefined,
-				lastEditedBy: "HUMAN",
-			},
+		const nextTags = data.tags ? JSON.stringify(data.tags) : undefined;
+		const nextDueDate =
+			data.dueDate !== undefined ? (data.dueDate ? new Date(data.dueDate) : null) : undefined;
+		const nextMilestoneId = data.milestoneId !== undefined ? data.milestoneId : undefined;
+
+		const changed =
+			(data.title !== undefined && data.title !== existing.title) ||
+			(data.description !== undefined && data.description !== existing.description) ||
+			(data.priority !== undefined && data.priority !== existing.priority) ||
+			(nextTags !== undefined && nextTags !== existing.tags) ||
+			(nextDueDate !== undefined &&
+				(nextDueDate?.getTime() ?? null) !==
+					(existing.dueDate ? new Date(existing.dueDate).getTime() : null)) ||
+			(nextMilestoneId !== undefined && nextMilestoneId !== existing.milestoneId);
+
+		if (!changed) {
+			return { success: true, data: existing };
+		}
+
+		const card = await db.$transaction(async (tx) => {
+			const updated = await tx.card.update({
+				where: { id: cardId },
+				data: {
+					title: data.title,
+					description: data.description,
+					priority: data.priority,
+					tags: nextTags,
+					dueDate: nextDueDate,
+					milestoneId: nextMilestoneId,
+					lastEditedBy: "HUMAN",
+				},
+			});
+			await tx.activity.create({
+				data: { cardId, action: "updated", actorType: "HUMAN" },
+			});
+			return updated;
 		});
+
 		return { success: true, data: card };
 	} catch (error) {
 		console.error("[CARD_SERVICE] update error:", error);

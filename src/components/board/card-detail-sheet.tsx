@@ -2,7 +2,6 @@
 
 import {
 	Ban,
-	Bot,
 	ChevronDown,
 	ChevronRight,
 	Clock,
@@ -18,6 +17,10 @@ import {
 	User,
 	X,
 } from "lucide-react";
+
+import { ActorChip } from "@/components/ui/actor-chip";
+import { getAccentBorderStyle, getActorIdentity } from "@/lib/actor-colors";
+import { formatActivityDescription } from "@/lib/format-activity";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -583,15 +586,15 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 									}`}
 								>
 									<div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-										{comment.authorType === "AGENT" ? (
-											<Bot className="h-3.5 w-3.5 text-violet-500" />
-										) : (
-											<User className="h-3.5 w-3.5" />
-										)}
-										<span className="font-medium">
-											{comment.authorName ??
-												(comment.authorType === "AGENT" ? "Claude" : "You")}
-										</span>
+										<ActorChip
+											actorType={comment.authorType}
+											actorName={
+												comment.authorName ??
+												(comment.authorType === "AGENT" ? "Claude" : "You")
+											}
+											size="sm"
+											showName
+										/>
 										<span className="opacity-60">
 											{formatRelativeCompact(new Date(comment.createdAt))}
 										</span>
@@ -689,32 +692,46 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 							<div className="border-t border-border/50" />
 							<div className="space-y-3">
 								<SectionHeader>Activity</SectionHeader>
-								<div className="space-y-2">
-									{card.activities.map((activity) => (
-										<div
-											key={activity.id}
-											className="flex items-start gap-2 text-xs text-muted-foreground"
-										>
-											<div className="mt-0.5 shrink-0">
-												{activity.actorType === "AGENT" ? (
-													<Bot className="h-3.5 w-3.5 text-violet-500" />
-												) : (
-													<User className="h-3.5 w-3.5" />
+								<ol className="space-y-2">
+									{card.activities.map((activity) => {
+										const { color } = getActorIdentity(
+											activity.actorType,
+											activity.actorName
+										);
+										const name = activity.actorName ??
+											(activity.actorType === "AGENT" ? "Claude" : "You");
+										const hasIntent = Boolean(activity.intent);
+										return (
+											<li
+												key={activity.id}
+												className="pl-3"
+												style={getAccentBorderStyle(color, { hasIntent })}
+											>
+												<div className="flex items-baseline gap-1.5 text-xs text-muted-foreground">
+													<span className="font-medium text-foreground">
+														{name}
+													</span>
+													<span>
+														{formatActivityDescription(
+															activity.action,
+															activity.details
+														)}
+													</span>
+													<span className="ml-auto shrink-0 font-mono text-[0.625rem] tabular-nums text-muted-foreground/60">
+														{formatRelativeCompact(
+															new Date(activity.createdAt)
+														)}
+													</span>
+												</div>
+												{activity.intent && (
+													<p className="mt-0.5 text-2xs italic text-foreground/80">
+														{activity.intent}
+													</p>
 												)}
-											</div>
-											<div className="flex-1">
-												<span className="font-medium">
-													{activity.actorName ??
-														(activity.actorType === "AGENT" ? "Claude" : "You")}
-												</span>{" "}
-												<ActivityDescription action={activity.action} details={activity.details} />
-												<span className="ml-1.5 opacity-50">
-													{formatRelativeCompact(new Date(activity.createdAt))}
-												</span>
-											</div>
-										</div>
-									))}
-								</div>
+											</li>
+										);
+									})}
+								</ol>
 							</div>
 						</>
 					)}
@@ -1081,21 +1098,3 @@ function MilestoneSelector({
 }
 
 
-// ─── Helpers ──────────────────────────────────────────────────────
-
-function ActivityDescription({ action, details }: { action: string; details: string | null }) {
-	switch (action) {
-		case "created":
-			return <span>created this card</span>;
-		case "moved":
-			return <span>{details ?? "moved this card"}</span>;
-		case "commented":
-			return <span>added a comment</span>;
-		case "checklist_completed":
-			return <span>completed {details?.replace("Completed: ", "") ?? "a checklist item"}</span>;
-		case "checklist_unchecked":
-			return <span>unchecked {details?.replace("Unchecked: ", "") ?? "a checklist item"}</span>;
-		default:
-			return <span>{details ?? action}</span>;
-	}
-}

@@ -93,6 +93,8 @@ type BoardListViewProps = {
 	onHiddenRolesChange: (roles: string[]) => void;
 	activeViewId: string | null;
 	onViewChange: (view: BoardViewType | null) => void;
+	selectedCardId: string | null;
+	onCardSelect: (cardId: string | null) => void;
 };
 
 export function BoardListView({
@@ -105,8 +107,9 @@ export function BoardListView({
 	onHiddenRolesChange,
 	activeViewId,
 	onViewChange,
+	selectedCardId,
+	onCardSelect,
 }: BoardListViewProps) {
-	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 	const [activeCard, setActiveCard] = useState<ListCard | null>(null);
 
 	const utils = api.useUtils();
@@ -294,7 +297,7 @@ export function BoardListView({
 							<ColumnGroup
 								key={group.id}
 								group={group}
-								onCardClick={setSelectedCardId}
+								onCardClick={onCardSelect}
 							/>
 						))}
 					</div>
@@ -303,7 +306,7 @@ export function BoardListView({
 				<CardDetailSheet
 					cardId={selectedCardId}
 					boardId={board.id}
-					onClose={() => setSelectedCardId(null)}
+					onClose={() => onCardSelect(null)}
 				/>
 			</div>
 

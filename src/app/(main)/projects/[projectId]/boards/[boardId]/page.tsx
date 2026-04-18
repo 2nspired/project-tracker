@@ -1,10 +1,11 @@
 "use client";
 
-import { ArrowLeft, Bot, BrainCircuit, Check, Clock, Columns3, Copy, List, Map, NotebookPen, Pencil, Pin, Users } from "lucide-react";
+import { Activity, ArrowLeft, Bot, BrainCircuit, Check, Clock, Columns3, Copy, List, Map, NotebookPen, Pencil, Pin, Users } from "lucide-react";
 import Link from "next/link";
-import { use, useCallback, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { ActivitySheet } from "@/components/board/activity-sheet";
 import { BoardListView } from "@/components/board/board-list-view";
 import { type BoardFilters, type SortMode, emptyFilters } from "@/components/board/board-toolbar";
 import { BoardView } from "@/components/board/board-view";
@@ -186,6 +187,8 @@ export default function BoardPage({
 	const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 	const [showHandoffs, setShowHandoffs] = useState(false);
 	const [showScratch, setShowScratch] = useState(false);
+	const [activityOpen, setActivityOpen] = useState(false);
+	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 	const refetchInterval = useBoardEvents(boardId);
 
 	// Lifted filter state — shared across kanban and list views
@@ -212,6 +215,16 @@ export default function BoardPage({
 		{ id: boardId },
 		{ refetchInterval }
 	);
+
+	// If the selected card disappears (deleted, moved to another board), clear it
+	// so CardDetailSheet doesn't stay open against a 404.
+	useEffect(() => {
+		if (!board || !selectedCardId) return;
+		const exists = board.columns.some((col) =>
+			col.cards.some((c) => c.id === selectedCardId)
+		);
+		if (!exists) setSelectedCardId(null);
+	}, [board, selectedCardId]);
 
 	if (isLoading) {
 		return (
@@ -245,6 +258,8 @@ export default function BoardPage({
 		onHiddenRolesChange: setHiddenRoles,
 		activeViewId,
 		onViewChange: handleViewChange,
+		selectedCardId,
+		onCardSelect: setSelectedCardId,
 	};
 
 	return (
@@ -363,9 +378,29 @@ export default function BoardPage({
 						</TooltipTrigger>
 						<TooltipContent>Notes from AI agents</TooltipContent>
 					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant={activityOpen ? "secondary" : "outline"}
+								size="sm"
+								className="h-8 gap-1.5 text-xs"
+								onClick={() => setActivityOpen((v) => !v)}
+							>
+								<Activity className="h-3.5 w-3.5" />
+								Activity
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Board activity feed</TooltipContent>
+					</Tooltip>
 				</div>
 				{showHandoffs && <SessionHistoryPanel boardId={board.id} />}
 				{showScratch && <AgentNotesPanel boardId={board.id} />}
+				<ActivitySheet
+					boardId={board.id}
+					open={activityOpen}
+					onOpenChange={setActivityOpen}
+					onCardClick={setSelectedCardId}
+				/>
 				{viewMode === "kanban"
 					? <BoardView board={board} {...viewProps} />
 					: <BoardListView board={board} {...viewProps} />
