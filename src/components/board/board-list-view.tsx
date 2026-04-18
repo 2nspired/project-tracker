@@ -28,6 +28,7 @@ import { api } from "@/trpc/react";
 import { type BoardFilters, type SortMode, BoardToolbar } from "./board-toolbar";
 import { hasRole } from "@/lib/column-roles";
 import type { BoardView as BoardViewType } from "@/lib/board-views";
+import { useCardNavigation } from "@/hooks/use-card-navigation";
 import { CardDetailSheet } from "./card-detail-sheet";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
@@ -221,6 +222,12 @@ export function BoardListView({
 		[board.columns]
 	);
 
+	const flatCardIds = useMemo(
+		() => groupedByColumn.flatMap((g) => g.cards.map((c) => c.id)),
+		[groupedByColumn],
+	);
+	const handleNavigate = useCardNavigation(flatCardIds, selectedCardId, onCardSelect);
+
 	const handleDragStart = (event: DragStartEvent) => {
 		const card = allCards.find((c) => c.id === event.active.id);
 		if (card) setActiveCard(card);
@@ -307,6 +314,7 @@ export function BoardListView({
 					cardId={selectedCardId}
 					boardId={board.id}
 					onClose={() => onCardSelect(null)}
+					onNavigate={handleNavigate}
 				/>
 			</div>
 

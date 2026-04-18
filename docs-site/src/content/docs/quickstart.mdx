@@ -111,6 +111,19 @@ of each conversation. Reference cards by `#number`. Call `endSession(...)`
 before wrapping up.
 ```
 
+## Keyboard shortcuts
+
+The web UI supports a small set of shortcuts. More may be added over time.
+
+| Keys | Where | What it does |
+|---|---|---|
+| `⌘K` / `Ctrl+K` | Anywhere | Open the command palette |
+| `←` / `→` | Card detail sheet open | Step to the previous / next card in the current view's visible order |
+| `Esc` | Editing title or description | Cancel edit and discard changes |
+| `⌘↵` / `Ctrl+↵` | Editing description | Save changes |
+
+Arrow-key card navigation honors the active filters, hidden roles, and sort mode of the view you're in. It won't fire while a text input, select, or dialog has focus, so it stays out of the way while you're editing.
+
 ## Things that sometimes go wrong
 
 - **MCP shows "failed" in Claude Code** — run `/mcp`, then try `scripts/mcp-start.sh` manually from inside your project. Restart Claude Code after any `.mcp.json` change; MCP servers load at session start, they don't hot-reload.

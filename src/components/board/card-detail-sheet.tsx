@@ -75,9 +75,10 @@ type CardDetailSheetProps = {
 	cardId: string | null;
 	boardId: string;
 	onClose: () => void;
+	onNavigate?: (direction: "prev" | "next") => void;
 };
 
-export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetProps) {
+export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDetailSheetProps) {
 	const utils = api.useUtils();
 
 	const { data: card } = api.card.getById.useQuery(
@@ -210,6 +211,27 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 		setIsEditingDescription(false);
 		setDescriptionPreview(false);
 	}, [cardId]);
+
+	// ←/→ navigate between sibling cards. Guarded so it doesn't fire while
+	// typing in inputs or while a Radix popover/menu/alert is focused.
+	useEffect(() => {
+		if (!cardId || !onNavigate) return;
+		const handler = (e: KeyboardEvent) => {
+			if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+			if (e.metaKey || e.ctrlKey || e.altKey) return;
+			const el = document.activeElement as HTMLElement | null;
+			if (el) {
+				const tag = el.tagName;
+				if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+				if (el.isContentEditable) return;
+				if (el.closest?.('[role="listbox"], [role="menu"], [role="alertdialog"], [role="combobox"]')) return;
+			}
+			e.preventDefault();
+			onNavigate(e.key === "ArrowLeft" ? "prev" : "next");
+		};
+		window.addEventListener("keydown", handler);
+		return () => window.removeEventListener("keydown", handler);
+	}, [cardId, onNavigate]);
 
 	// ─── Handlers ─────────────────────────────────────────────────
 

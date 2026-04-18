@@ -27,6 +27,7 @@ import { BoardColumn } from "./board-column";
 import { BoardPulse } from "./board-pulse";
 import { type BoardFilters, BoardToolbar, type SortMode } from "./board-toolbar";
 import { CardCreateInline } from "./card-create-inline";
+import { useCardNavigation } from "@/hooks/use-card-navigation";
 import { CardDetailSheet } from "./card-detail-sheet";
 import { AddColumnButton } from "./column-header";
 import { IntentBannerProvider } from "./intent-banner-context";
@@ -215,6 +216,12 @@ export function BoardView({
 		return [...parking, ...regular];
 	}, [filteredColumns]);
 
+	const flatCardIds = useMemo(
+		() => sortedColumns.flatMap((col) => col.cards.map((c) => c.id)),
+		[sortedColumns],
+	);
+	const handleNavigate = useCardNavigation(flatCardIds, selectedCardId, onCardSelect);
+
 	const findColumnForCard = useCallback(
 		(cardId: string) => {
 			for (const col of board.columns) {
@@ -333,6 +340,7 @@ export function BoardView({
 						cardId={selectedCardId}
 						boardId={board.id}
 						onClose={() => onCardSelect(null)}
+						onNavigate={handleNavigate}
 					/>
 				</div>
 
