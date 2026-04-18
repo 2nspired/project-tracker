@@ -36,14 +36,13 @@ export function getAgentNameSource(): AgentNameSource {
  * Increment when schema changes require `db:push`.
  * Feature map tells agents what capabilities are available.
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export type FeatureAvailability = {
 	version: number;
 	relations: boolean;
 	decisions: boolean;
 	handoffs: boolean;
-	scratchpad: boolean;
 	gitLinks: boolean;
 };
 
@@ -61,15 +60,14 @@ export async function detectFeatures(): Promise<FeatureAvailability> {
 		}
 	};
 
-	const [relations, decisions, handoffs, scratchpad, gitLinks] = await Promise.all([
+	const [relations, decisions, handoffs, gitLinks] = await Promise.all([
 		probe(() => db.cardRelation.count()),
 		probe(() => db.decision.count()),
 		probe(() => db.sessionHandoff.count()),
-		probe(() => db.agentScratch.count()),
 		probe(() => db.gitLink.count()),
 	]);
 
-	return { version: SCHEMA_VERSION, relations, decisions, handoffs, scratchpad, gitLinks };
+	return { version: SCHEMA_VERSION, relations, decisions, handoffs, gitLinks };
 }
 
 // ─── Card Reference Resolution ─────────────────────────────────────

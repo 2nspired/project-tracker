@@ -12,7 +12,6 @@ import { milestoneRouter } from "@/server/api/routers/milestone";
 import { noteRouter } from "@/server/api/routers/note";
 import { projectRouter } from "@/server/api/routers/project";
 import { relationRouter } from "@/server/api/routers/relation";
-import { scratchRouter } from "@/server/api/routers/scratch";
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 
 export const appRouter = createTRPCRouter({
@@ -28,7 +27,6 @@ export const appRouter = createTRPCRouter({
 	relation: relationRouter,
 	handoff: handoffRouter,
 	decision: decisionRouter,
-	scratch: scratchRouter,
 });
 
 export type AppRouter = typeof appRouter;

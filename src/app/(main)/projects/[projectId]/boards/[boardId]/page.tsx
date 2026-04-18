@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowLeft, Bot, BrainCircuit, Check, Clock, Columns3, Copy, List, Map, NotebookPen, Pencil, Pin, Users } from "lucide-react";
+import { Activity, ArrowLeft, Bot, Check, Clock, Columns3, Copy, List, Map, NotebookPen, Pencil, Pin, Users } from "lucide-react";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -186,7 +186,6 @@ export default function BoardPage({
 
 	const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 	const [showHandoffs, setShowHandoffs] = useState(false);
-	const [showScratch, setShowScratch] = useState(false);
 	const [activityOpen, setActivityOpen] = useState(false);
 	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 	const refetchInterval = useBoardEvents(boardId);
@@ -356,27 +355,13 @@ export default function BoardPage({
 								variant={showHandoffs ? "secondary" : "outline"}
 								size="sm"
 								className="h-8 gap-1.5 text-xs"
-								onClick={() => { setShowHandoffs(!showHandoffs); if (!showHandoffs) setShowScratch(false); }}
+								onClick={() => setShowHandoffs(!showHandoffs)}
 							>
 								<Users className="h-3.5 w-3.5" />
 								Sessions
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>View agent work sessions</TooltipContent>
-					</Tooltip>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant={showScratch ? "secondary" : "outline"}
-								size="sm"
-								className="h-8 gap-1.5 text-xs"
-								onClick={() => { setShowScratch(!showScratch); if (!showScratch) setShowHandoffs(false); }}
-							>
-								<BrainCircuit className="h-3.5 w-3.5" />
-								Agent Notes
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Notes from AI agents</TooltipContent>
 					</Tooltip>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -394,7 +379,6 @@ export default function BoardPage({
 					</Tooltip>
 				</div>
 				{showHandoffs && <SessionHistoryPanel boardId={board.id} />}
-				{showScratch && <AgentNotesPanel boardId={board.id} />}
 				<ActivitySheet
 					boardId={board.id}
 					open={activityOpen}
@@ -483,47 +467,3 @@ function SessionHistoryPanel({ boardId }: { boardId: string }) {
 
 // ─── Agent Notes Panel ───────────────────────────────────────────
 
-function AgentNotesPanel({ boardId }: { boardId: string }) {
-	const { data: entries } = api.scratch.list.useQuery({ boardId });
-
-	if (!entries || entries.length === 0) {
-		return (
-			<div className="border-b bg-muted/30 px-4 py-3 text-center text-xs text-muted-foreground">
-				No agent notes yet.
-			</div>
-		);
-	}
-
-	// Group by agent name
-	type ScratchEntry = (typeof entries)[number];
-	const byAgent: Record<string, ScratchEntry[]> = {};
-	for (const entry of entries) {
-		(byAgent[entry.agentName] ??= []).push(entry);
-	}
-
-	return (
-		<div className="max-h-48 overflow-y-auto border-b bg-muted/30">
-			<div className="space-y-0 divide-y">
-				{Object.entries(byAgent).map(([agent, notes]) => (
-					<div key={agent} className="px-4 py-2">
-						<div className="flex items-center gap-2">
-							<BrainCircuit className="h-3.5 w-3.5 text-cyan-500" />
-							<span className="text-xs font-medium">{agent}</span>
-							<span className="text-2xs text-muted-foreground">
-								{notes.length} {notes.length === 1 ? "note" : "notes"}
-							</span>
-						</div>
-						<div className="mt-1 space-y-0.5">
-							{notes.map((note) => (
-								<div key={note.id} className="flex items-baseline gap-2">
-									<span className="shrink-0 font-mono text-2xs text-cyan-500/70">{note.key}</span>
-									<span className="text-xs text-muted-foreground line-clamp-1">{note.value}</span>
-								</div>
-							))}
-						</div>
-					</div>
-				))}
-			</div>
-		</div>
-	);
-}

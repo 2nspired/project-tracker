@@ -46,7 +46,6 @@ Browsed via `getTools({ category })` and executed via `runTool({ tool, params })
 | `milestones` | 3 | `createMilestone`, `listMilestones`, `updateMilestone` |
 | `notes` | 3 | `createNote`, `listNotes`, `updateNote` |
 | `relations` | 3 | `getBlockers`, `linkCards`, `unlinkCards` |
-| `scratch` | 1 | `scratch` |
 | `session` | 3 | `listHandoffs`, `loadHandoff`, `saveHandoff` |
 | `setup` | 4 | `createColumn`, `createProject`, `seedTutorial`, `setRepoPath` |
 
@@ -112,7 +111,6 @@ flowchart LR
 	P --> F[Fact]
 	P --> CL[Claim]
 	B --> H[SessionHandoff]
-	B --> A[AgentScratch]
 	B --> G[GitLink]
 ```
 

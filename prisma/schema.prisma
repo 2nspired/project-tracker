@@ -81,7 +81,6 @@ model Board {
   project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   columns           Column[]
   handoffs          SessionHandoff[]
-  scratches         AgentScratch[]
   notes             Note[]
   defaultForProject Project?         @relation("DefaultBoard")
 
@@ -296,23 +295,6 @@ model Decision {
   @@index([projectId])
   @@index([cardId])
   @@map("decision")
-}
-
-model AgentScratch {
-  id        String    @id @default(uuid())
-  boardId   String    @map("board_id")
-  agentName String    @map("agent_name")
-  key       String
-  value     String
-  expiresAt DateTime? @map("expires_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-
-  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
-
-  @@unique([boardId, agentName, key])
-  @@index([expiresAt])
-  @@map("agent_scratch")
 }
 
 model GitLink {

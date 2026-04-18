@@ -1,6 +1,10 @@
 # Implementation Plan: Note + Claim — Step 2
 
-> Status: **Draft** · Authored 2026-04-16 · Covers card #86 (RFC step 2) · Parent: `docs/RFC-NOTE-CLAIM-PRIMITIVES.md` · Predecessor: `docs/IMPL-NOTE-CLAIM.md` (step 1)
+> Status: **Shipped (with amendments)** · Authored 2026-04-16 · Amended 2026-04-17
+
+## Amendment (2026-04-17)
+
+Scratch was removed end-to-end in **#98** after the RFC was accepted with conditions (see `RFC-NOTE-CLAIM-PRIMITIVES.md` amendments). All references below to `createScratch`, `kind='scratch'`, `scratch` metadata, and the `agent_scratch` table are historical — those concepts no longer exist. The `NOTE_KINDS` enum is now `{ general, handoff }`. Step-6 staleness / TTL sweep remains planned for `handoff` age-filtering only.
 
 ## Scope of this plan
 

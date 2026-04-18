@@ -103,9 +103,6 @@ registerExtendedTool("loadHandoff", {
 				notes: [
 					"createNote / updateNote / listNotes — persistent project-level notes",
 				],
-				scratch: [
-					"scratch({ action: set|get|list|clear }) — temporary key-value storage with optional expiry",
-				],
 				analysis: [
 					"getCardContext — deep context for a single card (relations, commits, decisions, checklist)",
 					"getMilestoneContext — cards and progress for a milestone, grouped by horizon",

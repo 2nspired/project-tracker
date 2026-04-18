@@ -1,6 +1,15 @@
 # RFC: Two Primitives — Note + Claim
 
-> Status: **Draft** · Authored 2026-04-16 · Blocks cards #77–83 · Card: #76
+> Status: **Accepted (with amendments)** · Authored 2026-04-16 · Amended 2026-04-17 · Card: #76
+
+## Amendments (2026-04-17)
+
+The decision was accepted with four conditions (see comment on #76):
+
+1. **`scratch` dropped as a Note kind.** `AgentScratch` was empirically unused (0 rows across all boards and all time) and its kv access pattern didn't fit the Note timeline. Removed end-to-end in #98. The collapse is now **6-into-2**, not 7-into-2. All `kind='scratch'` references below are historical — the enum is `{ general, handoff }` for Notes.
+2. **Zod validation of `metadata` / `payload`** at the service boundary is required on every write — JSON columns carry no DB-level type enforcement.
+3. **Migration simplified** to a one-shot cutover. The 7-step dual-write plan was over-engineered for a local-first single-user SQLite app with recoverable data.
+4. **FTS5 rebuild + ranking regression check** gets its own card — not hand-waved.
 
 ## Problem
 
@@ -28,7 +37,7 @@ The collapse target: **two** tables, each with a small enumerated `kind`.
 
 Replace the seven tables with two primitives:
 
-- **`Note`** — free-form narrative. Kinds: `general`, `handoff`, `scratch`.
+- **`Note`** — free-form narrative. Kinds: `general`, `handoff`.
 - **`Claim`** — structured assertion with evidence. Kinds: `context`, `code`, `measurement`, `decision`.
 
 `kind` drives staleness policy, UI surface, and tool ergonomics. The storage shape stays uniform.
@@ -43,14 +52,14 @@ A piece of prose the human (or agent) wants to keep. Unstructured on purpose.
 Note {
   id:             String   // UUID
   projectId:      String?  // null allowed → project-independent notes
-  kind:           Enum     // 'general' | 'handoff' | 'scratch'
+  kind:           Enum     // 'general' | 'handoff'
   title:          String
   content:        String   // markdown body
   tags:           JSON     // string[]
   author:         String   // AGENT_NAME or HUMAN
   cardId:         String?  // optional card anchor
-  boardId:        String?  // handoffs and scratch scoped to boards
-  expiresAt:      DateTime?  // scratch-only auto-expiry
+  boardId:        String?  // handoffs scoped to boards
+  expiresAt:      DateTime?  // optional TTL (unused today)
   metadata:       JSON     // kind-specific fields (see below)
   createdAt:      DateTime
   updatedAt:      DateTime
@@ -61,9 +70,8 @@ Note {
 
 - `general` — `{}` (nothing extra)
 - `handoff` — `{ workingOn: string[], findings: string[], nextSteps: string[], blockers: string[] }` (the structured arrays currently living in top-level `SessionHandoff` columns become a metadata blob)
-- `scratch` — `{ key: string }` (the old `AgentScratch.key` becomes a metadata field; the body lives in `content`)
 
-Handoffs and scratch become Note kinds — not a separate type — because their *shape* is narrative, even though their intent differs. The human reads a handoff the same way they read a general note: top-to-bottom prose.
+Handoffs become a Note kind — not a separate type — because their *shape* is narrative, even though the intent differs from a general note. The human reads a handoff the same way they read a general note: top-to-bottom prose.
 
 ### `Claim` — structured assertion with evidence
 
@@ -110,7 +118,7 @@ Every claim needs a one-liner you can display in a list (staleness warnings, boa
 |---|---|---|---|
 | `Note` | `Note` | `general` | 1:1, add `author` + `cardId` if missing |
 | `SessionHandoff` | `Note` | `handoff` | `workingOn/findings/nextSteps/blockers` → `metadata`; `summary` → `content` |
-| `AgentScratch` | `Note` | `scratch` | `key` → `metadata.key`; `value` → `content`; `expiresAt` kept |
+| ~~`AgentScratch`~~ | Removed (#98) | — | Feature was empirically unused (0 rows ever). Dropped end-to-end rather than migrated. |
 | `PersistentContextEntry` | `Claim` | `context` | `claim` → `statement`; `rationale + details` → `body`; `application/audience/surface` → `payload`; `citedFiles` → `evidence.files` |
 | `CodeFact` | `Claim` | `code` | `fact` → `statement`; `path + symbol` → `evidence.files + evidence.symbols`; `needsRecheck` derives from `verifiedAt` vs `recordedAtSha` |
 | `MeasurementFact` | `Claim` | `measurement` | `description` → `statement`; `value/unit/env` → `payload`; `path/symbol` → `evidence`; `ttl` → `expiresAt` |
@@ -133,7 +141,7 @@ Notes have no staleness flag. `handoff` notes use a simple age filter in list qu
 
 A single `/knowledge/:projectId` page replaces the scattered surfaces today. Grouped by primitive, not by old-table identity:
 
-- **Notes** — Timeline view. Filter by `kind` (all / general / handoff / scratch). Handoffs get a badge; scratch gets a countdown to `expiresAt`.
+- **Notes** — Timeline view. Filter by `kind` (all / general / handoff). Handoffs get a badge.
 - **Claims** — Table view. Columns: kind, statement, status, author, verifiedAt, staleness pill. Filter by kind and status.
 - **On a card detail sheet** — two collapsible sections: "Notes" (general + handoff anchored to this card) and "Claims" (claims where `cardId = this.id`).
 - **Staleness banner on briefMe** — lists stale claims by kind with actionable hints (`re-verify`, `supersede`, `retire`).
@@ -167,7 +175,7 @@ A rollback exists through step 4. After step 7 the migration is permanent.
 
 ## Open Questions
 
-- **Do scratch notes warrant staying separate?** Ephemeral, board-scoped, agent-owned — they behave differently from narrative notes. Keeping them as a `kind` is honest but tempts the system to treat them as first-class when they probably should not outlive a session. Decision deferred to #78.
+- ~~**Do scratch notes warrant staying separate?**~~ **Resolved (2026-04-17):** `AgentScratch` was removed entirely in #98 — 0 rows of actual usage made the question moot.
 - **`evidence` shape.** Defined here as `{ files, symbols, urls, cardIds }`. If measurement-env lookup needs richer structure (e.g., `{ hardware, modelBuild, ollamaVersion }`), those stay in `payload.env` for `measurement` kind rather than generalizing `evidence`.
 - **FTS5 schema.** The existing FTS5 virtual table indexes eight sources. After migration it indexes two. The index rebuild in step 4 is the moment to verify ranking still works for mixed queries.
 - **Web UI ownership.** The knowledge page is mentioned in step 5 but could be deferred further. The primitive collapse has value even without the new page — agents save and query through tools. The UI surface is a second-order benefit that can ship independently.

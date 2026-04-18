@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const NOTE_KINDS = ["general", "handoff", "scratch"] as const;
+export const NOTE_KINDS = ["general", "handoff"] as const;
 
 export const createNoteSchema = z.object({
 	title: z.string().min(1, "Title is required.").max(200),

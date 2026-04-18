@@ -1,6 +1,10 @@
 # Implementation Plan: Note + Claim — Step 1
 
-> Status: **Draft** · Authored 2026-04-16 · Covers card #86 (RFC step 1) · Parent: `docs/RFC-NOTE-CLAIM-PRIMITIVES.md`
+> Status: **Shipped (with amendments)** · Authored 2026-04-16 · Amended 2026-04-17
+
+## Amendment (2026-04-17)
+
+`AgentScratch` was removed end-to-end in **#98** — it had 0 rows across all boards and the feature was empirically dead. References below to `AgentScratch` / `kind=scratch` are historical. The final mapping is **6-into-2**, not 7-into-2. See RFC amendments for details.
 
 ## Scope of this plan
 

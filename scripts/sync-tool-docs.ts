@@ -25,7 +25,6 @@ import "../src/mcp/tools/knowledge-tools.js";
 import "../src/mcp/tools/onboarding-tools.js";
 import "../src/mcp/tools/query-tools.js";
 import "../src/mcp/tools/relation-tools.js";
-import "../src/mcp/tools/scratch-tools.js";
 import "../src/mcp/tools/session-tools.js";
 import "../src/mcp/tools/status-tools.js";
 import "../src/mcp/tools/summary-tools.js";

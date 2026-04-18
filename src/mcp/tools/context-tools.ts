@@ -8,7 +8,7 @@ import { resolveCardRef, ok, err, errWithToolHint, safeExecute } from "../utils.
 
 registerExtendedTool("getCardContext", {
 	category: "context",
-	description: "Deep context for a single card: description, checklist, comments, relations, decisions, commits, scratchpad, and related cards.",
+	description: "Deep context for a single card: description, checklist, comments, relations, decisions, commits, and related cards.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		cardId: z.string().describe("Card UUID or #number"),
@@ -42,14 +42,6 @@ registerExtendedTool("getCardContext", {
 			},
 		});
 		if (!card) return err("Card not found.");
-
-		// Scratchpad entries for this board
-		const scratch = await db.agentScratch.findMany({
-			where: { boardId, expiresAt: { gt: new Date() } },
-			select: { agentName: true, key: true, value: true },
-			orderBy: { updatedAt: "desc" },
-			take: 10,
-		});
 
 		// Related cards (same milestone or overlapping tags, max 3)
 		const cardTags: string[] = JSON.parse(card.tags);
@@ -95,7 +87,6 @@ registerExtendedTool("getCardContext", {
 			relations: { blocks, blockedBy },
 			decisions: card.decisions,
 			commits: card.gitLinks.map((g) => ({ hash: g.commitHash.slice(0, 8), message: g.message, date: g.commitDate })),
-			scratchpad: scratch,
 			relatedCards,
 		}, format);
 	}),

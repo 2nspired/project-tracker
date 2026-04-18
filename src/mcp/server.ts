@@ -134,7 +134,6 @@ import "./tools/discovery-tools.js";
 import "./tools/relation-tools.js";
 import "./tools/session-tools.js";
 import "./tools/decision-tools.js";
-import "./tools/scratch-tools.js";
 import "./tools/context-tools.js";
 import "./tools/query-tools.js";
 import "./tools/git-tools.js";
@@ -1105,7 +1104,7 @@ server.registerPrompt(
 			lines.push(
 				"",
 				`> **Migration needed**: Run \`npm run db:push\` to enable: ${missingFeatures.join(", ")}`,
-				"> Some tools (relations, decisions, handoffs, git links, scratchpad) may not work until schema is updated."
+				"> Some tools (relations, decisions, handoffs, git links) may not work until schema is updated."
 			);
 		}
 

@@ -16,7 +16,6 @@ export type ToolCategory =
 	| "relations"
 	| "session"
 	| "decisions"
-	| "scratch"
 	| "git"
 	| "context";
 
@@ -282,7 +281,6 @@ export function getToolCatalog(opts?: { category?: string; tool?: string }):
 		relations: "Card dependencies — blocks, related, parent/child",
 		session: "Session handoff and board diff between conversations",
 		decisions: "Structured architectural decision records",
-		scratch: "Ephemeral agent working memory (auto-expires)",
 		git: "Git commit linking and code mapping",
 		context: "Context bundles, persistent knowledge entries, and code facts",
 	};

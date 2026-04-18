@@ -974,10 +974,10 @@ registerExtendedTool("listMilestones", {
 // RFC-v2 step 2: the `note` table carries kind/author/cardId/boardId/
 // metadata/expiresAt columns. Tools accept the new fields as optional;
 // legacy calls (title/content/tags only) still produce a general note
-// owned by HUMAN with empty metadata. No dual-write from saveHandoff /
-// scratch yet — that's step 3.
+// owned by HUMAN with empty metadata. No dual-write from saveHandoff yet
+// — that's step 3.
 
-const NOTE_KINDS = ["general", "handoff", "scratch"] as const;
+const NOTE_KINDS = ["general", "handoff"] as const;
 
 registerExtendedTool("listNotes", {
 	category: "notes",
@@ -1071,14 +1071,14 @@ registerExtendedTool("createNote", {
 		boardId: z
 			.string()
 			.optional()
-			.describe("Board UUID — required for handoff/scratch kinds (step 3)"),
+			.describe("Board UUID — required for handoff kind (step 3)"),
 		metadata: z
 			.record(z.string(), z.unknown())
 			.default({})
 			.describe(
-				"Kind-specific metadata (handoff: workingOn/findings/nextSteps/blockers; scratch: key)"
+				"Kind-specific metadata (handoff: workingOn/findings/nextSteps/blockers)"
 			),
-		expiresAt: z.string().optional().describe("ISO datetime — scratch TTL"),
+		expiresAt: z.string().optional().describe("ISO datetime — optional TTL"),
 	}),
 	handler: (params) =>
 		safeExecute(async () => {
