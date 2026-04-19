@@ -20,6 +20,7 @@
 		"mcp:dev": "tsx src/mcp/server.ts",
 		"docs:sync": "tsx scripts/sync-tool-docs.ts",
 		"docs:check": "tsx scripts/sync-tool-docs.ts --check",
+		"release": "tsx scripts/release.ts",
 		"db:seed": "tsx prisma/seed.ts",
 		"service:install": "tsx scripts/service.ts install",
 		"service:uninstall": "tsx scripts/service.ts uninstall",
