@@ -46,7 +46,7 @@ Next.js 16 + React 19 · Prisma 7 + SQLite · tRPC v11 · shadcn/ui + Tailwind 4
 ## MCP surface
 
 <!-- tracker:essentials:start -->
-### Essential Tools (9)
+### Essential Tools (10)
 
 | Tool | What it does |
 | --- | --- |
@@ -56,6 +56,7 @@ Next.js 16 + React 19 · Prisma 7 + SQLite · tRPC v11 · shadcn/ui + Tailwind 4
 | `updateCard` | Update card fields; optional `intent`. |
 | `moveCard` | Move a card to a column. Requires `intent`. |
 | `addComment` | Add a comment to a card. |
+| `registerRepo` | Bind a git repo path to a project (call after briefMe returns needsRegistration). |
 | `checkOnboarding` | Detect DB state, list projects/boards, session-start discovery. |
 | `getTools` | Browse extended tools by category. |
 | `runTool` | Execute any extended tool by name. |

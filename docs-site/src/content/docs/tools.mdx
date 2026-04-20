@@ -1,38 +1,42 @@
 ---
 title: MCP tools
-description: Reference for every tool the agent can call — 9 essential tools and 50+ extended tools, split by category.
+description: Reference for every tool the agent can call — a small set of essential tools always loaded plus a larger catalog of extended tools, split by category.
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-The tracker exposes a two-tier MCP surface: **9 essential tools always loaded** plus **50+ extended tools** discoverable via `getTools` and executable via `runTool`. This page covers the shape of each tier so you know what the agent sees.
+The tracker exposes a two-tier MCP surface: a small set of **essential tools always loaded** plus a larger catalog of **extended tools** discoverable via `getTools` and executable via `runTool`. This page covers the shape of each tier so you know what the agent sees.
 
 <Aside type="tip" title="Authoritative source">
-	The running MCP server is the ground truth. Ask your agent to run `getTools()` to see the current catalog — tool counts drift between releases as surface is consolidated. This page reflects the v2.5 shape.
+	The running MCP server is the ground truth. Ask your agent to run `getTools()` to see the current catalog. The tables below are auto-generated from the tool registry via `npm run docs:sync`.
 </Aside>
 
-## Essential tools — always loaded (9)
+## Essential tools — always loaded
 
 These are in the agent's context on every session. They cover the hot path: start, work, end.
 
-| Tool | Purpose |
+<!-- tracker:essentials:start -->
+| Tool | What it does |
 | --- | --- |
-| `briefMe` | One-shot session primer — handoff + diff + top work + blockers + pulse in one call. |
+| `briefMe` | One-shot session primer — handoff, diff, top work, blockers, open decisions, pulse. |
 | `endSession` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. |
 | `createCard` | Create a card in a column (by name). |
-| `updateCard` | Update card fields. Optional `intent` when the edit reflects a decision. |
-| `moveCard` | Move a card to a column. **Requires `intent`.** |
+| `updateCard` | Update card fields; optional `intent`. |
+| `moveCard` | Move a card to a column. Requires `intent`. |
 | `addComment` | Add a comment to a card. |
-| `checkOnboarding` | Detect DB state, list projects/boards. Used at session start if no board is connected yet. |
+| `registerRepo` | Bind a git repo path to a project (call after briefMe returns needsRegistration). |
+| `checkOnboarding` | Detect DB state, list projects/boards, session-start discovery. |
 | `getTools` | Browse extended tools by category. |
 | `runTool` | Execute any extended tool by name. |
+<!-- tracker:essentials:end -->
 
 That's the entire baseline agent context. Everything else is one `runTool` call away.
 
 ## Extended tools — on demand
 
-Browsed via `getTools({ category })` and executed via `runTool({ tool, params })`. Categories (v2.5):
+Browsed via `getTools({ category })` and executed via `runTool({ tool, params })`.
 
+<!-- tracker:extended:start -->
 | Category | Count | Tools |
 | --- | --- | --- |
 | `activity` | 1 | `listActivity` |
@@ -48,6 +52,7 @@ Browsed via `getTools({ category })` and executed via `runTool({ tool, params })
 | `relations` | 3 | `getBlockers`, `linkCards`, `unlinkCards` |
 | `session` | 3 | `listHandoffs`, `loadHandoff`, `saveHandoff` |
 | `setup` | 4 | `createColumn`, `createProject`, `seedTutorial`, `setRepoPath` |
+<!-- tracker:extended:end -->
 
 ### How categories compose
 
@@ -104,19 +109,17 @@ flowchart LR
 	C --> CM[Comment]
 	C --> CK[ChecklistItem]
 	C --> CR[CardRelation]
-	C --> CD[Decision]
 	C --> CN[Note]
 	P --> M[Milestone]
 	M --> C
-	P --> F[Fact]
 	P --> CL[Claim]
-	B --> H[SessionHandoff]
 	B --> G[GitLink]
 ```
 
 - **Cards** are the primary unit of work.
-- **Notes** + **Claims** are the two knowledge primitives (the older `Fact` table is being consolidated into them — see `docs/` in the repo).
-- **SessionHandoff** is the handoff artifact `endSession` writes and `briefMe` reads.
+- **Notes** + **Claims** are the two knowledge primitives — see `docs/RFC-NOTE-CLAIM-PRIMITIVES.md` for the shape.
+- Session handoffs are stored as `Note` rows with `kind=handoff`; `endSession` writes them and `briefMe` reads the latest.
+- Architectural decisions are stored as `Claim` rows with `kind=decision`.
 - **GitLink** connects commits to cards via `#N` references.
 
 ## Extending the surface
