@@ -53,7 +53,8 @@ const execFileAsync = promisify(execFile);
 
 type ResolvedBoard =
 	| { ok: true; boardId: string; projectName: string; boardName: string }
-	| { ok: false; reason: string; hint: string };
+	| { ok: false; kind: "unregistered"; repoRoot: string }
+	| { ok: false; kind: "error"; reason: string; hint: string };
 
 async function resolveBoardFromCwd(): Promise<ResolvedBoard> {
 	// MCP_CALLER_CWD is set by scripts/mcp-start.sh before it cd's into the
@@ -70,8 +71,9 @@ async function resolveBoardFromCwd(): Promise<ResolvedBoard> {
 	} catch {
 		return {
 			ok: false,
+			kind: "error",
 			reason: `Not inside a git repository (cwd: ${callerCwd}).`,
-			hint: "Pass boardId explicitly, or run from a project's git root after connecting it with scripts/connect.sh.",
+			hint: "Pass boardId explicitly, or run from a project's git root.",
 		};
 	}
 
@@ -90,11 +92,7 @@ async function resolveBoardFromCwd(): Promise<ResolvedBoard> {
 	});
 
 	if (!project) {
-		return {
-			ok: false,
-			reason: `No project registered for ${repoRoot}.`,
-			hint: "Run scripts/connect.sh from this repo to register it, or pass boardId explicitly.",
-		};
+		return { ok: false, kind: "unregistered", repoRoot };
 	}
 
 	let boardId: string | null = project.defaultBoardId;
@@ -117,6 +115,7 @@ async function resolveBoardFromCwd(): Promise<ResolvedBoard> {
 		if (!firstBoard) {
 			return {
 				ok: false,
+				kind: "error",
 				reason: `Project "${project.name}" has no boards.`,
 				hint: "Create a board in the web UI at http://localhost:3100, then retry.",
 			};
@@ -126,6 +125,37 @@ async function resolveBoardFromCwd(): Promise<ResolvedBoard> {
 	}
 
 	return { ok: true, boardId, projectName: project.name, boardName: boardName ?? "" };
+}
+
+/**
+ * Response for briefMe/endSession when cwd is a git repo but no project owns
+ * it. Returns ok() with a setup prompt so the agent can ask the human which
+ * project to bind to, then call registerRepo. Not an error — the system
+ * works, it just needs a one-time bind.
+ */
+async function unregisteredRepoResponse(repoRoot: string) {
+	const projects = await db.project.findMany({
+		select: {
+			id: true,
+			name: true,
+			repoPath: true,
+			favorite: true,
+			_count: { select: { boards: true } },
+		},
+		orderBy: [{ favorite: "desc" }, { name: "asc" }],
+	});
+	return ok({
+		needsRegistration: true,
+		repoRoot,
+		message: `This git repo isn't bound to a Project Tracker project yet. Ask the human which project to attach it to, then call registerRepo({ projectId, repoPath: "${repoRoot}" }).`,
+		projects: projects.map((p) => ({
+			id: p.id,
+			name: p.name,
+			boards: p._count.boards,
+			repoPath: p.repoPath,
+		})),
+		hint: "If no project fits, ask the human to create one in the web UI (http://localhost:3100), then re-run briefMe.",
+	});
 }
 
 // Initialize extended tools (registers them in the catalog)
@@ -641,7 +671,10 @@ server.registerTool(
 			let autoResolved: { projectName: string; boardName: string } | null = null;
 			if (!boardId) {
 				const resolved = await resolveBoardFromCwd();
-				if (!resolved.ok) return err(resolved.reason, resolved.hint);
+				if (!resolved.ok) {
+					if (resolved.kind === "unregistered") return unregisteredRepoResponse(resolved.repoRoot);
+					return err(resolved.reason, resolved.hint);
+				}
 				boardId = resolved.boardId;
 				autoResolved = { projectName: resolved.projectName, boardName: resolved.boardName };
 			}
@@ -855,7 +888,11 @@ server.registerTool(
 				let autoResolved: { projectName: string; boardName: string } | null = null;
 				if (!boardId) {
 					const resolved = await resolveBoardFromCwd();
-					if (!resolved.ok) return err(resolved.reason, resolved.hint);
+					if (!resolved.ok) {
+						if (resolved.kind === "unregistered")
+							return unregisteredRepoResponse(resolved.repoRoot);
+						return err(resolved.reason, resolved.hint);
+					}
 					boardId = resolved.boardId;
 					autoResolved = { projectName: resolved.projectName, boardName: resolved.boardName };
 				}
@@ -978,6 +1015,93 @@ server.registerTool(
 			});
 		}
 	)
+);
+
+server.registerTool(
+	"registerRepo",
+	{
+		title: "Register Repo",
+		description:
+			"Bind a git repo path to a project so briefMe/endSession can auto-detect it from cwd. Call this after briefMe returns needsRegistration.",
+		inputSchema: {
+			projectId: z.string().uuid().describe("Project UUID to attach the repo to"),
+			repoPath: z
+				.string()
+				.min(1)
+				.describe("Absolute git-repo path (pass the repoRoot briefMe returned verbatim)"),
+		},
+	},
+	wrapEssentialHandler("registerRepo", async ({ projectId, repoPath }) => {
+		return safeExecute(async () => {
+			let resolvedPath: string;
+			try {
+				resolvedPath = await realpath(repoPath);
+			} catch {
+				return err(
+					`Path "${repoPath}" does not exist on disk.`,
+					"Pass the absolute repo root (the value briefMe returned as repoRoot)."
+				);
+			}
+
+			try {
+				await execFileAsync("git", ["rev-parse", "--show-toplevel"], {
+					cwd: resolvedPath,
+					timeout: 3000,
+				});
+			} catch {
+				return err(
+					`"${resolvedPath}" is not inside a git repository.`,
+					"Run `git init` in the repo first if the binding is intentional."
+				);
+			}
+
+			const existingBinding = await db.project.findUnique({
+				where: { repoPath: resolvedPath },
+				select: { id: true, name: true },
+			});
+			if (existingBinding && existingBinding.id !== projectId) {
+				return err(
+					`Repo "${resolvedPath}" is already bound to project "${existingBinding.name}".`,
+					"Clear that project's repoPath in the web UI first, or pick it as the target."
+				);
+			}
+
+			const project = await db.project.findUnique({
+				where: { id: projectId },
+				select: {
+					id: true,
+					name: true,
+					repoPath: true,
+					_count: { select: { boards: true } },
+				},
+			});
+			if (!project) return err(`Project ${projectId} not found.`);
+
+			if (project.repoPath && project.repoPath !== resolvedPath) {
+				return err(
+					`Project "${project.name}" is already bound to "${project.repoPath}".`,
+					"Update it via the web UI if you want to move the binding."
+				);
+			}
+
+			await db.project.update({
+				where: { id: projectId },
+				data: { repoPath: resolvedPath },
+			});
+
+			return ok({
+				registered: true,
+				projectId: project.id,
+				projectName: project.name,
+				repoPath: resolvedPath,
+				hasBoards: project._count.boards > 0,
+				nextStep:
+					project._count.boards > 0
+						? "Call briefMe() — it will now auto-detect this repo."
+						: "Project has no boards yet. Create one in the web UI at http://localhost:3100, then call briefMe().",
+			});
+		});
+	})
 );
 
 // ─── Meta-Tools (Essential + Catalog pattern) ──────────────────────

@@ -31,6 +31,11 @@ export const ESSENTIAL_TOOLS: Array<{ name: string; description: string }> = [
 	{ name: "moveCard", description: "Move a card to a column. Requires `intent`." },
 	{ name: "addComment", description: "Add a comment to a card." },
 	{
+		name: "registerRepo",
+		description:
+			"Bind a git repo path to a project (call after briefMe returns needsRegistration).",
+	},
+	{
 		name: "checkOnboarding",
 		description: "Detect DB state, list projects/boards, session-start discovery.",
 	},
