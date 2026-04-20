@@ -38,25 +38,26 @@ const README = resolve(REPO_ROOT, "README.md");
 const TOOLS_MDX = resolve(REPO_ROOT, "docs-site/src/content/docs/tools.mdx");
 
 type MarkerPair = { start: string; end: string };
-const ESSENTIALS: MarkerPair = {
-	start: "<!-- tracker:essentials:start -->",
-	end: "<!-- tracker:essentials:end -->",
-};
-const EXTENDED: MarkerPair = {
-	start: "<!-- tracker:extended:start -->",
-	end: "<!-- tracker:extended:end -->",
-};
+const markerPair = (name: string, syntax: "html" | "mdx"): MarkerPair =>
+	syntax === "html"
+		? { start: `<!-- tracker:${name}:start -->`, end: `<!-- tracker:${name}:end -->` }
+		: { start: `{/* tracker:${name}:start */}`, end: `{/* tracker:${name}:end */}` };
 
-function renderEssentialsTable(opts: { heading?: string } = {}): string {
+const MD_ESSENTIALS = markerPair("essentials", "html");
+const MD_EXTENDED = markerPair("extended", "html");
+const MDX_ESSENTIALS = markerPair("essentials", "mdx");
+const MDX_EXTENDED = markerPair("extended", "mdx");
+
+function renderEssentialsTable(markers: MarkerPair, opts: { heading?: string } = {}): string {
 	const header = "| Tool | What it does |\n| --- | --- |";
 	const rows = ESSENTIAL_TOOLS.map((t) => `| \`${t.name}\` | ${t.description} |`).join("\n");
-	const parts: string[] = [ESSENTIALS.start];
+	const parts: string[] = [markers.start];
 	if (opts.heading) parts.push(opts.heading, "");
-	parts.push(header, rows, ESSENTIALS.end);
+	parts.push(header, rows, markers.end);
 	return parts.join("\n");
 }
 
-function renderExtendedTable(opts: { heading?: string } = {}): string {
+function renderExtendedTable(markers: MarkerPair, opts: { heading?: string } = {}): string {
 	const tools = getAllExtendedTools();
 	const byCategory = new Map<string, string[]>();
 	for (const t of tools) {
@@ -73,9 +74,9 @@ function renderExtendedTable(opts: { heading?: string } = {}): string {
 			return `| \`${cat}\` | ${sorted.length} | ${formatted} |`;
 		})
 		.join("\n");
-	const parts: string[] = [EXTENDED.start];
+	const parts: string[] = [markers.start];
 	if (opts.heading) parts.push(opts.heading, "");
-	parts.push(header, rows, EXTENDED.end);
+	parts.push(header, rows, markers.end);
 	return parts.join("\n");
 }
 
@@ -129,15 +130,15 @@ async function main() {
 				const original = await readFile(README, "utf8");
 				let next = replaceBlock(
 					original,
-					ESSENTIALS,
-					renderEssentialsTable({
+					MD_ESSENTIALS,
+					renderEssentialsTable(MD_ESSENTIALS, {
 						heading: `### Essential Tools (${ESSENTIAL_TOOLS.length})`,
 					})
 				);
 				next = replaceBlock(
 					next,
-					EXTENDED,
-					renderExtendedTable({ heading: "### Extended Tools (by category)" })
+					MD_EXTENDED,
+					renderExtendedTable(MD_EXTENDED, { heading: "### Extended Tools (by category)" })
 				);
 				return next;
 			},
@@ -146,8 +147,8 @@ async function main() {
 			path: TOOLS_MDX,
 			render: async () => {
 				const original = await readFile(TOOLS_MDX, "utf8");
-				let next = replaceBlock(original, ESSENTIALS, renderEssentialsTable());
-				next = replaceBlock(next, EXTENDED, renderExtendedTable());
+				let next = replaceBlock(original, MDX_ESSENTIALS, renderEssentialsTable(MDX_ESSENTIALS));
+				next = replaceBlock(next, MDX_EXTENDED, renderExtendedTable(MDX_EXTENDED));
 				return next;
 			},
 		},
