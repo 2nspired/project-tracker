@@ -15,7 +15,7 @@ The tracker exposes a two-tier MCP surface: a small set of **essential tools alw
 
 These are in the agent's context on every session. They cover the hot path: start, work, end.
 
-<!-- tracker:essentials:start -->
+{/* tracker:essentials:start */}
 | Tool | What it does |
 | --- | --- |
 | `briefMe` | One-shot session primer — handoff, diff, top work, blockers, open decisions, pulse. |
@@ -28,7 +28,7 @@ These are in the agent's context on every session. They cover the hot path: star
 | `checkOnboarding` | Detect DB state, list projects/boards, session-start discovery. |
 | `getTools` | Browse extended tools by category. |
 | `runTool` | Execute any extended tool by name. |
-<!-- tracker:essentials:end -->
+{/* tracker:essentials:end */}
 
 That's the entire baseline agent context. Everything else is one `runTool` call away.
 
@@ -36,7 +36,7 @@ That's the entire baseline agent context. Everything else is one `runTool` call 
 
 Browsed via `getTools({ category })` and executed via `runTool({ tool, params })`.
 
-<!-- tracker:extended:start -->
+{/* tracker:extended:start */}
 | Category | Count | Tools |
 | --- | --- | --- |
 | `activity` | 1 | `listActivity` |
@@ -52,7 +52,7 @@ Browsed via `getTools({ category })` and executed via `runTool({ tool, params })
 | `relations` | 3 | `getBlockers`, `linkCards`, `unlinkCards` |
 | `session` | 3 | `listHandoffs`, `loadHandoff`, `saveHandoff` |
 | `setup` | 4 | `createColumn`, `createProject`, `seedTutorial`, `setRepoPath` |
-<!-- tracker:extended:end -->
+{/* tracker:extended:end */}
 
 ### How categories compose
 

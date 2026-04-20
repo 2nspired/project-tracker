@@ -15,6 +15,14 @@ hero:
 ---
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
+import { Image } from "astro:assets";
+import boardOverview from "../../assets/screenshots/board-overview.png";
+
+<Image
+	src={boardOverview}
+	alt="Project Tracker board view with Parking Lot, Backlog, Up Next, In Progress, and Done columns. Cards show priority-colored stripes, tags, and card numbers."
+	loading="eager"
+/>
 
 ## Why it exists
 

@@ -4,6 +4,8 @@ description: The core workflow — briefMe → work → endSession → fresh cha
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
+import { Image } from "astro:assets";
+import cardDetail from "../../assets/screenshots/card-detail.png";
 
 The tracker is built around one loop. If you get the loop right, everything else falls out of it.
 
@@ -56,6 +58,11 @@ The tracker's answer: a structured handoff written at the end of one session and
 	```
 
 	You watch the board update in real time via SSE. Intent is the difference between silent noise and a readable activity feed.
+
+	<Image
+		src={cardDetail}
+		alt="Card detail panel showing a rich description with What / Why / Try it / Outcome sections, tags, checklist, and comments from both human and agent authors — the structured surface the agent reads and writes."
+	/>
 
 3. **`endSession` before wrapping up**
 
