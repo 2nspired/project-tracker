@@ -715,7 +715,7 @@ server.registerTool(
 
 			const diff = lastHandoff ? await computeBoardDiff(db, boardId, lastHandoff.createdAt) : null;
 
-			const topWork = openCards
+			const scoredCards = openCards
 				.map(({ card, column }) => ({
 					ref: `#${card.number}`,
 					title: card.title,
@@ -729,9 +729,16 @@ server.registerTool(
 						_blockedByCount: card.relationsTo.length,
 						_blocksOtherCount: card.relationsFrom.length,
 					}),
+					source: hasRole(column, "active")
+						? ("active" as const)
+						: hasRole(column, "todo")
+							? ("todo" as const)
+							: ("scored" as const),
 				}))
-				.filter((c) => c.score >= 0)
-				.sort((a, b) => b.score - a.score)
+				.filter((c) => c.score >= 0);
+			const tierRank = { active: 0, todo: 1, scored: 2 } as const;
+			const topWork = scoredCards
+				.sort((a, b) => tierRank[a.source] - tierRank[b.source] || b.score - a.score)
 				.slice(0, 3);
 
 			const parsedHandoff = lastHandoff ? parseHandoff(lastHandoff) : null;
@@ -784,8 +791,8 @@ server.registerTool(
 					stale: formatStalenessWarnings(stalenessWarnings),
 					...(intentReminder ? { intentReminder } : {}),
 					_hint: lastHandoff
-						? "Continue via handoff.nextSteps or pick from topWork. Use runTool('getCardContext', { cardId }) for deep work."
-						: "No prior handoff — pick from topWork. Call end-session before wrapping to save context.",
+						? "Continue via handoff.nextSteps or pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Use runTool('getCardContext', { cardId }) for deep work."
+						: "No prior handoff — pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Call end-session before wrapping to save context.",
 				},
 				format as "json" | "toon"
 			);
