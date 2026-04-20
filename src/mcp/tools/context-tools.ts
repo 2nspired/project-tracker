@@ -43,8 +43,8 @@ registerExtendedTool("getCardContext", {
 						select: { id: true, text: true, completed: true },
 					},
 					comments: {
-						orderBy: { createdAt: "desc" },
-						take: 5,
+						orderBy: { createdAt: "asc" },
+						take: 50,
 						select: { content: true, authorName: true, authorType: true, createdAt: true },
 					},
 					milestone: { select: { id: true, name: true } },

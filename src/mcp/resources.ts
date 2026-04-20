@@ -127,8 +127,8 @@ export function registerResources(server: McpServer) {
 				include: {
 					checklists: { orderBy: { position: "asc" }, select: { text: true, completed: true } },
 					comments: {
-						orderBy: { createdAt: "desc" },
-						take: 10,
+						orderBy: { createdAt: "asc" },
+						take: 50,
 						select: { content: true, authorName: true, authorType: true, createdAt: true },
 					},
 					column: { select: { name: true } },
