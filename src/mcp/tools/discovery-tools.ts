@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { getHorizon, hasRole } from "../../lib/column-roles.js";
+import { getLatestHandoff } from "../../lib/services/handoff.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { err, ok, safeExecute } from "../utils.js";
+import { WORKFLOWS, type Workflow } from "../workflows.js";
 
 // ─── Discovery tools (extended) ─────────────────────────────────────
 // briefMe is the session-start primer; these live in extended so agents
@@ -14,7 +16,10 @@ registerExtendedTool("getBoard", {
 		"Board state with filtering. Use 'columns' to fetch specific columns, 'excludeDone' to skip Done/Parking, 'summary' for lightweight view (no descriptions/checklists).",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
-		format: z.enum(["json", "toon"]).default("json").describe("'json' (default) or 'toon' (flat tabular shapes only — loses on nested payloads)"),
+		format: z
+			.enum(["json", "toon"])
+			.default("json")
+			.describe("'json' (default) or 'toon' (flat tabular shapes only — loses on nested payloads)"),
 		columns: z
 			.array(z.string())
 			.optional()
@@ -224,7 +229,10 @@ registerExtendedTool("getRoadmap", {
 		"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs and progress per milestone. Horizons: In Progress/Review=Now, Up Next=Next, Backlog=Later, Done=Done.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
-		format: z.enum(["json", "toon"]).default("json").describe("'json' (default) or 'toon' (flat tabular shapes only — loses on nested payloads)"),
+		format: z
+			.enum(["json", "toon"])
+			.default("json")
+			.describe("'json' (default) or 'toon' (flat tabular shapes only — loses on nested payloads)"),
 	}),
 	annotations: { readOnlyHint: true },
 	handler: (params) => {
@@ -312,6 +320,90 @@ registerExtendedTool("getRoadmap", {
 			};
 
 			return ok(roadmap, format as "json" | "toon");
+		});
+	},
+});
+
+// ─── Workflow Discovery ────────────────────────────────────────────
+// Workflows are recipes (ordered tool calls) — distinct from `getTools`
+// which catalogs the API surface. The registry itself lives in
+// src/mcp/workflows.ts; this tool surfaces it plus a state-aware
+// `suggested` hint that nominates the most relevant workflow given the
+// current board (cheap signals only — no expensive joins).
+
+registerExtendedTool("listWorkflows", {
+	category: "discovery",
+	description:
+		"List named, multi-step recipes for common agent procedures (sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge). Returns ordered steps + intent per step + an optional `suggested` hint nominating the most relevant workflow given current board state. Use this — not `getTools` — when you want to know what to do, not which tool to call.",
+	parameters: z.object({
+		boardId: z
+			.string()
+			.optional()
+			.describe(
+				"Board UUID — when present, the response includes a state-aware `suggested` workflow."
+			),
+		name: z
+			.string()
+			.optional()
+			.describe("Filter to a single workflow by name (e.g. 'sessionStart')"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: (params) => {
+		const { boardId, name } = params as { boardId?: string; name?: string };
+		return safeExecute(async () => {
+			// Filter by name when requested — single-record drill-down.
+			const filtered: Workflow[] = name ? WORKFLOWS.filter((w) => w.name === name) : WORKFLOWS;
+
+			if (name && filtered.length === 0) {
+				return err(
+					`Workflow "${name}" not found.`,
+					`Available: ${WORKFLOWS.map((w) => w.name).join(", ")}`
+				);
+			}
+
+			// State-aware suggestion. Cheap signals only:
+			//  - no boardId → can't suggest meaningfully; suggest sessionStart by default.
+			//  - boardId resolves to a real board with no prior handoff → sessionStart
+			//    (briefMe still returns top work even without a handoff).
+			//  - boardId with a handoff → sessionStart (resume the prior thread).
+			// firstSession is the right answer when no project owns the cwd, but
+			// `briefMe`'s own `needsRegistration` response is the canonical place
+			// to surface that — we don't duplicate the cwd resolution here.
+			let suggested: { name: string; reason: string } | undefined;
+			if (!name) {
+				if (!boardId) {
+					suggested = {
+						name: "sessionStart",
+						reason: "No board context provided — start with briefMe to load the latest handoff.",
+					};
+				} else {
+					const board = await db.board.findUnique({
+						where: { id: boardId },
+						select: { id: true },
+					});
+					if (board) {
+						const lastHandoff = await getLatestHandoff(db, boardId);
+						suggested = lastHandoff
+							? {
+									name: "sessionStart",
+									reason: "Prior handoff exists — briefMe shows the diff since.",
+								}
+							: {
+									name: "sessionStart",
+									reason: "No prior handoff yet — briefMe still shows current top work.",
+								};
+					}
+				}
+			}
+
+			return ok({
+				count: filtered.length,
+				workflows: filtered,
+				...(suggested ? { suggested } : {}),
+				_hint: name
+					? "Each step's `tool` resolves via `runTool`. Use `getTools({ tool })` for that tool's parameter schema."
+					: "Pick a workflow by name and follow its steps in order. Use `listWorkflows({ name })` for one workflow at a time, or `getTools({ tool })` for the parameter schema of any step's tool.",
+			});
 		});
 	},
 });
