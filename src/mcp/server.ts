@@ -10,8 +10,8 @@ import { computeBoardDiff } from "../lib/services/board-diff.js";
 import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
 import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
 import { computeWorkNextScore } from "../lib/work-next-score.js";
+import { initFts5 } from "@/server/fts";
 import { db } from "./db.js";
-import { initFts5 } from "./fts.js";
 import { syncGitActivityForProject } from "./git-sync.js";
 import { wrapEssentialHandler } from "./instrumentation.js";
 import {
@@ -1843,8 +1843,10 @@ registerResources(server);
 // ─── Start ──────────────────────────────────────────────────────────
 
 async function main() {
-	// Initialize FTS5 virtual table for cross-source knowledge search
-	await initFts5().catch((e) => console.error("FTS5 init failed (non-fatal):", e));
+	// Initialize FTS5 virtual table for cross-source knowledge search.
+	// db.ts also fires this fire-and-forget at startup; awaiting here ensures
+	// the table exists before we accept tool calls.
+	await initFts5(db).catch((e) => console.error("FTS5 init failed (non-fatal):", e));
 
 	// Populate AGENT_NAME from client handshake when the env var wasn't set.
 	server.server.oninitialized = () => {
