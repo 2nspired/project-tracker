@@ -4,13 +4,13 @@ import { promisify } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { initFts5 } from "@/server/fts";
 import { getHorizon, hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
 import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
 import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
 import { computeWorkNextScore } from "../lib/work-next-score.js";
-import { initFts5 } from "@/server/fts";
 import { db } from "./db.js";
 import { syncGitActivityForProject } from "./git-sync.js";
 import { wrapEssentialHandler } from "./instrumentation.js";
@@ -621,6 +621,8 @@ server.registerTool(
 			toolArchitecture: {
 				essential: `${ESSENTIAL_TOOLS.length} tools are always visible: ${ESSENTIAL_TOOLS.map((t) => t.name).join(", ")}. briefMe is the session-start primer; getBoard, searchCards, and getRoadmap live in extended — call via runTool.`,
 				extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
+				workflows:
+					"Named multi-step recipes (sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge) are listed via `runTool('listWorkflows', { boardId? })` — use these to learn what to do, not just which tool to call.",
 				prompts:
 					"8 MCP prompts are available (resume-session, end-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
 				manifest:
@@ -824,8 +826,8 @@ server.registerTool(
 					stale: formatStalenessWarnings(stalenessWarnings),
 					...(intentReminder ? { intentReminder } : {}),
 					_hint: lastHandoff
-						? "Continue via handoff.nextSteps or pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Use runTool('getCardContext', { cardId }) for deep work."
-						: "No prior handoff — pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Call end-session before wrapping to save context.",
+						? "Continue via handoff.nextSteps or pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
+						: "No prior handoff — pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Run `listWorkflows({ boardId })` for the full recipe set; call `endSession` before wrapping to save context.",
 				},
 				format as "json" | "toon"
 			);
