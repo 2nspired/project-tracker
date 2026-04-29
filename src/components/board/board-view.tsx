@@ -4,6 +4,7 @@ import {
 	type CollisionDetection,
 	DndContext,
 	type DragEndEvent,
+	type DragOverEvent,
 	DragOverlay,
 	type DragStartEvent,
 	PointerSensor,
@@ -12,7 +13,7 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { arrayMove } from "@dnd-kit/sortable";
 import { Lightbulb } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -33,7 +34,8 @@ import { IntentBannerProvider } from "./intent-banner-context";
 import { SortableCard } from "./sortable-card";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
-type BoardCardType = FullBoard["columns"][number]["cards"][number];
+type BoardColumnType = FullBoard["columns"][number];
+type BoardCardType = BoardColumnType["cards"][number];
 
 /**
  * Custom collision detection: use pointerWithin first (more precise for nested droppables),
@@ -92,6 +94,10 @@ export function BoardView({
 	onCardSelect,
 }: BoardViewProps) {
 	const [activeCard, setActiveCard] = useState<BoardCardType | null>(null);
+	// Drag-time projection of column state. While set, columns render from this
+	// instead of `sortedColumns` so siblings shift in real time as the user
+	// hovers — the dnd-kit "Multiple Containers" pattern.
+	const [dragColumns, setDragColumns] = useState<BoardColumnType[] | null>(null);
 
 	const utils = api.useUtils();
 	const moveCard = api.card.move.useMutation({
@@ -216,15 +222,13 @@ export function BoardView({
 	}, [filteredColumns]);
 
 	const findColumnForCard = useCallback(
-		(cardId: string) => {
-			for (const col of board.columns) {
-				if (col.cards.some((c) => c.id === cardId)) {
-					return col;
-				}
+		(cardId: string, columns: BoardColumnType[]) => {
+			for (const col of columns) {
+				if (col.cards.some((c) => c.id === cardId)) return col;
 			}
 			return null;
 		},
-		[board.columns]
+		[]
 	);
 
 	const handleDragStart = (event: DragStartEvent) => {
@@ -233,46 +237,93 @@ export function BoardView({
 		if (card) setActiveCard(card);
 	};
 
-	const handleDragEnd = (event: DragEndEvent) => {
+	const handleDragOver = (event: DragOverEvent) => {
 		const { active, over } = event;
-		setActiveCard(null);
-
 		if (!over) return;
+		const activeId = active.id as string;
+		const overId = over.id as string;
+		if (activeId === overId) return;
 
-		const activeCardId = active.id as string;
+		setDragColumns((prev) => {
+			const current = prev ?? sortedColumns;
+			const activeColumn = findColumnForCard(activeId, current);
+			if (!activeColumn) return prev;
 
-		// Determine target column and position
-		let targetColumnId: string;
-		let targetPosition: number;
+			// over.id is either a column id (empty column / column body drop)
+			// or a card id (hovered over a sibling).
+			const overColumn =
+				current.find((col) => col.id === overId) ?? findColumnForCard(overId, current);
+			if (!overColumn) return prev;
 
-		const overColumn = board.columns.find((col) => col.id === over.id);
-		if (overColumn) {
-			// Dropped directly on a column
-			targetColumnId = overColumn.id;
-			targetPosition = overColumn.cards.length;
-		} else {
-			// Dropped on another card
-			const targetCol = findColumnForCard(over.id as string);
-			if (!targetCol) return;
-			targetColumnId = targetCol.id;
-			const overIndex = targetCol.cards.findIndex((c) => c.id === over.id);
-			targetPosition = overIndex >= 0 ? overIndex : targetCol.cards.length;
-		}
+			if (activeColumn.id === overColumn.id) {
+				const oldIndex = activeColumn.cards.findIndex((c) => c.id === activeId);
+				const newIndex = activeColumn.cards.findIndex((c) => c.id === overId);
+				if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
+				const reordered = arrayMove(activeColumn.cards, oldIndex, newIndex);
+				return current.map((col) =>
+					col.id === activeColumn.id ? { ...col, cards: reordered } : col
+				);
+			}
 
-		const sourceCol = findColumnForCard(activeCardId);
-		if (!sourceCol) return;
+			const draggedCard = activeColumn.cards.find((c) => c.id === activeId);
+			if (!draggedCard) return prev;
+			const overIndex = overColumn.cards.findIndex((c) => c.id === overId);
+			const insertIndex = overIndex >= 0 ? overIndex : overColumn.cards.length;
 
-		// Don't do anything if dropped in same spot
-		if (sourceCol.id === targetColumnId) {
-			const currentIndex = sourceCol.cards.findIndex((c) => c.id === activeCardId);
-			if (currentIndex === targetPosition) return;
-		}
-
-		moveCard.mutate({
-			id: activeCardId,
-			data: { columnId: targetColumnId, position: targetPosition },
+			return current.map((col) => {
+				if (col.id === activeColumn.id) {
+					return { ...col, cards: col.cards.filter((c) => c.id !== activeId) };
+				}
+				if (col.id === overColumn.id) {
+					const next = [...col.cards];
+					next.splice(insertIndex, 0, draggedCard);
+					return { ...col, cards: next };
+				}
+				return col;
+			});
 		});
 	};
+
+	const handleDragEnd = (event: DragEndEvent) => {
+		const { active } = event;
+		setActiveCard(null);
+
+		const activeCardId = active.id as string;
+		const final = dragColumns ?? sortedColumns;
+		const finalColumn = findColumnForCard(activeCardId, final);
+		if (!finalColumn) {
+			setDragColumns(null);
+			return;
+		}
+		const finalIndex = finalColumn.cards.findIndex((c) => c.id === activeCardId);
+
+		// No-op detection: compare against pre-drag state (sortedColumns) so we
+		// don't fire a redundant mutation when the card lands where it started.
+		const originalColumn = findColumnForCard(activeCardId, sortedColumns);
+		if (originalColumn?.id === finalColumn.id) {
+			const originalIndex = originalColumn.cards.findIndex((c) => c.id === activeCardId);
+			if (originalIndex === finalIndex) {
+				setDragColumns(null);
+				return;
+			}
+		}
+
+		// Fire mutation first — its onMutate updates the tRPC cache synchronously,
+		// so clearing dragColumns afterward doesn't flicker back to the old state.
+		moveCard.mutate({
+			id: activeCardId,
+			data: { columnId: finalColumn.id, position: finalIndex },
+		});
+		setDragColumns(null);
+	};
+
+	const handleDragCancel = () => {
+		setActiveCard(null);
+		setDragColumns(null);
+	};
+
+	// Render projection: drag-time map during a drag, derived state otherwise.
+	const renderColumns = dragColumns ?? sortedColumns;
 
 	return (
 		<IntentBannerProvider boardId={board.id}>
@@ -280,7 +331,9 @@ export function BoardView({
 				sensors={sensors}
 				collisionDetection={kanbanCollision}
 				onDragStart={handleDragStart}
+				onDragOver={handleDragOver}
 				onDragEnd={handleDragEnd}
+				onDragCancel={handleDragCancel}
 			>
 				<div className="relative flex flex-1 flex-col overflow-hidden">
 					<BoardToolbar
@@ -302,7 +355,7 @@ export function BoardView({
 
 					{/* Columns */}
 					<div className="flex flex-1 gap-4 overflow-x-auto p-4">
-						{sortedColumns.map((column) => (
+						{renderColumns.map((column) => (
 							<BoardColumn
 								key={column.id}
 								column={column}

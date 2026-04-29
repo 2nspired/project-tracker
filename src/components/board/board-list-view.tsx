@@ -4,6 +4,7 @@ import {
 	type CollisionDetection,
 	DndContext,
 	type DragEndEvent,
+	type DragOverEvent,
 	DragOverlay,
 	type DragStartEvent,
 	PointerSensor,
@@ -13,7 +14,12 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { useSortable } from "@dnd-kit/sortable";
+import {
+	arrayMove,
+	SortableContext,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
 	Ban,
@@ -118,6 +124,8 @@ export function BoardListView({
 	onCardSelect,
 }: BoardListViewProps) {
 	const [activeCard, setActiveCard] = useState<ListCard | null>(null);
+	// Drag-time projection — see board-view.tsx for the pattern.
+	const [dragGroups, setDragGroups] = useState<ColumnGroupData[] | null>(null);
 
 	const utils = api.useUtils();
 	const moveCard = api.card.move.useMutation({
@@ -222,69 +230,113 @@ export function BoardListView({
 		return groups;
 	}, [board.columns, filteredCards, hiddenRoles]);
 
-	const findColumnForCard = useCallback(
-		(cardId: string) => {
-			for (const col of board.columns) {
-				if (col.cards.some((c) => c.id === cardId)) return col;
-			}
-			return null;
-		},
-		[board.columns]
-	);
+	const findGroupForCard = useCallback((cardId: string, groups: ColumnGroupData[]) => {
+		for (const group of groups) {
+			if (group.cards.some((c) => c.id === cardId)) return group;
+		}
+		return null;
+	}, []);
 
 	const handleDragStart = (event: DragStartEvent) => {
 		const card = allCards.find((c) => c.id === event.active.id);
 		if (card) setActiveCard(card);
 	};
 
-	const handleDragEnd = (event: DragEndEvent) => {
+	const handleDragOver = (event: DragOverEvent) => {
 		const { active, over } = event;
+		if (!over) return;
+		const activeId = active.id as string;
+		const overId = over.id as string;
+		if (activeId === overId) return;
+
+		setDragGroups((prev) => {
+			const current = prev ?? groupedByColumn;
+			const activeGroup = findGroupForCard(activeId, current);
+			if (!activeGroup) return prev;
+
+			const overGroup =
+				current.find((g) => g.id === overId) ?? findGroupForCard(overId, current);
+			if (!overGroup) return prev;
+
+			if (activeGroup.id === overGroup.id) {
+				const oldIndex = activeGroup.cards.findIndex((c) => c.id === activeId);
+				const newIndex = activeGroup.cards.findIndex((c) => c.id === overId);
+				if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
+				const reordered = arrayMove(activeGroup.cards, oldIndex, newIndex);
+				return current.map((g) =>
+					g.id === activeGroup.id ? { ...g, cards: reordered } : g
+				);
+			}
+
+			const draggedCard = activeGroup.cards.find((c) => c.id === activeId);
+			if (!draggedCard) return prev;
+			const overIndex = overGroup.cards.findIndex((c) => c.id === overId);
+			const insertIndex = overIndex >= 0 ? overIndex : overGroup.cards.length;
+			const movedCard: ListCard = {
+				...draggedCard,
+				columnId: overGroup.id,
+				columnName: overGroup.name,
+				columnRole: overGroup.role,
+			};
+
+			return current.map((g) => {
+				if (g.id === activeGroup.id) {
+					return { ...g, cards: g.cards.filter((c) => c.id !== activeId) };
+				}
+				if (g.id === overGroup.id) {
+					const next = [...g.cards];
+					next.splice(insertIndex, 0, movedCard);
+					return { ...g, cards: next };
+				}
+				return g;
+			});
+		});
+	};
+
+	const handleDragEnd = (event: DragEndEvent) => {
+		const { active } = event;
 		setActiveCard(null);
 
-		if (!over) return;
-
 		const activeCardId = active.id as string;
-		const overId = over.id as string;
-
-		// Find target column — either dropped on a column group or on a card within one
-		const targetGroup = groupedByColumn.find((g) => g.id === overId);
-		let targetColumnId: string;
-		let targetPosition: number;
-
-		if (targetGroup) {
-			targetColumnId = targetGroup.id;
-			targetPosition = targetGroup.cards.length;
-		} else {
-			// Dropped on a card — find which column group it belongs to
-			const targetCard = allCards.find((c) => c.id === overId);
-			if (!targetCard) return;
-			targetColumnId = targetCard.columnId;
-			const group = groupedByColumn.find((g) => g.id === targetColumnId);
-			if (!group) return;
-			const overIndex = group.cards.findIndex((c) => c.id === overId);
-			targetPosition = overIndex >= 0 ? overIndex : group.cards.length;
+		const final = dragGroups ?? groupedByColumn;
+		const finalGroup = findGroupForCard(activeCardId, final);
+		if (!finalGroup) {
+			setDragGroups(null);
+			return;
 		}
+		const finalIndex = finalGroup.cards.findIndex((c) => c.id === activeCardId);
 
-		const sourceCol = findColumnForCard(activeCardId);
-		if (!sourceCol) return;
-
-		if (sourceCol.id === targetColumnId) {
-			const currentIndex = sourceCol.cards.findIndex((c) => c.id === activeCardId);
-			if (currentIndex === targetPosition) return;
+		const originalGroup = findGroupForCard(activeCardId, groupedByColumn);
+		if (originalGroup?.id === finalGroup.id) {
+			const originalIndex = originalGroup.cards.findIndex((c) => c.id === activeCardId);
+			if (originalIndex === finalIndex) {
+				setDragGroups(null);
+				return;
+			}
 		}
 
 		moveCard.mutate({
 			id: activeCardId,
-			data: { columnId: targetColumnId, position: targetPosition },
+			data: { columnId: finalGroup.id, position: finalIndex },
 		});
+		setDragGroups(null);
 	};
+
+	const handleDragCancel = () => {
+		setActiveCard(null);
+		setDragGroups(null);
+	};
+
+	const renderGroups = dragGroups ?? groupedByColumn;
 
 	return (
 		<DndContext
 			sensors={sensors}
 			collisionDetection={listCollision}
 			onDragStart={handleDragStart}
+			onDragOver={handleDragOver}
 			onDragEnd={handleDragEnd}
+			onDragCancel={handleDragCancel}
 		>
 			<div className="relative flex flex-1 flex-col overflow-hidden">
 				<BoardToolbar
@@ -304,7 +356,7 @@ export function BoardListView({
 
 				<div className="flex-1 overflow-y-auto p-4">
 					<div className="space-y-3">
-						{groupedByColumn.map((group) => (
+						{renderGroups.map((group) => (
 							<ColumnGroup key={group.id} group={group} onCardClick={onCardSelect} />
 						))}
 					</div>
@@ -374,11 +426,16 @@ function ColumnGroup({
 			</button>
 
 			{!collapsed && !isEmpty && (
-				<div className="divide-y divide-border/50">
-					{group.cards.map((card) => (
-						<DraggableListRow key={card.id} card={card} onClick={() => onCardClick(card.id)} />
-					))}
-				</div>
+				<SortableContext
+					items={group.cards.map((c) => c.id)}
+					strategy={verticalListSortingStrategy}
+				>
+					<div className="divide-y divide-border/50">
+						{group.cards.map((card) => (
+							<DraggableListRow key={card.id} card={card} onClick={() => onCardClick(card.id)} />
+						))}
+					</div>
+				</SortableContext>
 			)}
 		</div>
 	);
