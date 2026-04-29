@@ -169,6 +169,7 @@ import "./tools/relation-tools.js";
 import "./tools/session-tools.js";
 import "./tools/decision-tools.js";
 import "./tools/context-tools.js";
+import "./tools/plan-card.js";
 import "./tools/query-tools.js";
 import "./tools/git-tools.js";
 import "./tools/summary-tools.js";

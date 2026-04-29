@@ -214,6 +214,31 @@ The index auto-initializes on first query. It covers repo `*.md` files up to 100
 
 **End of conversation** — Update card states to reflect where things landed. Future conversations pick up from here.
 
+## Planning a Card
+
+When the user wants you to plan a card (vague backlog item, parking-lot idea, etc.), call `planCard`:
+
+```
+runTool("planCard", { boardId, cardId: "#N" })
+```
+
+Or, in Claude Code, the `/plan-card N` slash command does the same thing.
+
+**What it does.** Returns the full card context (description, comments, relations, decisions, commits), the project's `tracker.md` policy (body prompt + per-column prompts), an `investigation_hints` object (URLs, file paths, `#nnn` card refs, code symbols extracted from the description), and a fixed `protocol` string that walks you through synthesizing the plan.
+
+**The four locked sections.** Every planned card ends up with these level-2 headings, in this order:
+
+1. `## Why now` — trigger or motivation
+2. `## Plan` — concrete steps (numbered when order matters)
+3. `## Out of scope` — what you considered and deferred
+4. `## Acceptance` — testable verification criteria
+
+Consistency is the point. Future agents (and humans) skim any card and find the plan in the same place.
+
+**Workflow.** Investigate using the hints → draft the plan in chat (chat is draft, card is publish) → on explicit user confirmation, `updateCard` writes it to the description and `moveCard` promotes it to In Progress.
+
+**`PLAN_EXISTS` warning.** If the description already contains the locked headers, `planCard` refuses to return a `protocol` — surface the warning to the user. Don't silently overwrite a published plan; ask whether to revise it or remove the headers and start fresh.
+
 ## When NOT to Use the Board
 
 - Don't update after every small code change — git tracks that
