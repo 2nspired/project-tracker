@@ -1,14 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-
-import {
-	Sheet,
-	SheetContent,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
 import { ActorDot } from "@/components/ui/actor-dot";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { getAccentBorderStyle, getActorIdentity } from "@/lib/actor-colors";
 import { formatActionVerb } from "@/lib/format-activity";
 import { formatRelativeCompact } from "@/lib/format-date";
@@ -23,12 +17,7 @@ type ActivitySheetProps = {
 
 type ActorFilter = "all" | "agent" | "human";
 
-export function ActivitySheet({
-	boardId,
-	open,
-	onOpenChange,
-	onCardClick,
-}: ActivitySheetProps) {
+export function ActivitySheet({ boardId, open, onOpenChange, onCardClick }: ActivitySheetProps) {
 	const [filter, setFilter] = useState<ActorFilter>("all");
 
 	const { data: activities } = api.activity.listByBoard.useQuery(
@@ -84,18 +73,13 @@ export function ActivitySheet({
 					{!activities ? (
 						<p className="text-xs text-muted-foreground">Loading…</p>
 					) : filtered.length === 0 ? (
-						<p className="text-xs text-muted-foreground">
-							No activity matches this filter.
-						</p>
+						<p className="text-xs text-muted-foreground">No activity matches this filter.</p>
 					) : (
 						<ol className="space-y-2">
 							{filtered.map((activity) => {
-								const { color } = getActorIdentity(
-									activity.actorType,
-									activity.actorName
-								);
-								const name = activity.actorName ??
-									(activity.actorType === "AGENT" ? "Agent" : "You");
+								const { color } = getActorIdentity(activity.actorType, activity.actorName);
+								const name =
+									activity.actorName ?? (activity.actorType === "AGENT" ? "Agent" : "You");
 								const verb = formatActionVerb(activity.action);
 								const hasIntent = Boolean(activity.intent);
 								return (
@@ -107,21 +91,14 @@ export function ActivitySheet({
 											style={getAccentBorderStyle(color, { hasIntent })}
 										>
 											<div className="flex w-full items-center gap-1.5 text-xs text-muted-foreground">
-												<ActorDot
-													actorType={activity.actorType}
-													actorName={activity.actorName}
-												/>
-												<span className="shrink-0 font-medium text-foreground">
-													{name}
-												</span>
+												<ActorDot actorType={activity.actorType} actorName={activity.actorName} />
+												<span className="shrink-0 font-medium text-foreground">{name}</span>
 												<span className="shrink-0">{verb}</span>
 												<span className="shrink-0 font-mono text-2xs text-muted-foreground">
 													#{activity.card.number}
 												</span>
 												<span className="ml-auto shrink-0 font-mono text-[0.625rem] tabular-nums text-muted-foreground/60">
-													{formatRelativeCompact(
-														new Date(activity.createdAt)
-													)}
+													{formatRelativeCompact(new Date(activity.createdAt))}
 												</span>
 											</div>
 											<div className="flex w-full items-baseline gap-1.5">
@@ -165,9 +142,7 @@ function FilterChip({
 			type="button"
 			onClick={onClick}
 			className={`rounded-full px-2 py-0.5 text-2xs transition-colors ${
-				active
-					? "bg-foreground text-background"
-					: "text-muted-foreground hover:bg-muted/60"
+				active ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted/60"
 			}`}
 		>
 			{children}

@@ -23,7 +23,10 @@ async function create(data: CreateColumnInput): Promise<ServiceResult<Column>> {
 		return { success: true, data: column };
 	} catch (error) {
 		console.error("[COLUMN_SERVICE] create error:", error);
-		return { success: false, error: { code: "CREATE_FAILED", message: "Failed to create column." } };
+		return {
+			success: false,
+			error: { code: "CREATE_FAILED", message: "Failed to create column." },
+		};
 	}
 }
 
@@ -41,7 +44,10 @@ async function update(columnId: string, data: UpdateColumnInput): Promise<Servic
 		return { success: true, data: column };
 	} catch (error) {
 		console.error("[COLUMN_SERVICE] update error:", error);
-		return { success: false, error: { code: "UPDATE_FAILED", message: "Failed to update column." } };
+		return {
+			success: false,
+			error: { code: "UPDATE_FAILED", message: "Failed to update column." },
+		};
 	}
 }
 
@@ -51,13 +57,16 @@ async function reorder(boardId: string, columnIds: string[]): Promise<ServiceRes
 			db.column.update({
 				where: { id },
 				data: { position: i },
-			}),
+			})
 		);
 		const columns = await db.$transaction(updates);
 		return { success: true, data: columns };
 	} catch (error) {
 		console.error("[COLUMN_SERVICE] reorder error:", error);
-		return { success: false, error: { code: "REORDER_FAILED", message: "Failed to reorder columns." } };
+		return {
+			success: false,
+			error: { code: "REORDER_FAILED", message: "Failed to reorder columns." },
+		};
 	}
 }
 
@@ -68,14 +77,20 @@ async function deleteColumn(columnId: string): Promise<ServiceResult<Column>> {
 			return { success: false, error: { code: "NOT_FOUND", message: "Column not found." } };
 		}
 		if (existing.isParking) {
-			return { success: false, error: { code: "CANNOT_DELETE", message: "Cannot delete the parking lot." } };
+			return {
+				success: false,
+				error: { code: "CANNOT_DELETE", message: "Cannot delete the parking lot." },
+			};
 		}
 
 		const column = await db.column.delete({ where: { id: columnId } });
 		return { success: true, data: column };
 	} catch (error) {
 		console.error("[COLUMN_SERVICE] delete error:", error);
-		return { success: false, error: { code: "DELETE_FAILED", message: "Failed to delete column." } };
+		return {
+			success: false,
+			error: { code: "DELETE_FAILED", message: "Failed to delete column." },
+		};
 	}
 }
 

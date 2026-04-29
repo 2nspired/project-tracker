@@ -1,10 +1,10 @@
 import type { Milestone } from "prisma/generated/client";
+import { getHorizon } from "@/lib/column-roles";
 import type {
 	CreateMilestoneInput,
 	ReorderMilestonesInput,
 	UpdateMilestoneInput,
 } from "@/lib/schemas/milestone-schemas";
-import { getHorizon } from "@/lib/column-roles";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
@@ -40,13 +40,20 @@ async function list(projectId: string): Promise<ServiceResult<MilestoneWithCount
 		return { success: true, data };
 	} catch (error) {
 		console.error("[MILESTONE_SERVICE] list error:", error);
-		return { success: false, error: { code: "LIST_FAILED", message: "Failed to fetch milestones." } };
+		return {
+			success: false,
+			error: { code: "LIST_FAILED", message: "Failed to fetch milestones." },
+		};
 	}
 }
 
 async function getById(
-	milestoneId: string,
-): Promise<ServiceResult<Milestone & { cards: Array<{ id: string; title: string; number: number; priority: string }> }>> {
+	milestoneId: string
+): Promise<
+	ServiceResult<
+		Milestone & { cards: Array<{ id: string; title: string; number: number; priority: string }> }
+	>
+> {
 	try {
 		const milestone = await db.milestone.findUnique({
 			where: { id: milestoneId },
@@ -91,11 +98,17 @@ async function create(data: CreateMilestoneInput): Promise<ServiceResult<Milesto
 		return { success: true, data: milestone };
 	} catch (error) {
 		console.error("[MILESTONE_SERVICE] create error:", error);
-		return { success: false, error: { code: "CREATE_FAILED", message: "Failed to create milestone." } };
+		return {
+			success: false,
+			error: { code: "CREATE_FAILED", message: "Failed to create milestone." },
+		};
 	}
 }
 
-async function update(milestoneId: string, data: UpdateMilestoneInput): Promise<ServiceResult<Milestone>> {
+async function update(
+	milestoneId: string,
+	data: UpdateMilestoneInput
+): Promise<ServiceResult<Milestone>> {
 	try {
 		const existing = await db.milestone.findUnique({ where: { id: milestoneId } });
 		if (!existing) {
@@ -119,20 +132,26 @@ async function update(milestoneId: string, data: UpdateMilestoneInput): Promise<
 		return { success: true, data: milestone };
 	} catch (error) {
 		console.error("[MILESTONE_SERVICE] update error:", error);
-		return { success: false, error: { code: "UPDATE_FAILED", message: "Failed to update milestone." } };
+		return {
+			success: false,
+			error: { code: "UPDATE_FAILED", message: "Failed to update milestone." },
+		};
 	}
 }
 
 async function reorder(data: ReorderMilestonesInput): Promise<ServiceResult<boolean>> {
 	try {
 		const updates = data.orderedIds.map((id, i) =>
-			db.milestone.update({ where: { id }, data: { position: i } }),
+			db.milestone.update({ where: { id }, data: { position: i } })
 		);
 		await db.$transaction(updates);
 		return { success: true, data: true };
 	} catch (error) {
 		console.error("[MILESTONE_SERVICE] reorder error:", error);
-		return { success: false, error: { code: "REORDER_FAILED", message: "Failed to reorder milestones." } };
+		return {
+			success: false,
+			error: { code: "REORDER_FAILED", message: "Failed to reorder milestones." },
+		};
 	}
 }
 
@@ -147,7 +166,10 @@ async function deleteMilestone(milestoneId: string): Promise<ServiceResult<Miles
 		return { success: true, data: milestone };
 	} catch (error) {
 		console.error("[MILESTONE_SERVICE] delete error:", error);
-		return { success: false, error: { code: "DELETE_FAILED", message: "Failed to delete milestone." } };
+		return {
+			success: false,
+			error: { code: "DELETE_FAILED", message: "Failed to delete milestone." },
+		};
 	}
 }
 

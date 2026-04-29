@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getCommitSummary } from "../../lib/services/commit-summary.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { resolveCardRef, ok, err, safeExecute } from "../utils.js";
+import { err, ok, resolveCardRef, safeExecute } from "../utils.js";
 
 // ─── Tool ────────────────────────────────────────────────────────
 

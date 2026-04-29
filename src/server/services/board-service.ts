@@ -7,7 +7,8 @@ import type { ServiceResult } from "@/server/services/types/service-result";
 const DEFAULT_COLUMNS = [
 	{
 		name: "Backlog",
-		description: "Known work. Drag the most important to the top — top 3 surface as 'pinned' in briefMe.",
+		description:
+			"Known work. Drag the most important to the top — top 3 surface as 'pinned' in briefMe.",
 		position: 0,
 		role: "backlog",
 		isParking: false,

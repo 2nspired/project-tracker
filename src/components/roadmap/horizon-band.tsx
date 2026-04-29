@@ -1,13 +1,9 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import {
-	SortableContext,
-	verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-
-import type { Horizon, MilestoneGroup } from "./roadmap-view";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { MilestoneCard } from "./milestone-card";
+import type { Horizon, MilestoneGroup } from "./roadmap-view";
 
 type DensityMode = "expanded" | "compact" | "focus";
 
@@ -66,9 +62,7 @@ export function HorizonBand({
 		data: { type: "horizon", horizon },
 	});
 
-	const milestoneIds = milestones.map(
-		(m) => m.id ?? "__ungrouped__",
-	);
+	const milestoneIds = milestones.map((m) => m.id ?? "__ungrouped__");
 
 	// Done band is collapsible — show as a single line when compact
 	if (horizon === "done" && milestones.length === 0) return null;
@@ -85,9 +79,7 @@ export function HorizonBand({
 				<h2 className={`text-sm font-bold uppercase tracking-wider ${config.textClass}`}>
 					{config.label}
 				</h2>
-				<span className="text-2xs text-muted-foreground">
-					{config.description}
-				</span>
+				<span className="text-2xs text-muted-foreground">{config.description}</span>
 				<div className="ml-auto flex items-center gap-2 text-2xs text-muted-foreground">
 					<span>
 						{milestones.length} milestone{milestones.length !== 1 ? "s" : ""}
@@ -101,10 +93,7 @@ export function HorizonBand({
 
 			{/* Milestone cards */}
 			{milestones.length > 0 && (
-				<SortableContext
-					items={milestoneIds}
-					strategy={verticalListSortingStrategy}
-				>
+				<SortableContext items={milestoneIds} strategy={verticalListSortingStrategy}>
 					<div className="space-y-2 px-4 pb-4">
 						{milestones.map((milestone) => (
 							<MilestoneCard

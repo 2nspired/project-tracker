@@ -1,11 +1,7 @@
 import type { CardRelation } from "prisma/generated/client";
 import type { CreateRelationInput } from "@/lib/schemas/relation-schemas";
-import {
-	linkCards,
-	unlinkCards,
-	getBlockers as getBlockersShared,
-} from "@/lib/services/relations";
 import type { BlockerEntry } from "@/lib/services/relations";
+import { getBlockers as getBlockersShared, linkCards, unlinkCards } from "@/lib/services/relations";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
@@ -41,7 +37,11 @@ async function link(input: CreateRelationInput): Promise<ServiceResult<CardRelat
 	}
 }
 
-async function unlink(fromCardId: string, toCardId: string, type: string): Promise<ServiceResult<{ deleted: true }>> {
+async function unlink(
+	fromCardId: string,
+	toCardId: string,
+	type: string
+): Promise<ServiceResult<{ deleted: true }>> {
 	try {
 		await unlinkCards(db, { fromCardId, toCardId, type, actorName: "System" });
 		return { success: true, data: { deleted: true } };
@@ -82,7 +82,11 @@ async function getForCard(cardId: string): Promise<ServiceResult<RelationsForCar
 		};
 
 		for (const rel of relationsFrom) {
-			const summary: CardSummary = { id: rel.toCard.id, number: rel.toCard.number, title: rel.toCard.title };
+			const summary: CardSummary = {
+				id: rel.toCard.id,
+				number: rel.toCard.number,
+				title: rel.toCard.title,
+			};
 			if (rel.type === "blocks") {
 				result.blocks.push(summary);
 			} else if (rel.type === "related") {
@@ -93,7 +97,11 @@ async function getForCard(cardId: string): Promise<ServiceResult<RelationsForCar
 		}
 
 		for (const rel of relationsTo) {
-			const summary: CardSummary = { id: rel.fromCard.id, number: rel.fromCard.number, title: rel.fromCard.title };
+			const summary: CardSummary = {
+				id: rel.fromCard.id,
+				number: rel.fromCard.number,
+				title: rel.fromCard.title,
+			};
 			if (rel.type === "blocks") {
 				result.blockedBy.push(summary);
 			} else if (rel.type === "related") {

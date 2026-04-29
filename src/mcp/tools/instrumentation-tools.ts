@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { ok, err, safeExecute } from "../utils.js";
+import { err, ok, safeExecute } from "../utils.js";
 
 registerExtendedTool("getToolUsageStats", {
 	category: "discovery",
@@ -11,7 +11,9 @@ registerExtendedTool("getToolUsageStats", {
 		mode: z
 			.enum(["summary", "tool", "agents"])
 			.default("summary")
-			.describe("summary=top tools overview, tool=single tool deep dive, agents=per-agent breakdown"),
+			.describe(
+				"summary=top tools overview, tool=single tool deep dive, agents=per-agent breakdown"
+			),
 		toolName: z
 			.string()
 			.optional()
@@ -37,9 +39,17 @@ registerExtendedTool("getToolUsageStats", {
 					take: 10000,
 				});
 
-				const byTool = new Map<string, { calls: number; errors: number; durations: number[]; toolType: string }>();
+				const byTool = new Map<
+					string,
+					{ calls: number; errors: number; durations: number[]; toolType: string }
+				>();
 				for (const log of logs) {
-					const entry = byTool.get(log.toolName) ?? { calls: 0, errors: 0, durations: [], toolType: log.toolType };
+					const entry = byTool.get(log.toolName) ?? {
+						calls: 0,
+						errors: 0,
+						durations: [],
+						toolType: log.toolType,
+					};
 					entry.calls++;
 					if (!log.success) entry.errors++;
 					entry.durations.push(log.durationMs);
@@ -75,7 +85,7 @@ registerExtendedTool("getToolUsageStats", {
 				if (!toolName) {
 					return err(
 						"toolName is required when mode=tool.",
-						"Pass the exact tool name, e.g. getToolUsageStats({ mode: 'tool', toolName: 'getBoard' })",
+						"Pass the exact tool name, e.g. getToolUsageStats({ mode: 'tool', toolName: 'getBoard' })"
 					);
 				}
 
@@ -86,13 +96,20 @@ registerExtendedTool("getToolUsageStats", {
 				});
 
 				if (logs.length === 0) {
-					return ok({ mode: "tool", toolName, message: "No calls recorded for this tool in the given window." });
+					return ok({
+						mode: "tool",
+						toolName,
+						message: "No calls recorded for this tool in the given window.",
+					});
 				}
 
 				const durations = logs.map((l) => l.durationMs).sort((a, b) => a - b);
 				const errors = logs.filter((l) => !l.success);
 
-				const agentMap = new Map<string, { calls: number; errors: number; sessions: Set<string> }>();
+				const agentMap = new Map<
+					string,
+					{ calls: number; errors: number; sessions: Set<string> }
+				>();
 				for (const log of logs) {
 					const entry = agentMap.get(log.agentName) ?? { calls: 0, errors: 0, sessions: new Set() };
 					entry.calls++;
@@ -137,9 +154,17 @@ registerExtendedTool("getToolUsageStats", {
 					take: 10000,
 				});
 
-				const byAgent = new Map<string, { calls: number; errors: number; sessions: Set<string>; tools: Map<string, number> }>();
+				const byAgent = new Map<
+					string,
+					{ calls: number; errors: number; sessions: Set<string>; tools: Map<string, number> }
+				>();
 				for (const log of logs) {
-					const entry = byAgent.get(log.agentName) ?? { calls: 0, errors: 0, sessions: new Set(), tools: new Map() };
+					const entry = byAgent.get(log.agentName) ?? {
+						calls: 0,
+						errors: 0,
+						sessions: new Set(),
+						tools: new Map(),
+					};
 					entry.calls++;
 					if (!log.success) entry.errors++;
 					entry.sessions.add(log.sessionId);

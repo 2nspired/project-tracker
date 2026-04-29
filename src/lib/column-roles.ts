@@ -39,11 +39,17 @@ export function hasRole(column: { role?: string | null; name: string }, role: st
 	// Name-based fallback
 	const lower = column.name.toLowerCase();
 	switch (role) {
-		case "done": return lower === "done";
-		case "active": return lower === "in progress";
-		case "review": return lower === "review";
-		case "backlog": return lower === "backlog";
-		case "parking": return lower === "parking lot" || lower === "parking";
-		default: return false;
+		case "done":
+			return lower === "done";
+		case "active":
+			return lower === "in progress";
+		case "review":
+			return lower === "review";
+		case "backlog":
+			return lower === "backlog";
+		case "parking":
+			return lower === "parking lot" || lower === "parking";
+		default:
+			return false;
 	}
 }

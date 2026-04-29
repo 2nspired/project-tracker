@@ -23,12 +23,7 @@ export function ProgressRing({
 	const offset = circumference * (1 - clamped);
 
 	return (
-		<svg
-			width={size}
-			height={size}
-			viewBox={`0 0 ${size} ${size}`}
-			className={className}
-		>
+		<svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={className}>
 			{/* Background track */}
 			<circle
 				cx={size / 2}

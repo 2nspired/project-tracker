@@ -93,7 +93,7 @@ async function upsertRow(client: FtsClient, row: FtsRow): Promise<void> {
 	await client.$executeRawUnsafe(
 		"DELETE FROM knowledge_fts WHERE source_type = ? AND source_id = ?",
 		row.source_type,
-		row.source_id,
+		row.source_id
 	);
 	await client.$executeRawUnsafe(
 		"INSERT INTO knowledge_fts (source_type, source_id, project_id, title, content) VALUES (?, ?, ?, ?, ?)",
@@ -101,19 +101,19 @@ async function upsertRow(client: FtsClient, row: FtsRow): Promise<void> {
 		row.source_id,
 		row.project_id,
 		row.title,
-		row.content,
+		row.content
 	);
 }
 
 export async function removeFromIndex(
 	client: FtsClient,
 	sourceType: string,
-	sourceId: string,
+	sourceId: string
 ): Promise<void> {
 	await client.$executeRawUnsafe(
 		"DELETE FROM knowledge_fts WHERE source_type = ? AND source_id = ?",
 		sourceType,
-		sourceId,
+		sourceId
 	);
 }
 
@@ -249,13 +249,10 @@ export async function indexComment(client: FtsClient, commentId: string): Promis
  */
 export async function rebuildIndex(
 	client: FtsClient,
-	projectId: string,
+	projectId: string
 ): Promise<{ indexed: Record<string, number> }> {
 	// Clear existing entries for this project
-	await client.$executeRawUnsafe(
-		"DELETE FROM knowledge_fts WHERE project_id = ?",
-		projectId,
-	);
+	await client.$executeRawUnsafe("DELETE FROM knowledge_fts WHERE project_id = ?", projectId);
 
 	const rows: FtsRow[] = [];
 
@@ -384,7 +381,7 @@ export async function rebuildIndex(
 			row.source_id,
 			row.project_id,
 			row.title,
-			row.content,
+			row.content
 		);
 	}
 
@@ -414,7 +411,7 @@ async function indexRepoMarkdown(projectId: string, repoPath: string): Promise<F
 					const { stdout } = await execFileAsync(
 						"git",
 						["log", "-1", "--format=%H", "--", relative(repoPath, filePath)],
-						{ ...EXEC_OPTS, cwd: repoPath },
+						{ ...EXEC_OPTS, cwd: repoPath }
 					);
 					sha = stdout.trim() || undefined;
 				} catch {}
@@ -486,7 +483,7 @@ export async function queryKnowledge(
 	client: FtsClient,
 	projectId: string,
 	topic: string,
-	limit = 20,
+	limit = 20
 ): Promise<KnowledgeResult[]> {
 	const sanitized = sanitizeFts5Query(topic);
 	if (!sanitized) return [];
@@ -497,11 +494,11 @@ export async function queryKnowledge(
 
 	const [{ count }] = await client.$queryRawUnsafe<Array<{ count: number }>>(
 		"SELECT COUNT(*) as count FROM knowledge_fts WHERE project_id = ?",
-		projectId,
+		projectId
 	);
 	if (Number(count) === 0) {
 		await rebuildIndex(client, projectId).catch((err) =>
-			console.warn("[fts] cold-start rebuild failed:", err),
+			console.warn("[fts] cold-start rebuild failed:", err)
 		);
 	}
 
@@ -526,7 +523,7 @@ export async function queryKnowledge(
 		LIMIT ?`,
 		sanitized,
 		projectId,
-		limit,
+		limit
 	);
 
 	return results.map((r) => ({

@@ -29,12 +29,11 @@ type ScoreableCard = {
 export function computeWorkNextScore(card: ScoreableCard): number {
 	const priority = card.priority as Priority;
 	const ageDays = Math.floor(
-		(Date.now() - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24),
+		(Date.now() - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24)
 	);
 
 	// Blocked cards sink hard
-	const blockedByCount =
-		card._blockedByCount ?? card.relationsTo?.length ?? 0;
+	const blockedByCount = card._blockedByCount ?? card.relationsTo?.length ?? 0;
 	if (blockedByCount > 0) return -100 + PRIORITY_WEIGHT[priority];
 
 	let score = 0;
@@ -52,7 +51,7 @@ export function computeWorkNextScore(card: ScoreableCard): number {
 	// Due date urgency (exponential as deadline approaches)
 	if (card.dueDate) {
 		const daysUntilDue = Math.floor(
-			(new Date(card.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+			(new Date(card.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
 		);
 		if (daysUntilDue < 0) {
 			score += 50; // overdue

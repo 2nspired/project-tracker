@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Select,
 	SelectContent,
@@ -26,6 +25,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getHorizon } from "@/lib/column-roles";
 import { PRIORITY_DOT } from "@/lib/priority-colors";
@@ -57,9 +57,21 @@ export default function DashboardPage() {
 	const { stats, focusCards, grouped } = useMemo(() => {
 		type CardItem = NonNullable<typeof cards>[number];
 		type MilestoneEntry = { name: string; cells: Array<"done" | "now" | "later"> };
-		type ProjectStat = { name: string; id: string; done: number; total: number; milestones: MilestoneEntry[] };
-		type GroupEntry = { projectName: string; projectId: string; boardId: string; cards: CardItem[] };
-		if (!cards) return { stats: null, focusCards: [] as CardItem[], grouped: new Map<string, GroupEntry>() };
+		type ProjectStat = {
+			name: string;
+			id: string;
+			done: number;
+			total: number;
+			milestones: MilestoneEntry[];
+		};
+		type GroupEntry = {
+			projectName: string;
+			projectId: string;
+			boardId: string;
+			cards: CardItem[];
+		};
+		if (!cards)
+			return { stats: null, focusCards: [] as CardItem[], grouped: new Map<string, GroupEntry>() };
 
 		// Stats by horizon
 		const horizonCounts = { now: 0, later: 0, done: 0 };
@@ -93,12 +105,19 @@ export default function DashboardPage() {
 			// Milestones per project
 			if (card.milestone) {
 				const msMap = projectMilestones.get(pId)!;
-				if (!msMap.has(card.milestone.id)) msMap.set(card.milestone.id, { name: card.milestone.name, cells: [] });
+				if (!msMap.has(card.milestone.id))
+					msMap.set(card.milestone.id, { name: card.milestone.name, cells: [] });
 				msMap.get(card.milestone.id)!.cells.push(horizon);
 			}
 
 			// Group by project
-			if (!groups.has(pId)) groups.set(pId, { projectName: pName, projectId: pId, boardId: card.column.board.id, cards: [] });
+			if (!groups.has(pId))
+				groups.set(pId, {
+					projectName: pName,
+					projectId: pId,
+					boardId: card.column.board.id,
+					cards: [],
+				});
 			groups.get(pId)!.cards.push(card);
 		}
 
@@ -107,20 +126,26 @@ export default function DashboardPage() {
 		for (const [pId, msMap] of projectMilestones) {
 			const ps = projectStats.get(pId)!;
 			ps.milestones = Array.from(msMap.values())
-				.filter(m => m.cells.length > 1)
-				.map(m => {
+				.filter((m) => m.cells.length > 1)
+				.map((m) => {
 					m.cells.sort((a, b) => cellOrder[a] - cellOrder[b]);
 					return m;
 				})
 				.sort((a, b) => {
-					const aDone = a.cells.filter(c => c === "done").length / a.cells.length;
-					const bDone = b.cells.filter(c => c === "done").length / b.cells.length;
+					const aDone = a.cells.filter((c) => c === "done").length / a.cells.length;
+					const bDone = b.cells.filter((c) => c === "done").length / b.cells.length;
 					return bDone - aDone;
 				});
 		}
 
 		// Sort cards in each group: priority desc, then most recently updated
-		const priorityOrder: Record<string, number> = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3, NONE: 4 };
+		const priorityOrder: Record<string, number> = {
+			URGENT: 0,
+			HIGH: 1,
+			MEDIUM: 2,
+			LOW: 3,
+			NONE: 4,
+		};
 		for (const group of groups.values()) {
 			group.cards.sort((a, b) => {
 				const pDiff = (priorityOrder[a.priority] ?? 4) - (priorityOrder[b.priority] ?? 4);
@@ -171,8 +196,22 @@ export default function DashboardPage() {
 							const unmilestoned = p.total - milestonedCount;
 
 							// Green shades for done portions, gray shades for remaining
-							const greens = ["bg-emerald-500", "bg-emerald-400", "bg-teal-500", "bg-green-500", "bg-emerald-600", "bg-teal-400"];
-							const grays = ["bg-zinc-600", "bg-zinc-500", "bg-neutral-600", "bg-stone-600", "bg-zinc-700", "bg-neutral-500"];
+							const greens = [
+								"bg-emerald-500",
+								"bg-emerald-400",
+								"bg-teal-500",
+								"bg-green-500",
+								"bg-emerald-600",
+								"bg-teal-400",
+							];
+							const grays = [
+								"bg-zinc-600",
+								"bg-zinc-500",
+								"bg-neutral-600",
+								"bg-stone-600",
+								"bg-zinc-700",
+								"bg-neutral-500",
+							];
 
 							return (
 								<div key={p.id} className="rounded-lg border bg-card p-4">
@@ -187,57 +226,65 @@ export default function DashboardPage() {
 										<>
 											{/* Stacked milestone bar */}
 											<TooltipProvider>
-											<div className="mt-2 flex h-5 w-full overflow-hidden rounded">
-												{p.milestones.map((ms, idx) => {
-													const done = ms.cells.filter(c => c === "done").length;
-													const remaining = ms.cells.length - done;
-													const donePct = (done / p.total) * 100;
-													const remainPct = (remaining / p.total) * 100;
-													const green = greens[idx % greens.length];
-													const gray = grays[idx % grays.length];
+												<div className="mt-2 flex h-5 w-full overflow-hidden rounded">
+													{p.milestones.map((ms, idx) => {
+														const done = ms.cells.filter((c) => c === "done").length;
+														const remaining = ms.cells.length - done;
+														const donePct = (done / p.total) * 100;
+														const remainPct = (remaining / p.total) * 100;
+														const green = greens[idx % greens.length];
+														const gray = grays[idx % grays.length];
 
-													return (
-														<Tooltip key={ms.name}>
+														return (
+															<Tooltip key={ms.name}>
+																<TooltipTrigger asChild>
+																	<div
+																		className="flex"
+																		style={{ width: `${donePct + remainPct}%` }}
+																	>
+																		{donePct > 0 && (
+																			<div
+																				className={`${green} h-full transition-all`}
+																				style={{
+																					width: `${(donePct / (donePct + remainPct)) * 100}%`,
+																				}}
+																			/>
+																		)}
+																		{remainPct > 0 && (
+																			<div
+																				className={`${gray} h-full transition-all`}
+																				style={{
+																					width: `${(remainPct / (donePct + remainPct)) * 100}%`,
+																				}}
+																			/>
+																		)}
+																	</div>
+																</TooltipTrigger>
+																<TooltipContent side="bottom" className="text-xs">
+																	<p className="font-medium">{ms.name}</p>
+																	<p className="text-muted-foreground">
+																		{done}/{ms.cells.length} done
+																	</p>
+																</TooltipContent>
+															</Tooltip>
+														);
+													})}
+													{unmilestoned > 0 && (
+														<Tooltip>
 															<TooltipTrigger asChild>
-																<div className="flex" style={{ width: `${donePct + remainPct}%` }}>
-																	{donePct > 0 && (
-																		<div
-																			className={`${green} h-full transition-all`}
-																			style={{ width: `${(donePct / (donePct + remainPct)) * 100}%` }}
-																		/>
-																	)}
-																	{remainPct > 0 && (
-																		<div
-																			className={`${gray} h-full transition-all`}
-																			style={{ width: `${(remainPct / (donePct + remainPct)) * 100}%` }}
-																		/>
-																	)}
-																</div>
+																<div
+																	className="bg-muted-foreground/15 h-full"
+																	style={{ width: `${(unmilestoned / p.total) * 100}%` }}
+																/>
 															</TooltipTrigger>
 															<TooltipContent side="bottom" className="text-xs">
-																<p className="font-medium">{ms.name}</p>
-																<p className="text-muted-foreground">{done}/{ms.cells.length} done</p>
+																<p className="font-medium">No milestone</p>
+																<p className="text-muted-foreground">{unmilestoned} cards</p>
 															</TooltipContent>
 														</Tooltip>
-													);
-												})}
-												{unmilestoned > 0 && (
-													<Tooltip>
-														<TooltipTrigger asChild>
-															<div
-																className="bg-muted-foreground/15 h-full"
-																style={{ width: `${(unmilestoned / p.total) * 100}%` }}
-															/>
-														</TooltipTrigger>
-														<TooltipContent side="bottom" className="text-xs">
-															<p className="font-medium">No milestone</p>
-															<p className="text-muted-foreground">{unmilestoned} cards</p>
-														</TooltipContent>
-													</Tooltip>
-												)}
-											</div>
+													)}
+												</div>
 											</TooltipProvider>
-
 										</>
 									) : (
 										<Progress value={pct} className="mt-2 h-2" />
@@ -263,7 +310,7 @@ export default function DashboardPage() {
 						{focusCards.map((card) => {
 							const tags: string[] = JSON.parse(card.tags);
 							const checkTotal = card.checklists.length;
-							const checkDone = card.checklists.filter(c => c.completed).length;
+							const checkDone = card.checklists.filter((c) => c.completed).length;
 							return (
 								<div
 									key={card.id}
@@ -432,7 +479,7 @@ export default function DashboardPage() {
 									{visibleCards.map((card) => {
 										const tags: string[] = JSON.parse(card.tags);
 										const checkTotal = card.checklists.length;
-										const checkDone = card.checklists.filter(c => c.completed).length;
+										const checkDone = card.checklists.filter((c) => c.completed).length;
 										return (
 											<div
 												key={card.id}

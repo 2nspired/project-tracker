@@ -2,17 +2,17 @@
 
 import { Ban } from "lucide-react";
 
-import { PRIORITY_DOT, STATUS_BG, STATUS_BORDER, STATUS_DOT, STATUS_TEXT } from "@/lib/priority-colors";
+import {
+	PRIORITY_DOT,
+	STATUS_BG,
+	STATUS_BORDER,
+	STATUS_DOT,
+	STATUS_TEXT,
+} from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";
 import type { RoadmapCard } from "./roadmap-view";
 
-export function CardChip({
-	card,
-	onClick,
-}: {
-	card: RoadmapCard;
-	onClick: () => void;
-}) {
+export function CardChip({ card, onClick }: { card: RoadmapCard; onClick: () => void }) {
 	const isDone = card.horizon === "done";
 	const isBlocked = card.isBlocked && !isDone;
 	const checkDone = card.checklists.filter((c) => c.completed).length;
@@ -42,14 +42,10 @@ export function CardChip({
 			/>
 
 			{/* Blocked icon */}
-			{isBlocked && (
-				<Ban className={`h-2.5 w-2.5 shrink-0 ${STATUS_TEXT.blocked}`} />
-			)}
+			{isBlocked && <Ban className={`h-2.5 w-2.5 shrink-0 ${STATUS_TEXT.blocked}`} />}
 
 			{/* Card number */}
-			<span className="font-mono text-2xs text-muted-foreground">
-				#{card.number}
-			</span>
+			<span className="font-mono text-2xs text-muted-foreground">#{card.number}</span>
 
 			{/* Title */}
 			<span
@@ -64,9 +60,7 @@ export function CardChip({
 			{checkTotal > 0 && (
 				<span
 					className={`text-2xs ${
-						checkDone === checkTotal
-							? STATUS_TEXT.done
-							: "text-muted-foreground"
+						checkDone === checkTotal ? STATUS_TEXT.done : "text-muted-foreground"
 					}`}
 				>
 					{checkDone}/{checkTotal}

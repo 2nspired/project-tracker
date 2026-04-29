@@ -4,14 +4,6 @@ import { Check, Eye, Plus, Save, Search, Sparkles, Trash2, X } from "lucide-reac
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -20,11 +12,19 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+	addCustomView,
 	type BoardView,
 	BUILT_IN_VIEWS,
-	addCustomView,
 	deleteCustomView,
 	loadCustomViews,
 } from "@/lib/board-views";
@@ -73,9 +73,7 @@ export function BoardToolbar({
 	visibleCards,
 }: BoardToolbarProps) {
 	const hasActiveFilters =
-		filters.search !== "" ||
-		filters.priority !== "ALL" ||
-		filters.tag !== "ALL";
+		filters.search !== "" || filters.priority !== "ALL" || filters.tag !== "ALL";
 
 	const hasNonDefaultState = hasActiveFilters || hiddenRoles.length > 0 || sortMode !== "manual";
 	const isFiltered = hasNonDefaultState && visibleCards !== totalCards;
@@ -187,7 +185,6 @@ export function BoardToolbar({
 					)}
 				</>
 			)}
-
 		</div>
 	);
 }
@@ -214,7 +211,8 @@ function ViewSelector({
 	const [newName, setNewName] = useState("");
 
 	const activeView = activeViewId
-		? BUILT_IN_VIEWS.find((v) => v.id === activeViewId) ?? customViews.find((v) => v.id === activeViewId)
+		? (BUILT_IN_VIEWS.find((v) => v.id === activeViewId) ??
+			customViews.find((v) => v.id === activeViewId))
 		: null;
 
 	const handleSave = () => {
@@ -254,14 +252,15 @@ function ViewSelector({
 			<DropdownMenuContent
 				align="start"
 				className="w-56"
-				onInteractOutside={(e) => { if (saving) e.preventDefault(); }}
-				onPointerDownOutside={(e) => { if (saving) e.preventDefault(); }}
+				onInteractOutside={(e) => {
+					if (saving) e.preventDefault();
+				}}
+				onPointerDownOutside={(e) => {
+					if (saving) e.preventDefault();
+				}}
 			>
 				{/* All Cards (reset) */}
-				<DropdownMenuItem
-					onClick={() => onViewChange(null)}
-					className="gap-2"
-				>
+				<DropdownMenuItem onClick={() => onViewChange(null)} className="gap-2">
 					{!activeViewId && <Check className="h-3.5 w-3.5" />}
 					{activeViewId && <span className="w-3.5" />}
 					All Cards
@@ -271,11 +270,7 @@ function ViewSelector({
 				<DropdownMenuLabel className="text-2xs">Built-in</DropdownMenuLabel>
 
 				{BUILT_IN_VIEWS.map((view) => (
-					<DropdownMenuItem
-						key={view.id}
-						onClick={() => onViewChange(view)}
-						className="gap-2"
-					>
+					<DropdownMenuItem key={view.id} onClick={() => onViewChange(view)} className="gap-2">
 						{activeViewId === view.id && <Check className="h-3.5 w-3.5" />}
 						{activeViewId !== view.id && <span className="w-3.5" />}
 						{view.name}
@@ -288,11 +283,7 @@ function ViewSelector({
 						<DropdownMenuSeparator />
 						<DropdownMenuLabel className="text-2xs">Custom</DropdownMenuLabel>
 						{customViews.map((view) => (
-							<DropdownMenuItem
-								key={view.id}
-								className="gap-2"
-								onClick={() => onViewChange(view)}
-							>
+							<DropdownMenuItem key={view.id} className="gap-2" onClick={() => onViewChange(view)}>
 								{activeViewId === view.id && <Check className="h-3.5 w-3.5" />}
 								{activeViewId !== view.id && <span className="w-3.5" />}
 								<span className="flex-1">{view.name}</span>
@@ -314,7 +305,10 @@ function ViewSelector({
 				{/* Save current */}
 				<DropdownMenuSeparator />
 				{saving ? (
-					<div className="flex items-center gap-1.5 px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+					<div
+						className="flex items-center gap-1.5 px-2 py-1.5"
+						onClick={(e) => e.stopPropagation()}
+					>
 						<Input
 							value={newName}
 							onChange={(e) => setNewName(e.target.value)}
@@ -337,7 +331,13 @@ function ViewSelector({
 						</Button>
 					</div>
 				) : (
-					<DropdownMenuItem onClick={(e) => { e.preventDefault(); setSaving(true); }} className="gap-2">
+					<DropdownMenuItem
+						onClick={(e) => {
+							e.preventDefault();
+							setSaving(true);
+						}}
+						className="gap-2"
+					>
 						<Plus className="h-3.5 w-3.5" />
 						Save current view
 					</DropdownMenuItem>

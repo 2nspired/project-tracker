@@ -51,7 +51,10 @@ export function BoardColumn({ column, boardId, sortMode, onCardClick }: BoardCol
 		>
 			<ColumnHeader column={column} boardId={boardId} />
 
-			<div ref={setNodeRef} className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto pr-2">
+			<div
+				ref={setNodeRef}
+				className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto pr-2"
+			>
 				<SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
 					{column.cards.map((card) => (
 						<SortableCard

@@ -1,12 +1,6 @@
 "use client";
 
-import {
-	ArrowUpRight,
-	Loader2,
-	NotebookPen,
-	Pencil,
-	Plus,
-} from "lucide-react";
+import { ArrowUpRight, Loader2, NotebookPen, Pencil, Plus } from "lucide-react";
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -23,7 +17,6 @@ import {
 } from "@/components/notes/note-views";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Dialog,
 	DialogContent,
@@ -32,11 +25,11 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Markdown } from "@/components/ui/markdown";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Select,
 	SelectContent,
@@ -44,6 +37,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format-date";
 import { api } from "@/trpc/react";
 
@@ -267,9 +261,7 @@ export default function NotesPage() {
 										<DialogTitle className="text-xl">{viewNote.title}</DialogTitle>
 										<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
 											{viewNote.project && <span>{viewNote.project.name}</span>}
-											<span>
-												{formatDate(viewNote.updatedAt, { includeTime: true })}
-											</span>
+											<span>{formatDate(viewNote.updatedAt, { includeTime: true })}</span>
 										</div>
 									</div>
 								</div>
@@ -366,15 +358,15 @@ export default function NotesPage() {
 								setTagInput={setNoteTagInput}
 							/>
 							<div className="space-y-2">
-									<Label>Content (markdown)</Label>
-									<MarkdownEditor
-										content={content}
-										setContent={setContent}
-										preview={preview}
-										setPreview={setPreview}
-										previewMinHeight="min-h-[600px]"
-									/>
-								</div>
+								<Label>Content (markdown)</Label>
+								<MarkdownEditor
+									content={content}
+									setContent={setContent}
+									preview={preview}
+									setPreview={setPreview}
+									previewMinHeight="min-h-[600px]"
+								/>
+							</div>
 						</div>
 						<DialogFooter className="mt-6">
 							<Button type="submit" disabled={createNote.isPending || !title.trim()}>
@@ -431,15 +423,15 @@ export default function NotesPage() {
 								setTagInput={setNoteTagInput}
 							/>
 							<div className="space-y-2">
-									<Label>Content (markdown)</Label>
-									<MarkdownEditor
-										content={content}
-										setContent={setContent}
-										preview={preview}
-										setPreview={setPreview}
-										previewMinHeight="min-h-[600px]"
-									/>
-								</div>
+								<Label>Content (markdown)</Label>
+								<MarkdownEditor
+									content={content}
+									setContent={setContent}
+									preview={preview}
+									setPreview={setPreview}
+									previewMinHeight="min-h-[600px]"
+								/>
+							</div>
 						</div>
 						<DialogFooter className="mt-6">
 							<Button type="submit" disabled={updateNote.isPending || !title.trim()}>

@@ -24,7 +24,9 @@ export const handoffRouter = createTRPCRouter({
 		}),
 
 	list: publicProcedure
-		.input(z.object({ boardId: z.string().uuid(), limit: z.number().int().min(1).max(50).optional() }))
+		.input(
+			z.object({ boardId: z.string().uuid(), limit: z.number().int().min(1).max(50).optional() })
+		)
 		.query(async ({ input }) => {
 			const result = await handoffService.list(input.boardId, input.limit);
 			if (!result.success) {

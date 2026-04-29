@@ -1,13 +1,6 @@
 "use client";
 
-import {
-	ArrowUpRight,
-	LayoutGrid,
-	List,
-	Pencil,
-	Search,
-	Trash2,
-} from "lucide-react";
+import { ArrowUpRight, LayoutGrid, List, Pencil, Search, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,17 +73,13 @@ export function NoteTagFilter({
 	selectedTags: string[];
 	setSelectedTags: (tags: string[]) => void;
 }) {
-	const allTags = Array.from(
-		new Set(notes.flatMap((n) => parseTags(n.tags))),
-	).sort();
+	const allTags = Array.from(new Set(notes.flatMap((n) => parseTags(n.tags)))).sort();
 
 	if (allTags.length === 0) return null;
 
 	const toggle = (tag: string) => {
 		setSelectedTags(
-			selectedTags.includes(tag)
-				? selectedTags.filter((t) => t !== tag)
-				: [...selectedTags, tag],
+			selectedTags.includes(tag) ? selectedTags.filter((t) => t !== tag) : [...selectedTags, tag]
 		);
 	};
 
@@ -105,7 +94,8 @@ export function NoteTagFilter({
 						className="cursor-pointer text-xs"
 						onClick={() => toggle(tag)}
 					>
-						{tag}{isSelected && " \u00d7"}
+						{tag}
+						{isSelected && " \u00d7"}
 					</Badge>
 				);
 			})}
@@ -137,7 +127,7 @@ export function NoteSearchInput({
 
 export function filterNotes(
 	notes: NoteItem[],
-	{ search, tags }: { search: string; tags: string[] },
+	{ search, tags }: { search: string; tags: string[] }
 ): NoteItem[] {
 	let filtered = notes;
 
@@ -151,9 +141,7 @@ export function filterNotes(
 	if (search.trim()) {
 		const q = search.toLowerCase();
 		filtered = filtered.filter(
-			(n) =>
-				n.title.toLowerCase().includes(q) ||
-				n.content.toLowerCase().includes(q),
+			(n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q)
 		);
 	}
 
@@ -283,7 +271,6 @@ function NoteTags({ tags }: { tags: string[] }) {
 	);
 }
 
-
 // ─── Card View ────────────────────────────────────────────────────
 
 function NoteCard({
@@ -311,9 +298,7 @@ function NoteCard({
 				<div className="min-w-0 flex-1">
 					<h3 className="font-medium">{note.title}</h3>
 					{showProject && note.project && (
-						<span className="text-xs text-muted-foreground">
-							{note.project.name}
-						</span>
+						<span className="text-xs text-muted-foreground">{note.project.name}</span>
 					)}
 				</div>
 				<NoteActionButtons
@@ -368,14 +353,12 @@ function NoteListItem({
 				<div className="flex items-center gap-2">
 					<h3 className="truncate font-medium">{note.title}</h3>
 					{showProject && note.project && (
-						<span className="shrink-0 text-xs text-muted-foreground">
-							{note.project.name}
-						</span>
+						<span className="shrink-0 text-xs text-muted-foreground">{note.project.name}</span>
 					)}
 				</div>
 				{note.content && (
 					<p className="mt-0.5 truncate text-sm text-muted-foreground">
-						{note.content.replace(/[#*_`>\-\[\]()]/g, "").slice(0, 120)}
+						{note.content.replace(/[#*_`>\-[\]()]/g, "").slice(0, 120)}
 					</p>
 				)}
 				{tags.length > 0 && (
@@ -413,12 +396,7 @@ export function NoteCollection({
 		return (
 			<div className="flex flex-col gap-2">
 				{notes.map((note) => (
-					<NoteListItem
-						key={note.id}
-						note={note}
-						actions={actions}
-						showProject={showProject}
-					/>
+					<NoteListItem key={note.id} note={note} actions={actions} showProject={showProject} />
 				))}
 			</div>
 		);
@@ -427,12 +405,7 @@ export function NoteCollection({
 	return (
 		<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
 			{notes.map((note) => (
-				<NoteCard
-					key={note.id}
-					note={note}
-					actions={actions}
-					showProject={showProject}
-				/>
+				<NoteCard key={note.id} note={note} actions={actions} showProject={showProject} />
 			))}
 		</div>
 	);

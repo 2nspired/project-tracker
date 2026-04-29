@@ -28,10 +28,7 @@ export function ActorChip({
 	const initials = getInitials(actorName).slice(0, sizes.initialChars);
 
 	return (
-		<span
-			className={`inline-flex items-center gap-1 ${className ?? ""}`}
-			title={label}
-		>
+		<span className={`inline-flex items-center gap-1 ${className ?? ""}`} title={label}>
 			{isAgent ? (
 				<span
 					className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold leading-none text-white ${sizes.box}`}
@@ -48,11 +45,7 @@ export function ActorChip({
 					<User className={sizes.icon} />
 				</span>
 			)}
-			{showName && (
-				<span className="truncate text-[0.625rem] font-medium leading-4">
-					{label}
-				</span>
-			)}
+			{showName && <span className="truncate text-[0.625rem] font-medium leading-4">{label}</span>}
 		</span>
 	);
 }

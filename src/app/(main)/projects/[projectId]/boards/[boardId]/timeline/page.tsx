@@ -3,14 +3,13 @@
 import { ArrowLeft, Clock } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
-
-import { EmptyState } from "@/components/ui/empty-state";
-import { formatDate } from "@/lib/format-date";
-import { hasRole } from "@/lib/column-roles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBoardEvents } from "@/hooks/use-board-events";
+import { hasRole } from "@/lib/column-roles";
+import { formatDate } from "@/lib/format-date";
 import { api } from "@/trpc/react";
 
 export default function TimelinePage({
@@ -83,7 +82,11 @@ export default function TimelinePage({
 			</div>
 
 			{allCards.length === 0 ? (
-				<EmptyState icon={Clock} title="No cards yet" description="Add cards to your board to see them on the timeline." />
+				<EmptyState
+					icon={Clock}
+					title="No cards yet"
+					description="Add cards to your board to see them on the timeline."
+				/>
 			) : (
 				<div className="relative">
 					{/* Vertical line */}

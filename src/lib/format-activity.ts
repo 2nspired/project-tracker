@@ -13,10 +13,7 @@ export function formatActionVerb(action: string): string {
 	return ACTION_VERBS[action] ?? action;
 }
 
-export function formatActivityDescription(
-	action: string,
-	details: string | null
-): string {
+export function formatActivityDescription(action: string, details: string | null): string {
 	switch (action) {
 		case "created":
 			return "created this card";

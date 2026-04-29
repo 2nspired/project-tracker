@@ -50,11 +50,9 @@ export function ftsExtension(rawClient: PrismaClient) {
 				},
 				async delete({ args, query }) {
 					const result = (await query(args)) as { id: string };
-					removeFromIndex(rawClient, "note", result.id).catch((e) =>
-						logFtsError("note.delete", e),
-					);
+					removeFromIndex(rawClient, "note", result.id).catch((e) => logFtsError("note.delete", e));
 					removeFromIndex(rawClient, "handoff", result.id).catch((e) =>
-						logFtsError("handoff.delete", e),
+						logFtsError("handoff.delete", e)
 					);
 					return result;
 				},
@@ -82,7 +80,7 @@ export function ftsExtension(rawClient: PrismaClient) {
 					// remove all known claim-kind variants.
 					for (const kind of ["context", "code", "measurement", "decision"]) {
 						removeFromIndex(rawClient, `claim_${kind}`, result.id).catch((e) =>
-							logFtsError(`claim_${kind}.delete`, e),
+							logFtsError(`claim_${kind}.delete`, e)
 						);
 					}
 					return result;
@@ -106,9 +104,7 @@ export function ftsExtension(rawClient: PrismaClient) {
 				},
 				async delete({ args, query }) {
 					const result = (await query(args)) as { id: string };
-					removeFromIndex(rawClient, "card", result.id).catch((e) =>
-						logFtsError("card.delete", e),
-					);
+					removeFromIndex(rawClient, "card", result.id).catch((e) => logFtsError("card.delete", e));
 					return result;
 				},
 			},
@@ -131,7 +127,7 @@ export function ftsExtension(rawClient: PrismaClient) {
 				async delete({ args, query }) {
 					const result = (await query(args)) as { id: string };
 					removeFromIndex(rawClient, "comment", result.id).catch((e) =>
-						logFtsError("comment.delete", e),
+						logFtsError("comment.delete", e)
 					);
 					return result;
 				},

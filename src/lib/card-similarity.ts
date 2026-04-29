@@ -6,10 +6,38 @@
  */
 
 const STOP_WORDS = new Set([
-	"a", "an", "the", "is", "are", "was", "were", "be", "been",
-	"to", "of", "in", "for", "on", "with", "at", "by", "from",
-	"and", "or", "but", "not", "this", "that", "it", "as",
-	"add", "update", "fix", "implement", "create", "remove",
+	"a",
+	"an",
+	"the",
+	"is",
+	"are",
+	"was",
+	"were",
+	"be",
+	"been",
+	"to",
+	"of",
+	"in",
+	"for",
+	"on",
+	"with",
+	"at",
+	"by",
+	"from",
+	"and",
+	"or",
+	"but",
+	"not",
+	"this",
+	"that",
+	"it",
+	"as",
+	"add",
+	"update",
+	"fix",
+	"implement",
+	"create",
+	"remove",
 ]);
 
 function normalize(text: string): string {
@@ -69,7 +97,7 @@ export function findSimilarCards(
 	title: string,
 	cards: Array<{ id: string; number: number; title: string }>,
 	threshold = 0.35,
-	maxResults = 3,
+	maxResults = 3
 ): SimilarCard[] {
 	if (title.trim().length < 3) return [];
 

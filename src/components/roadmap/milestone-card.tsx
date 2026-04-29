@@ -1,20 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-	AlertTriangle,
-	Calendar,
-	ChevronDown,
-	GripVertical,
-	Link2,
-} from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { AlertTriangle, Calendar, ChevronDown, GripVertical, Link2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { formatDate } from "@/lib/format-date";
-import type { Horizon, MilestoneGroup, RoadmapCard } from "./roadmap-view";
-import { ProgressRing } from "./progress-ring";
 import { CardChip } from "./card-chip";
+import { ProgressRing } from "./progress-ring";
+import type { Horizon, MilestoneGroup, RoadmapCard } from "./roadmap-view";
 
 type DensityMode = "expanded" | "compact" | "focus";
 
@@ -35,20 +29,10 @@ export function MilestoneCard({
 
 	// Sync expanded state when density mode changes
 	useEffect(() => {
-		setExpanded(
-			density === "expanded" ||
-			(density === "focus" && horizon === "now"),
-		);
+		setExpanded(density === "expanded" || (density === "focus" && horizon === "now"));
 	}, [density, horizon]);
 
-	const {
-		attributes,
-		listeners,
-		setNodeRef,
-		transform,
-		transition,
-		isDragging,
-	} = useSortable({
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: milestone.id ?? "__ungrouped__",
 		data: { type: "milestone", milestone, horizon },
 	});
@@ -59,21 +43,14 @@ export function MilestoneCard({
 	};
 
 	const pct = milestone.total > 0 ? milestone.done / milestone.total : 0;
-	const blockedCount = milestone.cards.filter(
-		(c) => c.isBlocked && c.horizon !== "done",
-	).length;
+	const blockedCount = milestone.cards.filter((c) => c.isBlocked && c.horizon !== "done").length;
 
 	// Target date risk: warn if < 7 days away and < 80% done
-	const targetDate = milestone.targetDate
-		? new Date(milestone.targetDate)
-		: null;
+	const targetDate = milestone.targetDate ? new Date(milestone.targetDate) : null;
 	const daysUntilTarget = targetDate
-		? Math.ceil(
-				(targetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-			)
+		? Math.ceil((targetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 		: null;
-	const isAtRisk =
-		daysUntilTarget !== null && daysUntilTarget <= 7 && pct < 0.8;
+	const isAtRisk = daysUntilTarget !== null && daysUntilTarget <= 7 && pct < 0.8;
 	const isOverdue = daysUntilTarget !== null && daysUntilTarget < 0 && pct < 1;
 
 	// Sort cards: now → later → done
@@ -83,7 +60,7 @@ export function MilestoneCard({
 		done: 2,
 	};
 	const sortedCards = [...milestone.cards].sort(
-		(a, b) => horizonOrder[a.horizon] - horizonOrder[b.horizon],
+		(a, b) => horizonOrder[a.horizon] - horizonOrder[b.horizon]
 	);
 
 	// Compact mode — just a chip
@@ -105,14 +82,8 @@ export function MilestoneCard({
 				</div>
 				<ProgressRing value={pct} size={22} strokeWidth={2.5} />
 				<span className="text-xs font-medium">{milestone.name}</span>
-				<span className="text-2xs text-muted-foreground">
-					{milestone.total} cards
-				</span>
-				{blockedCount > 0 && (
-					<span className="text-2xs text-red-500">
-						{blockedCount} blocked
-					</span>
-				)}
+				<span className="text-2xs text-muted-foreground">{milestone.total} cards</span>
+				{blockedCount > 0 && <span className="text-2xs text-red-500">{blockedCount} blocked</span>}
 				<button
 					type="button"
 					onClick={() => setExpanded(!expanded)}
@@ -149,12 +120,8 @@ export function MilestoneCard({
 
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">
-						<span className="truncate text-sm font-semibold">
-							{milestone.name}
-						</span>
-						{isOverdue && (
-							<AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-500" />
-						)}
+						<span className="truncate text-sm font-semibold">{milestone.name}</span>
+						{isOverdue && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-500" />}
 						{isAtRisk && !isOverdue && (
 							<AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
 						)}
@@ -163,11 +130,7 @@ export function MilestoneCard({
 						{targetDate && (
 							<span
 								className={`flex items-center gap-1 ${
-									isOverdue
-										? "text-red-500"
-										: isAtRisk
-											? "text-amber-500"
-											: ""
+									isOverdue ? "text-red-500" : isAtRisk ? "text-amber-500" : ""
 								}`}
 							>
 								<Calendar className="h-3 w-3" />
@@ -206,11 +169,7 @@ export function MilestoneCard({
 				<div className="overflow-hidden">
 					<div className="flex flex-wrap gap-1.5 border-t px-3 py-2.5">
 						{sortedCards.map((card) => (
-							<CardChip
-								key={card.id}
-								card={card}
-								onClick={() => onCardClick(card.id)}
-							/>
+							<CardChip key={card.id} card={card} onClick={() => onCardClick(card.id)} />
 						))}
 					</div>
 				</div>

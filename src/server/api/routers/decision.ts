@@ -24,23 +24,23 @@ export const decisionRouter = createTRPCRouter({
 			return result.data;
 		}),
 
-	getById: publicProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.query(async ({ input }) => {
-			const result = await decisionService.getById(input.id);
-			if (!result.success) {
-				const code = result.error.code === "NOT_FOUND" ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR";
-				throw new TRPCError({ code, message: result.error.message });
-			}
-			return result.data;
-		}),
+	getById: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
+		const result = await decisionService.getById(input.id);
+		if (!result.success) {
+			const code = result.error.code === "NOT_FOUND" ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR";
+			throw new TRPCError({ code, message: result.error.message });
+		}
+		return result.data;
+	}),
 
 	list: publicProcedure
-		.input(z.object({
-			projectId: z.string().uuid(),
-			cardId: z.string().uuid().optional(),
-			status: z.string().optional(),
-		}))
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				cardId: z.string().uuid().optional(),
+				status: z.string().optional(),
+			})
+		)
 		.query(async ({ input }) => {
 			const result = await decisionService.list(input.projectId, {
 				cardId: input.cardId,
@@ -52,14 +52,12 @@ export const decisionRouter = createTRPCRouter({
 			return result.data;
 		}),
 
-	delete: publicProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.mutation(async ({ input }) => {
-			const result = await decisionService.delete(input.id);
-			if (!result.success) {
-				const code = result.error.code === "NOT_FOUND" ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR";
-				throw new TRPCError({ code, message: result.error.message });
-			}
-			return result.data;
-		}),
+	delete: publicProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ input }) => {
+		const result = await decisionService.delete(input.id);
+		if (!result.success) {
+			const code = result.error.code === "NOT_FOUND" ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR";
+			throw new TRPCError({ code, message: result.error.message });
+		}
+		return result.data;
+	}),
 });

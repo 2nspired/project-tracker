@@ -25,7 +25,7 @@ registerExtendedTool("queryKnowledge", {
 				db,
 				projectId as string,
 				topic as string,
-				(limit as number) ?? 20,
+				(limit as number) ?? 20
 			);
 
 			if (results.length === 0) {

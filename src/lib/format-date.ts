@@ -12,10 +12,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
 	minute: "2-digit",
 });
 
-export function formatDate(
-	date: Date | string,
-	options?: { includeTime?: boolean },
-): string {
+export function formatDate(date: Date | string, options?: { includeTime?: boolean }): string {
 	const formatter = options?.includeTime ? dateTimeFormatter : dateFormatter;
 	return formatter.format(new Date(date));
 }

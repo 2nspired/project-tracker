@@ -33,7 +33,12 @@ const toolbarActions: InsertAction[] = [
 	{ label: "Heading", icon: <Heading2 className="h-3.5 w-3.5" />, prefix: "## ", block: true },
 	{ label: "Quote", icon: <Quote className="h-3.5 w-3.5" />, prefix: "> ", block: true },
 	{ label: "Bullet list", icon: <ListIcon className="h-3.5 w-3.5" />, prefix: "- ", block: true },
-	{ label: "Numbered list", icon: <ListOrdered className="h-3.5 w-3.5" />, prefix: "1. ", block: true },
+	{
+		label: "Numbered list",
+		icon: <ListOrdered className="h-3.5 w-3.5" />,
+		prefix: "1. ",
+		block: true,
+	},
 	{ label: "Code", icon: <Code className="h-3.5 w-3.5" />, prefix: "`", suffix: "`" },
 	{ label: "Link", icon: <Link className="h-3.5 w-3.5" />, prefix: "[", suffix: "](url)" },
 ];
@@ -42,7 +47,7 @@ function applyToolbarAction(
 	textarea: HTMLTextAreaElement,
 	action: InsertAction,
 	content: string,
-	setContent: (v: string) => void,
+	setContent: (v: string) => void
 ) {
 	const start = textarea.selectionStart;
 	const end = textarea.selectionEnd;
@@ -106,7 +111,7 @@ export function MarkdownEditor({
 			if (!textareaRef.current) return;
 			applyToolbarAction(textareaRef.current, action, content, setContent);
 		},
-		[content, setContent],
+		[content, setContent]
 	);
 
 	return (

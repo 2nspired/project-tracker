@@ -68,7 +68,7 @@ export const projectRouter = createTRPCRouter({
 			z.object({
 				projectId: z.string().uuid(),
 				boardId: z.string().uuid().nullable(),
-			}),
+			})
 		)
 		.mutation(async ({ input }) => {
 			if (input.boardId !== null) {

@@ -19,15 +19,13 @@ export const milestoneRouter = createTRPCRouter({
 			return result.data;
 		}),
 
-	getById: publicProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.query(async ({ input }) => {
-			const result = await milestoneService.getById(input.id);
-			if (!result.success) {
-				throw new TRPCError({ code: "NOT_FOUND", message: result.error.message });
-			}
-			return result.data;
-		}),
+	getById: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
+		const result = await milestoneService.getById(input.id);
+		if (!result.success) {
+			throw new TRPCError({ code: "NOT_FOUND", message: result.error.message });
+		}
+		return result.data;
+	}),
 
 	create: publicProcedure.input(createMilestoneSchema).mutation(async ({ input }) => {
 		const result = await milestoneService.create(input);
@@ -55,13 +53,11 @@ export const milestoneRouter = createTRPCRouter({
 		return result.data;
 	}),
 
-	delete: publicProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.mutation(async ({ input }) => {
-			const result = await milestoneService.delete(input.id);
-			if (!result.success) {
-				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
-			}
-			return result.data;
-		}),
+	delete: publicProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ input }) => {
+		const result = await milestoneService.delete(input.id);
+		if (!result.success) {
+			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+		}
+		return result.data;
+	}),
 });

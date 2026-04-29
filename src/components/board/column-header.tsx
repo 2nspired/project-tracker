@@ -89,13 +89,19 @@ export function ColumnHeader({ column, boardId }: ColumnHeaderProps) {
 			<div className="group mb-1 flex items-center justify-between px-1">
 				<div className="flex items-center gap-2">
 					<h3 className="text-sm font-semibold">{column.name}</h3>
-					<Badge variant="secondary" className="text-xs">{column.cards.length}</Badge>
+					<Badge variant="secondary" className="text-xs">
+						{column.cards.length}
+					</Badge>
 				</div>
 				<DropdownMenu>
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100">
+								<Button
+									variant="ghost"
+									size="icon"
+									className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+								>
 									<MoreHorizontal className="h-4 w-4" />
 								</Button>
 							</DropdownMenuTrigger>
@@ -175,22 +181,23 @@ export function ColumnHeader({ column, boardId }: ColumnHeaderProps) {
 				</DialogContent>
 			</Dialog>
 
-		<AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-			<AlertDialogContent>
-				<AlertDialogHeader>
-					<AlertDialogTitle>Delete column?</AlertDialogTitle>
-					<AlertDialogDescription>
-						This will permanently delete the &ldquo;{column.name}&rdquo; column. This action cannot be undone.
-					</AlertDialogDescription>
-				</AlertDialogHeader>
-				<AlertDialogFooter>
-					<AlertDialogCancel>Cancel</AlertDialogCancel>
-					<AlertDialogAction onClick={() => deleteColumn.mutate({ id: column.id })}>
-						Delete
-					</AlertDialogAction>
-				</AlertDialogFooter>
-			</AlertDialogContent>
-		</AlertDialog>
+			<AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete column?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will permanently delete the &ldquo;{column.name}&rdquo; column. This action
+							cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction onClick={() => deleteColumn.mutate({ id: column.id })}>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</>
 	);
 }

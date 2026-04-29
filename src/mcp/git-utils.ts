@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { access } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
@@ -30,7 +30,11 @@ export async function detectGitRepo(): Promise<string | null> {
 	return isRepo ? cwd : null;
 }
 
-export async function gitLog(repoPath: string, limit: number, since?: string): Promise<GitCommit[]> {
+export async function gitLog(
+	repoPath: string,
+	limit: number,
+	since?: string
+): Promise<GitCommit[]> {
 	const args = ["log", `--max-count=${limit}`, "--format=%H%x00%s%x00%an%x00%aI", "--no-merges"];
 	if (since) args.push(`--since=${since}`);
 	const { stdout } = await execFileAsync("git", args, {
@@ -48,10 +52,14 @@ export async function gitLog(repoPath: string, limit: number, since?: string): P
 }
 
 export async function gitDiffFiles(repoPath: string, hash: string): Promise<string[]> {
-	const { stdout } = await execFileAsync("git", ["diff-tree", "--no-commit-id", "-r", "--name-only", hash], {
-		...EXEC_OPTS,
-		cwd: repoPath,
-	});
+	const { stdout } = await execFileAsync(
+		"git",
+		["diff-tree", "--no-commit-id", "-r", "--name-only", hash],
+		{
+			...EXEC_OPTS,
+			cwd: repoPath,
+		}
+	);
 	return stdout.trim().split("\n").filter(Boolean);
 }
 

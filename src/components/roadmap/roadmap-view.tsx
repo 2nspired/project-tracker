@@ -1,25 +1,23 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { Maximize2, Minimize2, Target } from "lucide-react";
 import {
 	DndContext,
+	type DragEndEvent,
 	DragOverlay,
+	type DragStartEvent,
 	PointerSensor,
 	useSensor,
 	useSensors,
-	type DragStartEvent,
-	type DragEndEvent,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
+import { Maximize2, Minimize2, Target } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-
-import { Button } from "@/components/ui/button";
 import { CardDetailSheet } from "@/components/board/card-detail-sheet";
+import { Button } from "@/components/ui/button";
+import { getHorizon, type Horizon } from "@/lib/column-roles";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
-
-import { getHorizon, type Horizon } from "@/lib/column-roles";
 import { HorizonBand } from "./horizon-band";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
@@ -56,7 +54,10 @@ function computePrimaryHorizon(cards: RoadmapCard[]): Horizon {
 	return "later";
 }
 
-function groupByMilestoneAndHorizon(cards: RoadmapCard[], milestoneOrder: string[]): {
+function groupByMilestoneAndHorizon(
+	cards: RoadmapCard[],
+	milestoneOrder: string[]
+): {
 	now: MilestoneGroup[];
 	later: MilestoneGroup[];
 	done: MilestoneGroup[];
@@ -76,7 +77,8 @@ function groupByMilestoneAndHorizon(cards: RoadmapCard[], milestoneOrder: string
 				done: 0,
 				total: 0,
 				primaryHorizon: "later",
-				targetDate: (card.milestone as { targetDate?: Date | string | null } | undefined)?.targetDate ?? null,
+				targetDate:
+					(card.milestone as { targetDate?: Date | string | null } | undefined)?.targetDate ?? null,
 			});
 		}
 
@@ -134,9 +136,9 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 					columnName: col.name,
 					horizon: getHorizon(col),
 					isBlocked: (card.relationsTo?.length ?? 0) > 0,
-				})),
+				}))
 			),
-		[board],
+		[board]
 	);
 
 	// Get milestone ordering from board data
@@ -154,14 +156,14 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 
 	const horizonGroups = useMemo(
 		() => groupByMilestoneAndHorizon(allCards, milestoneOrder),
-		[allCards, milestoneOrder],
+		[allCards, milestoneOrder]
 	);
 
 	// DnD sensors
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: { distance: 8 },
-		}),
+		})
 	);
 
 	const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -184,19 +186,12 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 				horizon?: Horizon;
 			};
 
-			if (
-				activeData?.type === "milestone" &&
-				overData?.type === "milestone"
-			) {
+			if (activeData?.type === "milestone" && overData?.type === "milestone") {
 				// Get the horizon group that contains both
 				const horizon = activeData.horizon;
 				const group = horizonGroups[horizon];
-				const activeIndex = group.findIndex(
-					(m) => (m.id ?? "__ungrouped__") === active.id,
-				);
-				const overIndex = group.findIndex(
-					(m) => (m.id ?? "__ungrouped__") === over.id,
-				);
+				const activeIndex = group.findIndex((m) => (m.id ?? "__ungrouped__") === active.id);
+				const overIndex = group.findIndex((m) => (m.id ?? "__ungrouped__") === over.id);
 
 				if (activeIndex !== -1 && overIndex !== -1) {
 					const reordered = arrayMove(group, activeIndex, overIndex);
@@ -209,20 +204,13 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 						.filter((id): id is string => id !== null);
 
 					// Build new order: replace the reordered horizon's milestones in position
-					const reorderedIds = reordered
-						.map((m) => m.id)
-						.filter((id): id is string => id !== null);
-					const otherIds = allMilestoneIds.filter(
-						(id) => !reorderedIds.includes(id),
-					);
+					const reorderedIds = reordered.map((m) => m.id).filter((id): id is string => id !== null);
+					const otherIds = allMilestoneIds.filter((id) => !reorderedIds.includes(id));
 
 					// Reconstruct full order: iterate through horizons in order
 					const fullOrder: string[] = [];
 					for (const h of ["now", "later", "done"] as Horizon[]) {
-						const milestones =
-							h === horizon
-								? reordered
-								: horizonGroups[h];
+						const milestones = h === horizon ? reordered : horizonGroups[h];
 						for (const m of milestones) {
 							if (m.id) fullOrder.push(m.id);
 						}
@@ -235,7 +223,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 				}
 			}
 		},
-		[horizonGroups, board.project.id, reorderMilestones],
+		[horizonGroups, board.project.id, reorderMilestones]
 	);
 
 	const handleCardClick = useCallback((cardId: string) => {
@@ -244,11 +232,9 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 
 	// Find the active milestone for drag overlay
 	const activeMilestone = activeDragId
-		? [
-				...horizonGroups.now,
-				...horizonGroups.later,
-				...horizonGroups.done,
-			].find((m) => (m.id ?? "__ungrouped__") === activeDragId)
+		? [...horizonGroups.now, ...horizonGroups.later, ...horizonGroups.done].find(
+				(m) => (m.id ?? "__ungrouped__") === activeDragId
+			)
 		: null;
 
 	const totalCards = allCards.length;
@@ -258,8 +244,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 		return (
 			<div className="rounded-lg border bg-card py-12 text-center">
 				<p className="text-sm text-muted-foreground">
-					No cards on this board yet. Create cards to see them in the
-					roadmap.
+					No cards on this board yet. Create cards to see them in the roadmap.
 				</p>
 			</div>
 		);
@@ -315,11 +300,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 			</div>
 
 			{/* Horizon landscape */}
-			<DndContext
-				sensors={sensors}
-				onDragStart={handleDragStart}
-				onDragEnd={handleDragEnd}
-			>
+			<DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
 				<div className="space-y-3">
 					<HorizonBand
 						horizon="now"
@@ -349,9 +330,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 				<DragOverlay>
 					{activeMilestone && (
 						<div className="rounded-lg border bg-card px-4 py-2 shadow-lg">
-							<span className="text-sm font-semibold">
-								{activeMilestone.name}
-							</span>
+							<span className="text-sm font-semibold">{activeMilestone.name}</span>
 							<span className="ml-2 text-2xs text-muted-foreground">
 								{activeMilestone.total} cards
 							</span>

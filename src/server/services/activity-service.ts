@@ -11,11 +11,19 @@ async function listByCard(cardId: string): Promise<ServiceResult<Activity[]>> {
 		return { success: true, data: activities };
 	} catch (error) {
 		console.error("[ACTIVITY_SERVICE] listByCard error:", error);
-		return { success: false, error: { code: "LIST_FAILED", message: "Failed to fetch activities." } };
+		return {
+			success: false,
+			error: { code: "LIST_FAILED", message: "Failed to fetch activities." },
+		};
 	}
 }
 
-async function listByBoard(boardId: string, limit = 30): Promise<ServiceResult<Array<Activity & { card: { id: string; number: number; title: string } }>>> {
+async function listByBoard(
+	boardId: string,
+	limit = 30
+): Promise<
+	ServiceResult<Array<Activity & { card: { id: string; number: number; title: string } }>>
+> {
 	try {
 		const activities = await db.activity.findMany({
 			where: {
@@ -30,7 +38,10 @@ async function listByBoard(boardId: string, limit = 30): Promise<ServiceResult<A
 		return { success: true, data: activities };
 	} catch (error) {
 		console.error("[ACTIVITY_SERVICE] listByBoard error:", error);
-		return { success: false, error: { code: "LIST_FAILED", message: "Failed to fetch activities." } };
+		return {
+			success: false,
+			error: { code: "LIST_FAILED", message: "Failed to fetch activities." },
+		};
 	}
 }
 
@@ -89,9 +100,7 @@ async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetric
 		const boardCardIds = new Set(cardIds.map((c) => c.id));
 
 		// Throughput: count cards that arrived in "done" columns per day
-		const doneColumnNames = new Set(
-			columns.filter((c) => c.role === "done").map((c) => c.name),
-		);
+		const doneColumnNames = new Set(columns.filter((c) => c.role === "done").map((c) => c.name));
 
 		const throughput = new Array<number>(7).fill(0);
 		let forwardMoves = 0;
@@ -118,8 +127,7 @@ async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetric
 					// Count completions per day
 					if (doneColumnNames.has(toCol)) {
 						const dayIndex = Math.floor(
-							(activity.createdAt.getTime() - sevenDaysAgo.getTime()) /
-								(24 * 60 * 60 * 1000),
+							(activity.createdAt.getTime() - sevenDaysAgo.getTime()) / (24 * 60 * 60 * 1000)
 						);
 						if (dayIndex >= 0 && dayIndex < 7) {
 							throughput[dayIndex]++;
@@ -168,7 +176,7 @@ async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetric
 			if (parkingCols.includes(col)) continue;
 
 			const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
-			const avgHours = Math.round(avg / (1000 * 60 * 60) * 10) / 10;
+			const avgHours = Math.round((avg / (1000 * 60 * 60)) * 10) / 10;
 			if (avgHours > maxAvg) {
 				maxAvg = avgHours;
 				bottleneck = { column: col, avgHours };
@@ -178,7 +186,10 @@ async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetric
 		return { success: true, data: { throughput, forwardMoves, backwardMoves, bottleneck } };
 	} catch (error) {
 		console.error("[ACTIVITY_SERVICE] getFlowMetrics error:", error);
-		return { success: false, error: { code: "METRICS_FAILED", message: "Failed to compute flow metrics." } };
+		return {
+			success: false,
+			error: { code: "METRICS_FAILED", message: "Failed to compute flow metrics." },
+		};
 	}
 }
 

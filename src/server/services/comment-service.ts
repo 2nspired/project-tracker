@@ -39,7 +39,10 @@ async function create(data: CreateCommentInput): Promise<ServiceResult<Comment>>
 		return { success: true, data: comment };
 	} catch (error) {
 		console.error("[COMMENT_SERVICE] create error:", error);
-		return { success: false, error: { code: "CREATE_FAILED", message: "Failed to create comment." } };
+		return {
+			success: false,
+			error: { code: "CREATE_FAILED", message: "Failed to create comment." },
+		};
 	}
 }
 

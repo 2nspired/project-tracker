@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -16,7 +17,6 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/format-date";
 import { api } from "@/trpc/react";
 
@@ -31,10 +31,7 @@ export function MilestoneManager({
 }) {
 	const utils = api.useUtils();
 
-	const { data: milestones } = api.milestone.list.useQuery(
-		{ projectId },
-		{ enabled: open },
-	);
+	const { data: milestones } = api.milestone.list.useQuery({ projectId }, { enabled: open });
 
 	const createMilestone = api.milestone.create.useMutation({
 		onSuccess: () => {
@@ -92,9 +89,7 @@ export function MilestoneManager({
 			<SheetContent className="w-full overflow-y-auto sm:max-w-lg">
 				<SheetHeader>
 					<SheetTitle>Manage Milestones</SheetTitle>
-					<SheetDescription>
-						Create and organize milestones for your roadmap.
-					</SheetDescription>
+					<SheetDescription>Create and organize milestones for your roadmap.</SheetDescription>
 				</SheetHeader>
 
 				<div className="space-y-4 px-4 pb-6">
@@ -111,12 +106,7 @@ export function MilestoneManager({
 							onChange={(e) => setNewName(e.target.value)}
 							placeholder="New milestone name..."
 						/>
-						<Button
-							type="submit"
-							variant="outline"
-							size="sm"
-							disabled={!newName.trim()}
-						>
+						<Button type="submit" variant="outline" size="sm" disabled={!newName.trim()}>
 							<Plus className="mr-1 h-4 w-4" />
 							Add
 						</Button>
@@ -125,10 +115,7 @@ export function MilestoneManager({
 					{/* List */}
 					<div className="space-y-2">
 						{milestones?.map((ms, i) => (
-							<div
-								key={ms.id}
-								className="rounded-lg border bg-card p-3"
-							>
+							<div key={ms.id} className="rounded-lg border bg-card p-3">
 								{editingId === ms.id ? (
 									<MilestoneEditForm
 										milestone={ms}
@@ -172,9 +159,7 @@ export function MilestoneManager({
 												)}
 											</div>
 											{ms.description && (
-												<p className="mt-1 text-xs text-muted-foreground">
-													{ms.description}
-												</p>
+												<p className="mt-1 text-xs text-muted-foreground">{ms.description}</p>
 											)}
 										</div>
 										<div className="flex items-center gap-1">
@@ -208,7 +193,12 @@ export function MilestoneManager({
 						))}
 
 						{milestones?.length === 0 && (
-							<EmptyState icon={Calendar} title="No milestones yet" description="Create one above to organize your roadmap." className="py-6" />
+							<EmptyState
+								icon={Calendar}
+								title="No milestones yet"
+								description="Create one above to organize your roadmap."
+								className="py-6"
+							/>
 						)}
 					</div>
 				</div>
@@ -223,15 +213,17 @@ function MilestoneEditForm({
 	onCancel,
 }: {
 	milestone: { name: string; description: string | null; targetDate: Date | string | null };
-	onSave: (data: { name?: string; description?: string | null; targetDate?: string | null }) => void;
+	onSave: (data: {
+		name?: string;
+		description?: string | null;
+		targetDate?: string | null;
+	}) => void;
 	onCancel: () => void;
 }) {
 	const [name, setName] = useState(milestone.name);
 	const [description, setDescription] = useState(milestone.description ?? "");
 	const [targetDate, setTargetDate] = useState(
-		milestone.targetDate
-			? new Date(milestone.targetDate).toISOString().split("T")[0]
-			: "",
+		milestone.targetDate ? new Date(milestone.targetDate).toISOString().split("T")[0] : ""
 	);
 
 	return (
@@ -251,11 +243,7 @@ function MilestoneEditForm({
 			</div>
 			<div className="space-y-1">
 				<Label className="text-xs">Target Date</Label>
-				<Input
-					type="date"
-					value={targetDate}
-					onChange={(e) => setTargetDate(e.target.value)}
-				/>
+				<Input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
 			</div>
 			<div className="flex gap-2">
 				<Button

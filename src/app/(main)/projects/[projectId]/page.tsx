@@ -49,7 +49,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
 	Dialog,
 	DialogContent,
@@ -64,6 +63,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Markdown } from "@/components/ui/markdown";
@@ -77,9 +77,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { hasRole } from "@/lib/column-roles";
+import { formatDate } from "@/lib/format-date";
 import { COLOR_CLASSES } from "@/lib/project-colors";
 import type { ProjectColor } from "@/lib/schemas/project-schemas";
-import { formatDate } from "@/lib/format-date";
 import { api } from "@/trpc/react";
 
 // ─── Markdown toolbar (shared logic) ──────────────────────────────
@@ -690,11 +690,7 @@ function ProjectNotesTab({
 					))}
 				</div>
 			) : !notes || notes.length === 0 ? (
-				<EmptyState
-					icon={NotebookPen}
-					title="No notes for this project yet."
-					className="py-16"
-				/>
+				<EmptyState icon={NotebookPen} title="No notes for this project yet." className="py-16" />
 			) : (
 				<div className="space-y-4">
 					<div className="flex items-center justify-between">

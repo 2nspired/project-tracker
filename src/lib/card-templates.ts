@@ -11,15 +11,11 @@ export const cardTemplates: CardTemplate[] = [
 	{
 		name: "Bug Report",
 		title: "Bug: ",
-		description: "**What happened:**\n\n**Expected behavior:**\n\n**Steps to reproduce:**\n1. \n\n**Environment:**\n",
+		description:
+			"**What happened:**\n\n**Expected behavior:**\n\n**Steps to reproduce:**\n1. \n\n**Environment:**\n",
 		priority: "HIGH",
 		tags: ["bug"],
-		checklist: [
-			"Reproduce the issue",
-			"Identify root cause",
-			"Write fix",
-			"Test fix",
-		],
+		checklist: ["Reproduce the issue", "Identify root cause", "Write fix", "Test fix"],
 	},
 	{
 		name: "Feature",
@@ -27,17 +23,13 @@ export const cardTemplates: CardTemplate[] = [
 		description: "**Goal:**\n\n**Approach:**\n\n**Acceptance criteria:**\n- \n",
 		priority: "MEDIUM",
 		tags: ["feature"],
-		checklist: [
-			"Design approach",
-			"Implement",
-			"Add tests",
-			"Update docs if needed",
-		],
+		checklist: ["Design approach", "Implement", "Add tests", "Update docs if needed"],
 	},
 	{
 		name: "Spike / Research",
 		title: "Spike: ",
-		description: "**Question to answer:**\n\n**Time-box:** 2 hours\n\n**Options to evaluate:**\n1. \n\n**Decision:**\n",
+		description:
+			"**Question to answer:**\n\n**Time-box:** 2 hours\n\n**Options to evaluate:**\n1. \n\n**Decision:**\n",
 		priority: "LOW",
 		tags: ["spike"],
 		checklist: [
@@ -53,22 +45,15 @@ export const cardTemplates: CardTemplate[] = [
 		description: "**Current state:**\n\n**Desired state:**\n\n**Why now:**\n",
 		priority: "LOW",
 		tags: ["debt"],
-		checklist: [
-			"Assess impact",
-			"Refactor",
-			"Verify no regressions",
-		],
+		checklist: ["Assess impact", "Refactor", "Verify no regressions"],
 	},
 	{
 		name: "Epic",
 		title: "Epic: ",
-		description: "**Overview:**\n\n**Sub-tasks:**\nCreate individual cards for each sub-task and tag them with this epic tag.\n\n**Success criteria:**\n- \n",
+		description:
+			"**Overview:**\n\n**Sub-tasks:**\nCreate individual cards for each sub-task and tag them with this epic tag.\n\n**Success criteria:**\n- \n",
 		priority: "MEDIUM",
 		tags: ["epic"],
-		checklist: [
-			"Break down into cards",
-			"Prioritize sub-tasks",
-			"Track progress",
-		],
+		checklist: ["Break down into cards", "Prioritize sub-tasks", "Track progress"],
 	},
 ];

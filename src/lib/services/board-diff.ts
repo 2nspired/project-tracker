@@ -13,7 +13,11 @@ export type BoardDiff = {
 	since: Date;
 };
 
-export async function computeBoardDiff(db: PrismaClient, boardId: string, since: Date): Promise<BoardDiff> {
+export async function computeBoardDiff(
+	db: PrismaClient,
+	boardId: string,
+	since: Date
+): Promise<BoardDiff> {
 	// Get all card IDs for the board via Column join
 	const columns = await db.column.findMany({
 		where: { boardId },

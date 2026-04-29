@@ -12,12 +12,7 @@ type ActorDotProps = {
  * hashed chart color; humans get a hollow ring in the neutral muted color.
  * Use in high-density contexts where a full ActorChip would overpower.
  */
-export function ActorDot({
-	actorType,
-	actorName,
-	size = 6,
-	className,
-}: ActorDotProps) {
+export function ActorDot({ actorType, actorName, size = 6, className }: ActorDotProps) {
 	const { isAgent, color, label } = getActorIdentity(actorType, actorName);
 	return (
 		<span

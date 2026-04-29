@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getHorizon } from "../../lib/column-roles.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { ok, err, safeExecute } from "../utils.js";
+import { err, ok, safeExecute } from "../utils.js";
 
 // ─── Status ───────────────────────────────────────────────────────
 
@@ -61,9 +61,7 @@ export async function generateStatusMarkdown(
 	// Find the latest updatedAt across all cards
 	const lastUpdated =
 		allCards.length > 0
-			? new Date(
-					Math.max(...allCards.map((c) => c.updatedAt.getTime()))
-				)
+			? new Date(Math.max(...allCards.map((c) => c.updatedAt.getTime())))
 			: project.updatedAt;
 
 	// Current phase — first milestone with cards still not in Done
@@ -73,9 +71,7 @@ export async function generateStatusMarkdown(
 		return { ...ms, cards: msCards, doneCards, total: msCards.length, done: doneCards.length };
 	});
 
-	const currentMilestone = milestonesWithProgress.find(
-		(ms) => ms.total > 0 && ms.done < ms.total
-	);
+	const currentMilestone = milestonesWithProgress.find((ms) => ms.total > 0 && ms.done < ms.total);
 
 	// ─── Build markdown sections ────────────────────────────────────
 
@@ -111,9 +107,7 @@ export async function generateStatusMarkdown(
 		lines.push("");
 
 		// Per-milestone narrative (from Milestone.description)
-		const milestonesWithDesc = milestonesWithProgress.filter(
-			(ms) => ms.description
-		);
+		const milestonesWithDesc = milestonesWithProgress.filter((ms) => ms.description);
 		if (milestonesWithDesc.length > 0) {
 			for (const ms of milestonesWithDesc) {
 				lines.push(`### ${ms.name}`);
@@ -124,15 +118,11 @@ export async function generateStatusMarkdown(
 	}
 
 	// What's Built — cards tagged `component` (any column, not just Done)
-	const componentCards = allCards.filter((c) =>
-		c.tags.includes("component")
-	);
+	const componentCards = allCards.filter((c) => c.tags.includes("component"));
 	if (componentCards.length > 0) {
 		lines.push("## What's Built");
 		for (const card of componentCards) {
-			const desc = card.description
-				? ` — ${card.description.split("\n")[0]}`
-				: "";
+			const desc = card.description ? ` — ${card.description.split("\n")[0]}` : "";
 			lines.push(`- **${card.title}**${desc}`);
 		}
 		lines.push("");

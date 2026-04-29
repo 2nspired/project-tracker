@@ -106,11 +106,7 @@ export function CardCreateInline({ columnId, boardId }: { columnId: string; boar
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<DropdownMenuTrigger asChild>
-								<Button
-									variant="ghost"
-									size="icon"
-									className="text-muted-foreground"
-								>
+								<Button variant="ghost" size="icon" className="text-muted-foreground">
 									<FileText className="h-3.5 w-3.5" />
 								</Button>
 							</DropdownMenuTrigger>

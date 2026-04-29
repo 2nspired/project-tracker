@@ -18,20 +18,19 @@ export const Markdown = memo(function Markdown({ children }: { children: string 
 					const isBlock = className?.includes("language-");
 					if (isBlock) {
 						return (
-							<code className="block overflow-x-auto rounded bg-muted p-2 text-xs">
-								{children}
-							</code>
+							<code className="block overflow-x-auto rounded bg-muted p-2 text-xs">{children}</code>
 						);
 					}
-					return (
-						<code className="rounded bg-muted px-1 py-0.5 text-xs">
-							{children}
-						</code>
-					);
+					return <code className="rounded bg-muted px-1 py-0.5 text-xs">{children}</code>;
 				},
 				pre: ({ children }) => <pre className="mb-2 last:mb-0">{children}</pre>,
 				a: ({ children, href }) => (
-					<a href={href} className="text-primary underline" target="_blank" rel="noopener noreferrer">
+					<a
+						href={href}
+						className="text-primary underline"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
 						{children}
 					</a>
 				),
@@ -48,11 +47,11 @@ export const Markdown = memo(function Markdown({ children }: { children: string 
 					<table className="mb-2 w-full border-collapse text-xs last:mb-0">{children}</table>
 				),
 				th: ({ children }) => (
-					<th className="border border-border bg-muted px-2 py-1 text-left font-medium">{children}</th>
+					<th className="border border-border bg-muted px-2 py-1 text-left font-medium">
+						{children}
+					</th>
 				),
-				td: ({ children }) => (
-					<td className="border border-border px-2 py-1">{children}</td>
-				),
+				td: ({ children }) => <td className="border border-border px-2 py-1">{children}</td>,
 			}}
 		>
 			{children}
