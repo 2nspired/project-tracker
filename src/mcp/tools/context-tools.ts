@@ -1,11 +1,225 @@
 import { z } from "zod";
 import { getHorizon } from "../../lib/column-roles.js";
-import { getColumnPrompt, loadTrackerPolicy } from "../../lib/services/tracker-policy.js";
+import {
+	getColumnPrompt,
+	loadTrackerPolicy,
+	type TrackerPolicy,
+} from "../../lib/services/tracker-policy.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { err, errWithToolHint, ok, resolveCardRef, safeExecute } from "../utils.js";
+import {
+	err,
+	errWithToolHint,
+	ok,
+	resolveCardRef,
+	safeExecute,
+	type ToolResult,
+} from "../utils.js";
 
 // ─── Card Context ─────────────────────────────────────────────────
+
+/**
+ * Card-context payload as `getCardContext` returns it. Shared with
+ * `planCard` so both tools surface the same shape.
+ */
+export type CardContextPayload = {
+	scope: "card";
+	card: {
+		ref: string;
+		title: string;
+		description: string | null;
+		priority: string;
+		tags: string[];
+		column: string;
+		milestone: string | null;
+	};
+	checklist: Array<{ id: string; text: string; completed: boolean }>;
+	comments: Array<{ content: string; author: string; when: Date }>;
+	relations: {
+		blocks: Array<{ ref: string; title: string }>;
+		blockedBy: Array<{ ref: string; title: string }>;
+	};
+	decisions: Array<{ id: string; title: string; status: string; decision: string }>;
+	commits: Array<{ hash: string; message: string; date: Date }>;
+	relatedCards: Array<{
+		number: number;
+		ref: string;
+		title: string;
+		priority: string;
+		column: string;
+	}>;
+	policy?: { columnPrompt: string };
+};
+
+export type LoadedCardContext = {
+	payload: CardContextPayload;
+	cardId: string;
+	cardNumber: number;
+	columnName: string;
+	description: string | null;
+	policy: TrackerPolicy | null;
+	columnPrompt: string | undefined;
+};
+
+/**
+ * Shared loader for card-scope context. Used by `getCardContext` (returns
+ * `payload` directly) and `planCard` (embeds `payload` as `card` and uses
+ * the rest as decision input). Encapsulates the relations + decisions +
+ * relatedCards + policy lookup so callers stay thin.
+ */
+export async function loadCardContext(
+	boardId: string,
+	cardRef: string
+): Promise<{ ok: true; data: LoadedCardContext } | { ok: false; error: ToolResult }> {
+	const board = await db.board.findUnique({
+		where: { id: boardId },
+		select: {
+			id: true,
+			projectId: true,
+			project: { select: { repoPath: true, projectPrompt: true } },
+		},
+	});
+	if (!board)
+		return {
+			ok: false,
+			error: err("Board not found.", "Use listProjects → listBoards to find a valid boardId."),
+		};
+
+	const resolved = await resolveCardRef(cardRef, board.projectId);
+	if (!resolved.ok) return { ok: false, error: err(resolved.message) };
+	const cardId = resolved.id;
+
+	const card = await db.card.findUnique({
+		where: { id: cardId },
+		include: {
+			checklists: {
+				orderBy: { position: "asc" },
+				select: { id: true, text: true, completed: true },
+			},
+			comments: {
+				orderBy: { createdAt: "asc" },
+				take: 50,
+				select: { content: true, authorName: true, authorType: true, createdAt: true },
+			},
+			milestone: { select: { id: true, name: true } },
+			column: { select: { name: true, role: true } },
+			relationsFrom: {
+				include: {
+					toCard: { select: { id: true, number: true, title: true, priority: true } },
+				},
+			},
+			relationsTo: {
+				include: {
+					fromCard: { select: { id: true, number: true, title: true, priority: true } },
+				},
+			},
+			gitLinks: {
+				select: { commitHash: true, message: true, commitDate: true },
+				orderBy: { commitDate: "desc" },
+				take: 5,
+			},
+		},
+	});
+	if (!card) return { ok: false, error: err("Card not found.") };
+
+	const decisionClaims = await db.claim.findMany({
+		where: { kind: "decision", cardId },
+		select: { id: true, statement: true, status: true, body: true },
+		orderBy: { createdAt: "desc" },
+	});
+	const cardDecisions = decisionClaims.map((c) => {
+		const [decisionText] = c.body.split(/\n{2,}/);
+		return {
+			id: c.id,
+			title: c.statement,
+			status: c.status,
+			decision: decisionText ?? c.body,
+		};
+	});
+
+	const cardTags: string[] = JSON.parse(card.tags);
+	let relatedCards: CardContextPayload["relatedCards"] = [];
+	if (card.milestoneId || cardTags.length > 0) {
+		const candidates = await db.card.findMany({
+			where: {
+				id: { not: cardId },
+				column: { boardId },
+				OR: [
+					...(card.milestoneId ? [{ milestoneId: card.milestoneId }] : []),
+					...(cardTags.length > 0 ? cardTags.map((t) => ({ tags: { contains: t } })) : []),
+				],
+			},
+			select: {
+				number: true,
+				title: true,
+				priority: true,
+				column: { select: { name: true, role: true } },
+			},
+			take: 3,
+		});
+		relatedCards = candidates.map((c) => ({
+			number: c.number,
+			ref: `#${c.number}`,
+			title: c.title,
+			priority: c.priority,
+			column: c.column.name,
+		}));
+	}
+
+	const blocks = card.relationsFrom
+		.filter((r) => r.type === "blocks")
+		.map((r) => ({ ref: `#${r.toCard.number}`, title: r.toCard.title }));
+	const blockedBy = card.relationsTo
+		.filter((r) => r.type === "blocks")
+		.map((r) => ({ ref: `#${r.fromCard.number}`, title: r.fromCard.title }));
+
+	const policyResult = await loadTrackerPolicy({
+		repoPath: board.project.repoPath,
+		projectPrompt: board.project.projectPrompt,
+	});
+	const columnPrompt = getColumnPrompt(policyResult.policy, card.column.name);
+
+	const payload: CardContextPayload = {
+		scope: "card",
+		card: {
+			ref: `#${card.number}`,
+			title: card.title,
+			description: card.description,
+			priority: card.priority,
+			tags: cardTags,
+			column: card.column.name,
+			milestone: card.milestone?.name ?? null,
+		},
+		checklist: card.checklists,
+		comments: card.comments.map((c) => ({
+			content: c.content,
+			author: c.authorName ?? c.authorType,
+			when: c.createdAt,
+		})),
+		relations: { blocks, blockedBy },
+		decisions: cardDecisions,
+		commits: card.gitLinks.map((g) => ({
+			hash: g.commitHash.slice(0, 8),
+			message: g.message,
+			date: g.commitDate,
+		})),
+		relatedCards,
+		...(columnPrompt !== undefined ? { policy: { columnPrompt } } : {}),
+	};
+
+	return {
+		ok: true,
+		data: {
+			payload,
+			cardId: card.id,
+			cardNumber: card.number,
+			columnName: card.column.name,
+			description: card.description,
+			policy: policyResult.policy,
+			columnPrompt,
+		},
+	};
+}
 
 registerExtendedTool("getCardContext", {
 	category: "context",
@@ -25,152 +239,9 @@ registerExtendedTool("getCardContext", {
 				format,
 			} = params as { boardId: string; cardId: string; format: "json" | "toon" };
 
-			const board = await db.board.findUnique({
-				where: { id: boardId },
-				select: {
-					id: true,
-					projectId: true,
-					project: { select: { repoPath: true, projectPrompt: true } },
-				},
-			});
-			if (!board)
-				return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
-
-			const resolved = await resolveCardRef(cardRef, board.projectId);
-			if (!resolved.ok) return err(resolved.message);
-			const cardId = resolved.id;
-
-			const card = await db.card.findUnique({
-				where: { id: cardId },
-				include: {
-					checklists: {
-						orderBy: { position: "asc" },
-						select: { id: true, text: true, completed: true },
-					},
-					comments: {
-						orderBy: { createdAt: "asc" },
-						take: 50,
-						select: { content: true, authorName: true, authorType: true, createdAt: true },
-					},
-					milestone: { select: { id: true, name: true } },
-					column: { select: { name: true, role: true } },
-					relationsFrom: {
-						include: {
-							toCard: { select: { id: true, number: true, title: true, priority: true } },
-						},
-					},
-					relationsTo: {
-						include: {
-							fromCard: { select: { id: true, number: true, title: true, priority: true } },
-						},
-					},
-					gitLinks: {
-						select: { commitHash: true, message: true, commitDate: true },
-						orderBy: { commitDate: "desc" },
-						take: 5,
-					},
-				},
-			});
-			if (!card) return err("Card not found.");
-
-			const decisionClaims = await db.claim.findMany({
-				where: { kind: "decision", cardId },
-				select: { id: true, statement: true, status: true, body: true },
-				orderBy: { createdAt: "desc" },
-			});
-			const cardDecisions = decisionClaims.map((c) => {
-				const [decisionText] = c.body.split(/\n{2,}/);
-				return {
-					id: c.id,
-					title: c.statement,
-					status: c.status,
-					decision: decisionText ?? c.body,
-				};
-			});
-
-			// Related cards (same milestone or overlapping tags, max 3)
-			const cardTags: string[] = JSON.parse(card.tags);
-			let relatedCards: Array<{
-				number: number;
-				ref: string;
-				title: string;
-				priority: string;
-				column: string;
-			}> = [];
-			if (card.milestoneId || cardTags.length > 0) {
-				const candidates = await db.card.findMany({
-					where: {
-						id: { not: cardId },
-						column: { boardId },
-						OR: [
-							...(card.milestoneId ? [{ milestoneId: card.milestoneId }] : []),
-							...(cardTags.length > 0 ? cardTags.map((t) => ({ tags: { contains: t } })) : []),
-						],
-					},
-					select: {
-						number: true,
-						title: true,
-						priority: true,
-						column: { select: { name: true, role: true } },
-					},
-					take: 3,
-				});
-				relatedCards = candidates.map((c) => ({
-					number: c.number,
-					ref: `#${c.number}`,
-					title: c.title,
-					priority: c.priority,
-					column: c.column.name,
-				}));
-			}
-
-			const blocks = card.relationsFrom
-				.filter((r) => r.type === "blocks")
-				.map((r) => ({ ref: `#${r.toCard.number}`, title: r.toCard.title }));
-			const blockedBy = card.relationsTo
-				.filter((r) => r.type === "blocks")
-				.map((r) => ({ ref: `#${r.fromCard.number}`, title: r.fromCard.title }));
-
-			// RFC #111 (#124): surface the column-specific policy prompt from
-			// tracker.md when the card's current column matches an entry in
-			// `columns.<name>.prompt`. Key omitted entirely when not present so
-			// the response stays lean.
-			const policyResult = await loadTrackerPolicy({
-				repoPath: board.project.repoPath,
-				projectPrompt: board.project.projectPrompt,
-			});
-			const columnPrompt = getColumnPrompt(policyResult.policy, card.column.name);
-
-			return ok(
-				{
-					scope: "card",
-					card: {
-						ref: `#${card.number}`,
-						title: card.title,
-						description: card.description,
-						priority: card.priority,
-						tags: cardTags,
-						column: card.column.name,
-						milestone: card.milestone?.name ?? null,
-					},
-					checklist: card.checklists,
-					comments: card.comments.map((c) => ({
-						content: c.content,
-						author: c.authorName ?? c.authorType,
-						when: c.createdAt,
-					})),
-					relations: { blocks, blockedBy },
-					decisions: cardDecisions,
-					commits: card.gitLinks.map((g) => ({
-						hash: g.commitHash.slice(0, 8),
-						message: g.message,
-						date: g.commitDate,
-					})),
-					relatedCards,
-					...(columnPrompt !== undefined ? { policy: { columnPrompt } } : {}),
-				},
-				format
-			);
+			const result = await loadCardContext(boardId, cardRef);
+			if (!result.ok) return result.error;
+			return ok(result.data.payload, format);
 		}),
 });
 

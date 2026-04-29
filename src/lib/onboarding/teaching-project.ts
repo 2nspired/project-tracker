@@ -332,7 +332,22 @@ export const teachingProject = {
 			createdBy: "AGENT",
 		},
 
-		// ── Backlog (advanced) — tracker.md policy ──────────────────────
+		// ── Backlog (advanced) — tracker.md policy + planning ────────────
+		{
+			title: "Plan a Card with planCard",
+			description: [
+				"**What:** `planCard` is a first-class MCP tool that turns a vague backlog item into a structured plan. It returns the card context, the project's `tracker.md` policy, an `investigation_hints` object (URLs / file paths / `#nnn` refs / code symbols extracted from the description), and a fixed `protocol` string instructing the agent to draft a plan with four locked headings.",
+				"**Why it matters:** Without it, every session re-derives the same recipe (load card → read policy → investigate → draft → confirm → write). With it, every planned card emerges with the same shape — `## Why now` / `## Plan` / `## Out of scope` / `## Acceptance` — so future humans and agents always find the plan in the same place.",
+				"**Try it (UI):** This card is intentionally light on detail. Drop a vague intent into a card description, then let your agent run `/plan-card N` (or call `planCard`) to flesh it out.",
+				'**Try it (agent):** `runTool({ tool: "planCard", params: { boardId, cardId: "#22" } })`. Read the `protocol`, walk the four steps (investigate → synthesize → propose in chat → publish on confirm). Watch the activity strip — a `planning` event is stamped while planning is in flight.',
+				'**Refuse-on-exists:** If the card description already contains all three required headers (`## Why now`, `## Plan`, `## Acceptance`), `planCard` returns `_warnings[].code === "PLAN_EXISTS"` and omits the protocol. Don\'t silently overwrite a published plan — surface the warning to the human.',
+				"**Outcome:** The card description becomes the canonical plan. Anyone (human or agent) opening the card later sees the four locked sections and knows what's planned, why, what's out of scope, and how to verify it shipped.",
+			].join("\n\n"),
+			column: "Backlog",
+			priority: "LOW",
+			tags: ["tutorial", "advanced", "mcp", "planning"],
+			createdBy: "AGENT",
+		},
 		{
 			title: "Define Runtime Policy in tracker.md",
 			description: [
