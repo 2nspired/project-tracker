@@ -211,6 +211,7 @@ import "./tools/fact-tools.js";
 import "./tools/claim-tools.js";
 import "./tools/knowledge-tools.js";
 import "./tools/instrumentation-tools.js";
+import "./tools/tag-tools.js";
 
 const server = new McpServer({
 	name: "project-tracker",

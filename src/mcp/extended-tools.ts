@@ -8,6 +8,7 @@ import {
 	syncCardTags,
 } from "./taxonomy-utils.js";
 import { toToon } from "./toon.js";
+import { milestoneService } from "@/server/services/milestone-service";
 import {
 	AGENT_NAME,
 	err,
@@ -998,15 +999,20 @@ registerExtendedTool("createMilestone", {
 
 registerExtendedTool("updateMilestone", {
 	category: "milestones",
-	description: "Update a milestone's name, description, or target date.",
+	description:
+		"Update a milestone's name, description, target date, or state. Pass `state: \"archived\"` to hide the milestone from the picker without deleting it.",
 	parameters: z.object({
 		milestoneId: z.string().describe("UUID from getRoadmap or listMilestones"),
 		name: z.string().optional(),
 		description: z.string().nullable().optional().describe("null to clear"),
 		targetDate: z.string().datetime().nullable().optional().describe("ISO 8601, null to clear"),
+		state: z
+			.enum(["active", "archived"])
+			.optional()
+			.describe("v4.2: 'archived' hides from picker (cards keep their assignment)."),
 	}),
 	annotations: { idempotentHint: true },
-	handler: ({ milestoneId, name, description, targetDate }) =>
+	handler: ({ milestoneId, name, description, targetDate, state }) =>
 		safeExecute(async () => {
 			const existing = await db.milestone.findUnique({ where: { id: milestoneId as string } });
 			if (!existing)
@@ -1025,9 +1031,37 @@ registerExtendedTool("updateMilestone", {
 								? new Date(targetDate as string)
 								: null
 							: undefined,
+					state: state as "active" | "archived" | undefined,
 				},
 			});
-			return ok({ id: milestone.id, name: milestone.name, updated: true });
+			return ok({
+				id: milestone.id,
+				name: milestone.name,
+				state: milestone.state,
+				updated: true,
+			});
+		}),
+});
+
+registerExtendedTool("mergeMilestones", {
+	category: "milestones",
+	description:
+		"Merge one milestone into another within the same project. Rewrites every card's milestoneId from `from` to `into`, then deletes the source milestone. Use this when an agent or human created a duplicate (e.g. 'Getting Started' vs 'getting started' on a pre-v4.2 schema).",
+	parameters: z.object({
+		fromMilestoneId: z.string().uuid().describe("Source milestone UUID — deleted after merge"),
+		intoMilestoneId: z.string().uuid().describe("Destination milestone UUID — kept"),
+	}),
+	handler: ({ fromMilestoneId, intoMilestoneId }) =>
+		safeExecute(async () => {
+			const result = await milestoneService.merge({
+				fromMilestoneId: fromMilestoneId as string,
+				intoMilestoneId: intoMilestoneId as string,
+			});
+			if (!result.success) return err(result.error.message);
+			return ok({
+				merged: true,
+				rewroteCount: result.data.rewroteCount,
+			});
 		}),
 });
 

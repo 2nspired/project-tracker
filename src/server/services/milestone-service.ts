@@ -216,6 +216,7 @@ async function update(
 							: null
 						: undefined,
 				position: data.position,
+				state: data.state,
 			},
 		});
 		return { success: true, data: milestone };
@@ -240,6 +241,48 @@ async function reorder(data: ReorderMilestonesInput): Promise<ServiceResult<bool
 		return {
 			success: false,
 			error: { code: "REORDER_FAILED", message: "Failed to reorder milestones." },
+		};
+	}
+}
+
+async function merge(input: {
+	fromMilestoneId: string;
+	intoMilestoneId: string;
+}): Promise<ServiceResult<{ rewroteCount: number; projectId: string }>> {
+	try {
+		if (input.fromMilestoneId === input.intoMilestoneId) {
+			return {
+				success: false,
+				error: { code: "INVALID_INPUT", message: "Cannot merge a milestone into itself." },
+			};
+		}
+		const result = await db.$transaction(async (tx) => {
+			const [from, into] = await Promise.all([
+				tx.milestone.findUnique({ where: { id: input.fromMilestoneId } }),
+				tx.milestone.findUnique({ where: { id: input.intoMilestoneId } }),
+			]);
+			if (!from || !into) {
+				throw new Error("One or both milestones not found.");
+			}
+			if (from.projectId !== into.projectId) {
+				throw new Error("Cannot merge milestones across projects.");
+			}
+			const update = await tx.card.updateMany({
+				where: { milestoneId: input.fromMilestoneId },
+				data: { milestoneId: input.intoMilestoneId },
+			});
+			await tx.milestone.delete({ where: { id: input.fromMilestoneId } });
+			return { rewroteCount: update.count, projectId: from.projectId };
+		});
+		return { success: true, data: result };
+	} catch (error) {
+		console.error("[MILESTONE_SERVICE] merge error:", error);
+		return {
+			success: false,
+			error: {
+				code: "MERGE_FAILED",
+				message: error instanceof Error ? error.message : "Failed to merge milestones.",
+			},
 		};
 	}
 }
@@ -276,5 +319,6 @@ export const milestoneService = {
 	update,
 	reorder,
 	resolveOrCreate,
+	merge,
 	delete: deleteMilestone,
 };
