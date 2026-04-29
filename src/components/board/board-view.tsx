@@ -15,7 +15,12 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import {
+	arrayMove,
+	horizontalListSortingStrategy,
+	SortableContext,
+	sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
 import { Lightbulb } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -102,6 +107,12 @@ export function BoardView({
 	const [dragColumns, setDragColumns] = useState<BoardColumnType[] | null>(null);
 
 	const utils = api.useUtils();
+	const reorderColumns = api.column.reorder.useMutation({
+		onError: (error) => toast.error(error.message),
+		onSettled: () => {
+			utils.board.getFull.invalidate({ id: board.id });
+		},
+	});
 	const moveCard = api.card.move.useMutation({
 		onMutate: async ({ id, data }) => {
 			// Cancel outgoing refetches
@@ -243,6 +254,7 @@ export function BoardView({
 
 	const handleDragStart = (event: DragStartEvent) => {
 		const { active } = event;
+		if (active.data.current?.type === "column") return;
 		const card = board.columns.flatMap((col) => col.cards).find((c) => c.id === active.id);
 		if (card) setActiveCard(card);
 	};
@@ -250,6 +262,9 @@ export function BoardView({
 	const handleDragOver = (event: DragOverEvent) => {
 		const { active, over } = event;
 		if (!over) return;
+		// Column reorder is handled natively by SortableContext + horizontalListSortingStrategy;
+		// the dragColumns projection is only for cross-column card moves.
+		if (active.data.current?.type === "column") return;
 		const activeId = active.id as string;
 		const overId = over.id as string;
 		if (activeId === overId) return;
@@ -295,8 +310,29 @@ export function BoardView({
 	};
 
 	const handleDragEnd = (event: DragEndEvent) => {
-		const { active } = event;
+		const { active, over } = event;
 		setActiveCard(null);
+
+		// Column reorder branch
+		if (active.data.current?.type === "column") {
+			if (!over || active.id === over.id) return;
+			const activeId = active.id as string;
+			const overId = over.id as string;
+			const sortableIds = sortedColumns.filter((c) => !c.isParking).map((c) => c.id);
+			const oldIndex = sortableIds.indexOf(activeId);
+			const newIndex = sortableIds.indexOf(overId);
+			if (oldIndex === -1 || newIndex === -1) return;
+			const reorderedSortable = arrayMove(sortableIds, oldIndex, newIndex);
+			// Keep parking columns pinned at their existing positions in the
+			// authoritative column.position order — service derives final
+			// positions from the columnIds array we send.
+			const parkingIds = sortedColumns.filter((c) => c.isParking).map((c) => c.id);
+			reorderColumns.mutate({
+				boardId: board.id,
+				columnIds: [...parkingIds, ...reorderedSortable],
+			});
+			return;
+		}
 
 		const activeCardId = active.id as string;
 		const final = dragColumns ?? sortedColumns;
@@ -334,6 +370,9 @@ export function BoardView({
 
 	// Render projection: drag-time map during a drag, derived state otherwise.
 	const renderColumns = dragColumns ?? sortedColumns;
+	const parkingRenderColumns = renderColumns.filter((c) => c.isParking);
+	const sortableRenderColumns = renderColumns.filter((c) => !c.isParking);
+	const sortableColumnIds = sortableRenderColumns.map((c) => c.id);
 
 	return (
 		<IntentBannerProvider boardId={board.id}>
@@ -363,9 +402,11 @@ export function BoardView({
 
 					<BoardPulse boardId={board.id} />
 
-					{/* Columns */}
+					{/* Columns — parking columns are pinned and not reorderable; the
+					    rest are wrapped in a horizontal SortableContext so the
+					    user can drag-reorder by the column header. */}
 					<div className="flex flex-1 gap-4 overflow-x-auto p-4">
-						{renderColumns.map((column) => (
+						{parkingRenderColumns.map((column) => (
 							<BoardColumn
 								key={column.id}
 								column={column}
@@ -374,6 +415,20 @@ export function BoardView({
 								onCardClick={onCardSelect}
 							/>
 						))}
+						<SortableContext
+							items={sortableColumnIds}
+							strategy={horizontalListSortingStrategy}
+						>
+							{sortableRenderColumns.map((column) => (
+								<BoardColumn
+									key={column.id}
+									column={column}
+									boardId={board.id}
+									sortMode={sortMode}
+									onCardClick={onCardSelect}
+								/>
+							))}
+						</SortableContext>
 						<div className="flex shrink-0 items-start pt-1">
 							<AddColumnButton boardId={board.id} />
 						</div>

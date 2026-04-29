@@ -1,5 +1,7 @@
 "use client";
 
+import type { DraggableAttributes } from "@dnd-kit/core";
+import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import { Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -45,9 +47,16 @@ type ColumnHeaderProps = {
 		cards: Array<unknown>;
 	};
 	boardId: string;
+	dragAttributes?: DraggableAttributes;
+	dragListeners?: SyntheticListenerMap;
 };
 
-export function ColumnHeader({ column, boardId }: ColumnHeaderProps) {
+export function ColumnHeader({
+	column,
+	boardId,
+	dragAttributes,
+	dragListeners,
+}: ColumnHeaderProps) {
 	const [editOpen, setEditOpen] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [name, setName] = useState(column.name);
@@ -87,7 +96,13 @@ export function ColumnHeader({ column, boardId }: ColumnHeaderProps) {
 	return (
 		<>
 			<div className="group mb-1 flex items-center justify-between px-1">
-				<div className="flex items-center gap-2">
+				<div
+					className={`flex flex-1 items-center gap-2 ${
+						column.isParking ? "" : "cursor-grab touch-none active:cursor-grabbing"
+					}`}
+					{...dragAttributes}
+					{...dragListeners}
+				>
 					<h3 className="text-sm font-semibold">{column.name}</h3>
 					<Badge variant="secondary" className="text-xs">
 						{column.cards.length}

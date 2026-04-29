@@ -1,7 +1,7 @@
 "use client";
 
-import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import type { SortMode } from "./board-toolbar";
 import { CardCreateInline } from "./card-create-inline";
@@ -36,25 +36,40 @@ type BoardColumnProps = {
 };
 
 export function BoardColumn({ column, boardId, sortMode, onCardClick }: BoardColumnProps) {
-	const { setNodeRef, isOver } = useDroppable({
-		id: column.id,
-		data: { type: "column", column },
-	});
+	// Column is sortable as a unit (horizontal reorder among siblings) AND
+	// droppable for cards. useSortable provides both. Parking columns are
+	// pinned: not draggable, but still droppable for cards.
+	const { setNodeRef, attributes, listeners, transform, transition, isDragging, isOver } =
+		useSortable({
+			id: column.id,
+			data: { type: "column", column },
+			disabled: column.isParking,
+		});
+
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+		opacity: isDragging ? 0.4 : 1,
+	};
 
 	const cardIds = column.cards.map((c) => c.id);
 
 	return (
 		<div
+			ref={setNodeRef}
+			style={style}
 			className={`flex w-84 shrink-0 flex-col rounded-lg border border-transparent p-2 transition-colors ${
-				isOver ? "border-primary/50 bg-primary/10 shadow-sm" : "bg-muted/30"
+				isOver && !isDragging ? "border-primary/50 bg-primary/10 shadow-sm" : "bg-muted/30"
 			}`}
 		>
-			<ColumnHeader column={column} boardId={boardId} />
+			<ColumnHeader
+				column={column}
+				boardId={boardId}
+				dragAttributes={column.isParking ? undefined : attributes}
+				dragListeners={column.isParking ? undefined : listeners}
+			/>
 
-			<div
-				ref={setNodeRef}
-				className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto pr-2"
-			>
+			<div className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto pr-2">
 				<SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
 					{column.cards.map((card) => (
 						<SortableCard
