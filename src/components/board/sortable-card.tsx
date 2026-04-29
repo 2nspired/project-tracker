@@ -18,20 +18,15 @@ type SortableCardProps = {
 		checklists: Array<{ completed: boolean }>;
 		_count: { comments: number };
 		_workNextScore?: number;
+		_blockedByCount?: number;
+		stale?: { days: number; lastSignalAt: string };
 	};
 	showScore?: boolean;
 	onClick: () => void;
 };
 
 export function SortableCard({ card, showScore, onClick }: SortableCardProps) {
-	const {
-		attributes,
-		listeners,
-		setNodeRef,
-		transform,
-		transition,
-		isDragging,
-	} = useSortable({
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: card.id,
 		data: { type: "card", card },
 	});

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	type CollisionDetection,
 	DndContext,
 	type DragEndEvent,
 	DragOverlay,
@@ -8,26 +9,32 @@ import {
 	PointerSensor,
 	pointerWithin,
 	rectIntersection,
-	type CollisionDetection,
+	useDroppable,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Ban, CheckSquare, ChevronDown, ChevronRight, Clock, GripVertical, MessageSquare } from "lucide-react";
+import {
+	Ban,
+	CheckSquare,
+	ChevronDown,
+	ChevronRight,
+	Clock,
+	GripVertical,
+	MessageSquare,
+	MoonStar,
+} from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useDroppable } from "@dnd-kit/core";
-
-import { getHorizon } from "@/lib/column-roles";
+import type { BoardView as BoardViewType } from "@/lib/board-views";
+import { getHorizon, hasRole } from "@/lib/column-roles";
 import { PRIORITY_BORDER, PRIORITY_DOT, STATUS_TEXT } from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";
 import { computeWorkNextScore } from "@/lib/work-next-score";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
-import { type BoardFilters, type SortMode, BoardToolbar } from "./board-toolbar";
-import { hasRole } from "@/lib/column-roles";
-import type { BoardView as BoardViewType } from "@/lib/board-views";
+import { type BoardFilters, BoardToolbar, type SortMode } from "./board-toolbar";
 import { CardDetailSheet } from "./card-detail-sheet";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
@@ -207,7 +214,11 @@ export function BoardListView({
 				cards: filteredCards.filter((c) => c.columnName === col.name),
 				horizon: getHorizon(col),
 			}));
-		groups.sort((a, b) => horizonOrder[a.horizon as keyof typeof horizonOrder] - horizonOrder[b.horizon as keyof typeof horizonOrder]);
+		groups.sort(
+			(a, b) =>
+				horizonOrder[a.horizon as keyof typeof horizonOrder] -
+				horizonOrder[b.horizon as keyof typeof horizonOrder]
+		);
 		return groups;
 	}, [board.columns, filteredCards, hiddenRoles]);
 
@@ -294,11 +305,7 @@ export function BoardListView({
 				<div className="flex-1 overflow-y-auto p-4">
 					<div className="space-y-3">
 						{groupedByColumn.map((group) => (
-							<ColumnGroup
-								key={group.id}
-								group={group}
-								onCardClick={onCardSelect}
-							/>
+							<ColumnGroup key={group.id} group={group} onCardClick={onCardSelect} />
 						))}
 					</div>
 				</div>
@@ -358,7 +365,9 @@ function ColumnGroup({
 				) : (
 					<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
 				)}
-				<span className={`text-xs font-medium ${isEmpty ? "text-muted-foreground" : ""}`}>{group.name}</span>
+				<span className={`text-xs font-medium ${isEmpty ? "text-muted-foreground" : ""}`}>
+					{group.name}
+				</span>
 				<span className="rounded-full bg-muted px-1.5 py-0.5 text-2xs tabular-nums text-muted-foreground">
 					{group.cards.length}
 				</span>
@@ -376,14 +385,7 @@ function ColumnGroup({
 }
 
 function DraggableListRow({ card, onClick }: { card: ListCard; onClick: () => void }) {
-	const {
-		attributes,
-		listeners,
-		setNodeRef,
-		transform,
-		transition,
-		isDragging,
-	} = useSortable({
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: card.id,
 		data: { type: "card", card },
 	});
@@ -436,14 +438,13 @@ function ListRowContent({ card }: { card: ListCard }) {
 	const checklistDone = card.checklists.filter((c) => c.completed).length;
 	const blockedByCount = card._blockedByCount ?? 0;
 	const ageDays = getAgeDays(card.updatedAt);
-	const aging = getAgeIndicator(ageDays);
+	// Stalled-in-progress wins over the generic aging clock — see board-card.tsx.
+	const aging = card.stale ? null : getAgeIndicator(ageDays);
 
 	return (
 		<>
 			{/* Number */}
-			<span className="w-10 shrink-0 text-2xs font-mono text-muted-foreground">
-				#{card.number}
-			</span>
+			<span className="w-10 shrink-0 text-2xs font-mono text-muted-foreground">#{card.number}</span>
 
 			{/* Priority dot */}
 			<span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[priority]}`} />
@@ -463,9 +464,7 @@ function ListRowContent({ card }: { card: ListCard }) {
 								</span>
 							))}
 							{tags.length > 2 && (
-								<span className="text-[0.625rem] text-muted-foreground">
-									+{tags.length - 2}
-								</span>
+								<span className="text-[0.625rem] text-muted-foreground">+{tags.length - 2}</span>
 							)}
 						</div>
 					)}
@@ -480,6 +479,15 @@ function ListRowContent({ card }: { card: ListCard }) {
 						title={`Blocked by ${blockedByCount}`}
 					>
 						<Ban className="h-3 w-3" />
+					</span>
+				)}
+				{card.stale && (
+					<span
+						className="flex items-center gap-0.5 text-orange-500"
+						title={`No activity, comments, commits, or checklist changes for ${card.stale.days} days — revive, re-park, or close.`}
+					>
+						<MoonStar className="h-3 w-3" />
+						<span className="text-2xs">{card.stale.days}d</span>
 					</span>
 				)}
 				{aging && (
@@ -508,15 +516,14 @@ function ListRowContent({ card }: { card: ListCard }) {
 									style={{ width: `${(checklistDone / checklistTotal) * 100}%` }}
 								/>
 							</span>
-							<span className="text-2xs tabular-nums">{checklistDone}/{checklistTotal}</span>
+							<span className="text-2xs tabular-nums">
+								{checklistDone}/{checklistTotal}
+							</span>
 						</span>
 					</span>
 				)}
 				{card._count.comments > 0 && (
-					<span
-						className="flex items-center gap-0.5"
-						title={`${card._count.comments} comments`}
-					>
+					<span className="flex items-center gap-0.5" title={`${card._count.comments} comments`}>
 						<MessageSquare className="h-3 w-3" />
 					</span>
 				)}

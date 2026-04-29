@@ -1,14 +1,45 @@
 import type { Board } from "prisma/generated/client";
 import type { CreateBoardInput, UpdateBoardInput } from "@/lib/schemas/board-schemas";
 import { db } from "@/server/db";
+import { findStaleInProgress } from "@/server/services/stale-cards";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
 const DEFAULT_COLUMNS = [
-	{ name: "Backlog", description: "This hasn't been started", position: 0, role: "backlog", isParking: false },
-	{ name: "Up Next", description: "This is ready to be picked up", position: 1, role: "todo", isParking: false },
-	{ name: "In Progress", description: "This is actively being worked on", position: 2, role: "active", isParking: false },
-	{ name: "Done", description: "This has been completed", position: 3, role: "done", isParking: false },
-	{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 4, role: "parking", isParking: true },
+	{
+		name: "Backlog",
+		description: "This hasn't been started",
+		position: 0,
+		role: "backlog",
+		isParking: false,
+	},
+	{
+		name: "Up Next",
+		description: "This is ready to be picked up",
+		position: 1,
+		role: "todo",
+		isParking: false,
+	},
+	{
+		name: "In Progress",
+		description: "This is actively being worked on",
+		position: 2,
+		role: "active",
+		isParking: false,
+	},
+	{
+		name: "Done",
+		description: "This has been completed",
+		position: 3,
+		role: "done",
+		isParking: false,
+	},
+	{
+		name: "Parking Lot",
+		description: "Ideas and items to revisit later",
+		position: 4,
+		role: "parking",
+		isParking: true,
+	},
 ];
 
 type BoardListItem = Board & {
@@ -86,13 +117,36 @@ async function getFullBoardData(boardId: string) {
 	});
 }
 
-async function getFull(boardId: string): Promise<ServiceResult<NonNullable<FullBoard>>> {
+type FullBoardCard = NonNullable<FullBoard>["columns"][number]["cards"][number];
+type FullBoardWithStale = NonNullable<FullBoard> & {
+	columns: Array<
+		NonNullable<FullBoard>["columns"][number] & {
+			cards: Array<FullBoardCard & { stale?: { days: number; lastSignalAt: string } }>;
+		}
+	>;
+};
+
+async function getFull(boardId: string): Promise<ServiceResult<FullBoardWithStale>> {
 	try {
 		const board = await getFullBoardData(boardId);
 		if (!board) {
 			return { success: false, error: { code: "NOT_FOUND", message: "Board not found." } };
 		}
-		return { success: true, data: board };
+
+		const staleMap = await findStaleInProgress(db, boardId);
+		const enriched: FullBoardWithStale = {
+			...board,
+			columns: board.columns.map((col) => ({
+				...col,
+				cards: col.cards.map((card) => {
+					const info = staleMap.get(card.id);
+					return info
+						? { ...card, stale: { days: info.days, lastSignalAt: info.lastSignalAt.toISOString() } }
+						: card;
+				}),
+			})),
+		};
+		return { success: true, data: enriched };
 	} catch (error) {
 		console.error("[BOARD_SERVICE] getFull error:", error);
 		return { success: false, error: { code: "GET_FAILED", message: "Failed to fetch board." } };

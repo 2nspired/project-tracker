@@ -1,6 +1,7 @@
 import type { Card } from "prisma/generated/client";
 import type { CreateCardInput, MoveCardInput, UpdateCardInput } from "@/lib/schemas/card-schemas";
 import { db } from "@/server/db";
+import { findStaleInProgress } from "@/server/services/stale-cards";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
 async function listByColumn(columnId: string): Promise<ServiceResult<Card[]>> {
@@ -54,6 +55,7 @@ async function getById(cardId: string): Promise<
 				commitDate: Date;
 				filePaths: string;
 			}>;
+			stale?: { days: number; lastSignalAt: string };
 		}
 	>
 > {
@@ -61,6 +63,7 @@ async function getById(cardId: string): Promise<
 		const card = await db.card.findUnique({
 			where: { id: cardId },
 			include: {
+				column: { select: { boardId: true } },
 				checklists: { orderBy: { position: "asc" } },
 				comments: { orderBy: { createdAt: "asc" } },
 				activities: { orderBy: { createdAt: "desc" } },
@@ -72,7 +75,17 @@ async function getById(cardId: string): Promise<
 		if (!card) {
 			return { success: false, error: { code: "NOT_FOUND", message: "Card not found." } };
 		}
-		return { success: true, data: card };
+
+		const staleMap = await findStaleInProgress(db, card.column.boardId);
+		const info = staleMap.get(card.id);
+		const { column: _column, ...cardWithoutColumn } = card;
+		const enriched = info
+			? {
+					...cardWithoutColumn,
+					stale: { days: info.days, lastSignalAt: info.lastSignalAt.toISOString() },
+				}
+			: cardWithoutColumn;
+		return { success: true, data: enriched };
 	} catch (error) {
 		console.error("[CARD_SERVICE] getById error:", error);
 		return { success: false, error: { code: "GET_FAILED", message: "Failed to fetch card." } };

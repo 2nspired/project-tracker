@@ -5,6 +5,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { initFts5 } from "@/server/fts";
+import { findStaleInProgress } from "@/server/services/stale-cards";
 import { getHorizon, hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
@@ -710,26 +711,33 @@ server.registerTool(
 			if (!board) return err("Board not found.", "Use checkOnboarding to discover boards.");
 
 			const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-			const [lastHandoff, openDecisions, stalenessWarnings, blockerEntries, recentAgentActivity] =
-				await Promise.all([
-					getLatestHandoff(db, boardId),
-					db.claim.findMany({
-						where: { projectId: board.project.id, kind: "decision", status: "active" },
-						orderBy: { createdAt: "desc" },
-						select: { id: true, statement: true, card: { select: { number: true } } },
-					}),
-					checkStaleness(board.project.id),
-					getBlockersShared(db, boardId),
-					db.activity.findMany({
-						where: {
-							actorType: "AGENT",
-							actorName: AGENT_NAME,
-							createdAt: { gte: twentyFourHoursAgo },
-							card: { column: { boardId } },
-						},
-						select: { id: true, intent: true },
-					}),
-				]);
+			const [
+				lastHandoff,
+				openDecisions,
+				stalenessWarnings,
+				blockerEntries,
+				recentAgentActivity,
+				staleInProgressMap,
+			] = await Promise.all([
+				getLatestHandoff(db, boardId),
+				db.claim.findMany({
+					where: { projectId: board.project.id, kind: "decision", status: "active" },
+					orderBy: { createdAt: "desc" },
+					select: { id: true, statement: true, card: { select: { number: true } } },
+				}),
+				checkStaleness(board.project.id),
+				getBlockersShared(db, boardId),
+				db.activity.findMany({
+					where: {
+						actorType: "AGENT",
+						actorName: AGENT_NAME,
+						createdAt: { gte: twentyFourHoursAgo },
+						card: { column: { boardId } },
+					},
+					select: { id: true, intent: true },
+				}),
+				findStaleInProgress(db, boardId),
+			]);
 
 			const allCards = board.columns.flatMap((col) =>
 				col.cards.map((card) => ({ card, column: col }))
@@ -812,6 +820,20 @@ server.registerTool(
 					? `Server is running commit ${bootSha.slice(0, 7)} but repo HEAD is ${headSha.slice(0, 7)} — restart the MCP server to pick up newer code.`
 					: null;
 
+			const staleInProgress = allCards
+				.map(({ card }) => {
+					const info = staleInProgressMap.get(card.id);
+					if (!info) return null;
+					return {
+						ref: `#${card.number}`,
+						title: card.title,
+						days: info.days,
+						lastSignalAt: info.lastSignalAt.toISOString(),
+					};
+				})
+				.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+				.sort((a, b) => b.days - a.days);
+
 			return ok(
 				{
 					_serverVersion: MCP_SERVER_VERSION,
@@ -824,6 +846,7 @@ server.registerTool(
 					blockers,
 					openDecisions: decisions,
 					stale: formatStalenessWarnings(stalenessWarnings),
+					...(staleInProgress.length > 0 ? { staleInProgress } : {}),
 					...(intentReminder ? { intentReminder } : {}),
 					_hint: lastHandoff
 						? "Continue via handoff.nextSteps or pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
