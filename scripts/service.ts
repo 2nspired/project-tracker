@@ -20,10 +20,10 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -62,6 +62,8 @@ function generatePlist(runAtLoad = true): string {
 		<string>${NODE_PATH}</string>
 		<string>${NEXT_BIN}</string>
 		<string>start</string>
+		<string>-H</string>
+		<string>127.0.0.1</string>
 		<string>-p</string>
 		<string>${PORT}</string>
 	</array>

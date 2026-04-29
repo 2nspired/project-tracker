@@ -48,7 +48,10 @@ export default defineConfig({
 				},
 				{
 					label: "Reference",
-					items: [{ label: "MCP tools", slug: "tools" }],
+					items: [
+						{ label: "MCP tools", slug: "tools" },
+						{ label: "Integration — /api/state", slug: "integration" },
+					],
 				},
 			],
 			editLink: {

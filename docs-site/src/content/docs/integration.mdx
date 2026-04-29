@@ -1,0 +1,117 @@
+---
+title: Integration — /api/state
+description: Read-only JSON snapshot endpoint for statuslines, dashboards, IDE plugins, and other external tools that want to peek at tracker state without running MCP.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The tracker exposes a single read-only HTTP endpoint, `/api/state`, that returns a JSON snapshot of every project + board. It's the substrate for statuslines, external dashboards, IDE plugins, and any future automation that needs to ask "what's happening on the board right now?" without running an MCP client.
+
+<Aside type="caution" title="Loopback-only by default">
+	The launchd service binds to `127.0.0.1:3100`, so the endpoint is only reachable from your local machine. There's no auth — the trust boundary is the loopback interface, same as the UI. Don't expose port 3100 to the network.
+</Aside>
+
+## Endpoints
+
+### `GET /api/state`
+
+Returns every project + board.
+
+- `recent_activity`: last **10** activity rows per board.
+- `Cache-Control: no-store` — every response is live SQLite state.
+- Typical response is well under 50KB.
+
+### `GET /api/state/<boardId>`
+
+Returns the same shape, scoped to one project + board.
+
+- `recent_activity`: last **50** activity rows for that board.
+- `404` with `{ error, boardId }` if the board ID isn't found.
+
+## Response shape
+
+```json
+{
+  "generated_at": "2026-04-29T00:27:07.420Z",
+  "schema_version": "1.0",
+  "projects": [
+    {
+      "id": "uuid",
+      "slug": "project-tracker-dev",
+      "name": "Project Tracker Dev",
+      "boards": [
+        {
+          "id": "uuid",
+          "name": "Development Board",
+          "counts": {
+            "in_progress": 2,
+            "review": 0,
+            "up_next": 0,
+            "backlog": 3,
+            "blocked": 0,
+            "stale_in_progress": 0
+          },
+          "in_progress": [
+            {
+              "ref": "#99",
+              "title": "Session View: rolling briefMe history panel",
+              "priority": "LOW",
+              "lastSignalAt": "2026-04-29T00:25:27.151Z",
+              "lastEditedBy": "claude-code"
+            }
+          ],
+          "recent_activity": [
+            {
+              "at": "2026-04-29T00:25:27.152Z",
+              "actor": "claude-code",
+              "ref": "#110",
+              "action": "moved",
+              "intent": "starting #110: /api/state observability endpoint"
+            }
+          ],
+          "last_handoff_at": "2026-04-29T00:11:41.210Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+`schema_version` follows semver-ish rules — bumped when the shape breaks. Pin against it if your consumer cares.
+
+## Example consumer
+
+A 20-line bash script that prints a one-line status per board with active work:
+
+```bash
+#!/usr/bin/env bash
+# In-progress summary across every project + board.
+set -euo pipefail
+
+curl -s http://localhost:3100/api/state | jq -r '
+  .projects[] |
+  .name as $project |
+  .boards[] |
+  select(.counts.in_progress > 0) |
+  "\($project) / \(.name): \(.counts.in_progress) in progress" +
+    (if .counts.blocked > 0 then ", \(.counts.blocked) blocked" else "" end) +
+    (if .counts.stale_in_progress > 0 then ", \(.counts.stale_in_progress) stale" else "" end)
+'
+```
+
+Sample output:
+
+```
+Project Tracker Dev / Development Board: 2 in progress
+People Met / Main: 1 in progress, 1 stale
+Plug / Main: 1 in progress, 1 stale
+```
+
+The same script is in the repo at `examples/state-summary.sh` — drop it in your shell rc as a `tracker-status` alias and you've got a Symphony-style snapshot one keystroke away.
+
+## What this endpoint is _not_
+
+- **Not a write surface.** Mutations belong to MCP. This endpoint is observability only.
+- **Not authenticated.** Loopback is the trust boundary — same as the UI.
+- **Not streamed.** SSE on `/api/events` already covers live UI updates. This is a snapshot for pull consumers.
+- **Not per-card detail.** Use the `getCard` MCP tool or open the UI for that.
