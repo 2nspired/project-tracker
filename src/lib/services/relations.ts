@@ -4,7 +4,7 @@
  */
 
 import type { CardRelation, PrismaClient } from "prisma/generated/client";
-import { hasRole } from "../column-roles.js";
+import { hasRole } from "../column-roles";
 
 export type CardSummary = { id: string; number: number; title: string };
 
