@@ -8,7 +8,7 @@
  * Parking-role card is ratified-and-shipped, not open. See #116.
  */
 
-import { hasRole } from "../column-roles.js";
+import { hasRole } from "../column-roles";
 
 export type DecisionClaimLike = {
 	card: { column: { role: string | null; name: string } } | null;
