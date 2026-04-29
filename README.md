@@ -50,7 +50,7 @@ Next.js 16 + React 19 · Prisma 7 + SQLite · tRPC v11 · shadcn/ui + Tailwind 4
 
 | Tool | What it does |
 | --- | --- |
-| `briefMe` | One-shot session primer — handoff, diff, top work, blockers, open decisions, pulse. |
+| `briefMe` | One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse. |
 | `endSession` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. |
 | `createCard` | Create a card in a column (by name). |
 | `updateCard` | Update card fields; optional `intent`. |

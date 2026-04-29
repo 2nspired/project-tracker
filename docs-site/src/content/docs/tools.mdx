@@ -18,7 +18,7 @@ These are in the agent's context on every session. They cover the hot path: star
 {/* tracker:essentials:start */}
 | Tool | What it does |
 | --- | --- |
-| `briefMe` | One-shot session primer — handoff, diff, top work, blockers, open decisions, pulse. |
+| `briefMe` | One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse. |
 | `endSession` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. |
 | `createCard` | Create a card in a column (by name). |
 | `updateCard` | Update card fields; optional `intent`. |
@@ -43,9 +43,9 @@ Browsed via `getTools({ category })` and executed via `runTool({ tool, params })
 | `cards` | 5 | `bulkCreateCards`, `bulkMoveCards`, `bulkUpdateCards`, `createCardFromTemplate`, `deleteCard` |
 | `checklist` | 3 | `addChecklistItem`, `bulkAddChecklistItems`, `toggleChecklistItem` |
 | `comments` | 1 | `listComments` |
-| `context` | 8 | `getCardContext`, `getMilestoneContext`, `getTagContext`, `listClaims`, `listFacts`, `queryKnowledge`, `saveClaim`, `saveFact` |
+| `context` | 9 | `getCardContext`, `getMilestoneContext`, `getTagContext`, `listClaims`, `listFacts`, `queryKnowledge`, `rebuildKnowledgeIndex`, `saveClaim`, `saveFact` |
 | `decisions` | 3 | `getDecisions`, `recordDecision`, `updateDecision` |
-| `discovery` | 13 | `auditBoard`, `getBoard`, `getCard`, `getRoadmap`, `getStats`, `getToolUsageStats`, `getWorkNextSuggestion`, `listBoards`, `listProjects`, `queryCards`, `renderStatus`, `searchCards`, `updateProjectPrompt` |
+| `discovery` | 14 | `auditBoard`, `getBoard`, `getCard`, `getRoadmap`, `getStats`, `getToolUsageStats`, `getWorkNextSuggestion`, `listBoards`, `listProjects`, `listWorkflows`, `queryCards`, `renderStatus`, `searchCards`, `updateProjectPrompt` |
 | `git` | 3 | `getCommitSummary`, `getGitLog`, `syncGitActivity` |
 | `milestones` | 3 | `createMilestone`, `listMilestones`, `updateMilestone` |
 | `notes` | 3 | `createNote`, `listNotes`, `updateNote` |

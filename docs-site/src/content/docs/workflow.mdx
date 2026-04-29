@@ -43,7 +43,7 @@ The tracker's answer: a structured handoff written at the end of one session and
 
 1. **`briefMe` at the start of every session**
 
-	One tool call. Returns a compact primer — roughly 300–500 tokens — with the last agent's handoff, a diff of what's changed since, the top three work-next candidates, active blockers, open decisions, and staleness warnings.
+	One tool call. Returns a compact primer — roughly 300–500 tokens — with the last agent's handoff, a diff of what's changed since, the top three work-next candidates, active blockers, recent decisions, and staleness warnings.
 
 	It replaces the old pattern of calling `getBoard` every session. It's cheaper, and it focuses the agent on *what changed* rather than dumping the full board.
 

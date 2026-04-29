@@ -87,7 +87,7 @@ export const teachingProject = {
 		{
 			title: "Start Here: briefMe is your first call",
 			description: [
-				"**What:** `briefMe` is the session primer every agent should call first. It returns the last handoff, a diff since that handoff, top work ranked across columns, open blockers, open decisions, and a one-line pulse.",
+				"**What:** `briefMe` is the session primer every agent should call first. It returns the last handoff, a diff since that handoff, top work ranked across columns, open blockers, recent decisions on still-active cards, and a one-line pulse.",
 				"**Why it matters:** It replaces the old habit of dumping the entire board. ~300–500 tokens vs. thousands, and the ordering already tells you what to pick up. This card is the first thing `briefMe` surfaces to a fresh agent on this board.",
 				"**Try it (UI):** Humans can read the same information on the Dashboard's Focus panel — In Progress cards are listed there in the same order.",
 				"**Try it (agent):** `briefMe()` with no args — the board is auto-detected from the current git repo after `registerRepo`. Pass `{ boardId }` to override.",
@@ -145,10 +145,10 @@ export const teachingProject = {
 		{
 			title: "Connect Related Cards",
 			description: [
-				'**What:** Card relations link related work together. Types: **blocks** (hard dependency), **related** (associated), **parent** (hierarchy).',
+				"**What:** Card relations link related work together. Types: **blocks** (hard dependency), **related** (associated), **parent** (hierarchy).",
 				"**Why it matters:** Blocking relations short-circuit agent ranking — a blocked card won't show up in `topWork[]` until its blockers clear. This card is blocked by #9 on purpose, so you can see it.",
 				'**Try it (UI):** Open this card — it shows a "blocked by #9" badge.',
-				'**Try it (agent):** `briefMe()` and look at `blockers[]` — this card appears there until #9 is moved to Done.',
+				"**Try it (agent):** `briefMe()` and look at `blockers[]` — this card appears there until #9 is moved to Done.",
 				"**Outcome:** Dependencies are visible on the board and the agent's work queue respects them automatically.",
 			].join("\n\n"),
 			column: "Up Next",
@@ -221,7 +221,7 @@ export const teachingProject = {
 				"**Why it matters:** ADRs live on cards, not in a wiki that goes stale. The next agent sees the decision and its rationale in `getCardContext` without leaving the tool surface.",
 				"**Try it (UI):** Open this card — it has an attached decision about using SQLite. Check the Decisions tab on the project page too.",
 				'**Try it (agent):** `runTool({ tool: "recordDecision", params: { projectId, cardId: "#13", title: "Use SQLite", status: "accepted", decision: "Store all data in tracker.db", alternatives: ["Postgres", "Mongo"], rationale: "Local-first, zero setup" } })`.',
-				"**Outcome:** The decision is attached to the card and appears in `briefMe`'s `openDecisions[]` when status is still `proposed`.",
+				"**Outcome:** The decision is attached to the card and appears in `briefMe`'s `recentDecisions[]` while the card is still active. Once the card moves to Done, the decision drops out of the brief — it's been ratified and shipped.",
 			].join("\n\n"),
 			column: "Backlog",
 			priority: "LOW",
@@ -369,9 +369,7 @@ export const teachingProject = {
 	],
 
 	/** Card #9 (Configure Development Tools) blocks card #8 (Connect Related Cards) */
-	relations: [
-		{ fromCardNumber: 9, toCardNumber: 8, type: "blocks" as const },
-	],
+	relations: [{ fromCardNumber: 9, toCardNumber: 8, type: "blocks" as const }],
 
 	/** Decision record attached to card #13 (Record Architectural Decisions) */
 	decision: {

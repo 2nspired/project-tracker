@@ -10,6 +10,7 @@ import { getHorizon, hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
 import { saveBriefSnapshot } from "../lib/services/brief-snapshot.js";
+import { isRecentDecision } from "../lib/services/decisions.js";
 import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
 import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
 import { computeWorkNextScore } from "../lib/work-next-score.js";
@@ -654,7 +655,7 @@ server.registerTool(
 	{
 		title: "Brief Me",
 		description:
-			"One-shot session primer: last handoff + diff since it, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call this first at session start instead of getBoard — ~300-500 tokens vs. full board. With no args, auto-detects the project from the current git repo (after scripts/connect.sh). Pass boardId to override.",
+			"One-shot session primer: last handoff + diff since it, top 3 work-next candidates, blockers, recent decisions, staleness, one-line pulse. Call this first at session start instead of getBoard — ~300-500 tokens vs. full board. With no args, auto-detects the project from the current git repo (after scripts/connect.sh). Pass boardId to override.",
 		inputSchema: {
 			boardId: z
 				.string()
@@ -714,7 +715,7 @@ server.registerTool(
 			const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 			const [
 				lastHandoff,
-				openDecisions,
+				decisionClaims,
 				stalenessWarnings,
 				blockerEntries,
 				recentAgentActivity,
@@ -724,7 +725,17 @@ server.registerTool(
 				db.claim.findMany({
 					where: { projectId: board.project.id, kind: "decision", status: "active" },
 					orderBy: { createdAt: "desc" },
-					select: { id: true, statement: true, card: { select: { number: true } } },
+					take: 10,
+					select: {
+						id: true,
+						statement: true,
+						card: {
+							select: {
+								number: true,
+								column: { select: { role: true, name: true } },
+							},
+						},
+					},
 				}),
 				checkStaleness(board.project.id),
 				getBlockersShared(db, boardId),
@@ -802,7 +813,7 @@ server.registerTool(
 				blockedBy: b.blockedBy.map((bb) => `#${bb.number}`),
 			}));
 
-			const decisions = openDecisions.map((d) => ({
+			const recentDecisions = decisionClaims.filter(isRecentDecision).map((d) => ({
 				id: d.id,
 				title: d.statement,
 				card: d.card ? `#${d.card.number}` : null,
@@ -844,7 +855,7 @@ server.registerTool(
 				diff,
 				topWork,
 				blockers,
-				openDecisions: decisions,
+				recentDecisions,
 				stale: formatStalenessWarnings(stalenessWarnings),
 				...(staleInProgress.length > 0 ? { staleInProgress } : {}),
 				...(intentReminder ? { intentReminder } : {}),

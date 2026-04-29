@@ -19,7 +19,7 @@ export const ESSENTIAL_TOOLS: Array<{ name: string; description: string }> = [
 	{
 		name: "briefMe",
 		description:
-			"One-shot session primer — handoff, diff, top work, blockers, open decisions, pulse.",
+			"One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse.",
 	},
 	{
 		name: "endSession",

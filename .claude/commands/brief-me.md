@@ -16,7 +16,7 @@ The response is small (~300-500 tokens) and includes:
 - **diff** — what's changed on the board since that handoff
 - **topWork** — three highest-leverage cards (Up Next first, then scored Backlog)
 - **blockers** — cards waiting on something
-- **openDecisions** — unresolved architectural decisions
+- **recentDecisions** — active architectural decisions on still-active cards (drops once the card ships)
 - **pulse** — one-line board health summary
 
 After it returns:
