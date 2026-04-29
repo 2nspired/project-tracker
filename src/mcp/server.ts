@@ -9,6 +9,7 @@ import { findStaleInProgress } from "@/server/services/stale-cards";
 import { getHorizon, hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
+import { saveBriefSnapshot } from "../lib/services/brief-snapshot.js";
 import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
 import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
 import { computeWorkNextScore } from "../lib/work-next-score.js";
@@ -834,26 +835,36 @@ server.registerTool(
 				.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
 				.sort((a, b) => b.days - a.days);
 
-			return ok(
-				{
-					_serverVersion: MCP_SERVER_VERSION,
-					...(versionMismatch ? { _versionMismatch: versionMismatch } : {}),
+			const briefPayload = {
+				_serverVersion: MCP_SERVER_VERSION,
+				...(versionMismatch ? { _versionMismatch: versionMismatch } : {}),
+				pulse,
+				...(autoResolved ? { resolvedFromCwd: { ...autoResolved, boardId } } : {}),
+				handoff,
+				diff,
+				topWork,
+				blockers,
+				openDecisions: decisions,
+				stale: formatStalenessWarnings(stalenessWarnings),
+				...(staleInProgress.length > 0 ? { staleInProgress } : {}),
+				...(intentReminder ? { intentReminder } : {}),
+				_hint: lastHandoff
+					? "Continue via handoff.nextSteps or pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
+					: "No prior handoff — pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Run `listWorkflows({ boardId })` for the full recipe set; call `endSession` before wrapping to save context.",
+			};
+
+			try {
+				await saveBriefSnapshot(db, {
+					boardId,
+					agentName: AGENT_NAME,
 					pulse,
-					...(autoResolved ? { resolvedFromCwd: { ...autoResolved, boardId } } : {}),
-					handoff,
-					diff,
-					topWork,
-					blockers,
-					openDecisions: decisions,
-					stale: formatStalenessWarnings(stalenessWarnings),
-					...(staleInProgress.length > 0 ? { staleInProgress } : {}),
-					...(intentReminder ? { intentReminder } : {}),
-					_hint: lastHandoff
-						? "Continue via handoff.nextSteps or pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
-						: "No prior handoff — pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Run `listWorkflows({ boardId })` for the full recipe set; call `endSession` before wrapping to save context.",
-				},
-				format as "json" | "toon"
-			);
+					payload: briefPayload,
+				});
+			} catch (e) {
+				console.error("[briefMe] snapshot persist failed:", e);
+			}
+
+			return ok(briefPayload, format as "json" | "toon");
 		});
 	})
 );

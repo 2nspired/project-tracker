@@ -2,6 +2,7 @@ import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 
 import { activityRouter } from "@/server/api/routers/activity";
 import { boardRouter } from "@/server/api/routers/board";
+import { briefSnapshotRouter } from "@/server/api/routers/brief-snapshot";
 import { cardRouter } from "@/server/api/routers/card";
 import { checklistRouter } from "@/server/api/routers/checklist";
 import { columnRouter } from "@/server/api/routers/column";
@@ -27,6 +28,7 @@ export const appRouter = createTRPCRouter({
 	relation: relationRouter,
 	handoff: handoffRouter,
 	decision: decisionRouter,
+	briefSnapshot: briefSnapshotRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,21 +1,37 @@
 "use client";
 
-import { Activity, ArrowLeft, Bot, Check, Clock, Columns3, Copy, List, Map, NotebookPen, Pencil, Pin, Users } from "lucide-react";
+import {
+	Activity,
+	ArrowLeft,
+	Bot,
+	Check,
+	ChevronRight,
+	Clock,
+	Columns3,
+	Copy,
+	History,
+	List,
+	Map,
+	NotebookPen,
+	Pencil,
+	Pin,
+	Users,
+} from "lucide-react";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ActivitySheet } from "@/components/board/activity-sheet";
 import { BoardListView } from "@/components/board/board-list-view";
-import { type BoardFilters, type SortMode, emptyFilters } from "@/components/board/board-toolbar";
+import { type BoardFilters, emptyFilters, type SortMode } from "@/components/board/board-toolbar";
 import { BoardView } from "@/components/board/board-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { useBoardEvents } from "@/hooks/use-board-events";
+import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { api } from "@/trpc/react";
 
 function CopyBoardIdButton({ boardId }: { boardId: string }) {
@@ -84,7 +100,9 @@ function DefaultBoardToggle({
 						Default
 					</Button>
 				</TooltipTrigger>
-				<TooltipContent>briefMe auto-opens this board from the repo — click to unset</TooltipContent>
+				<TooltipContent>
+					briefMe auto-opens this board from the repo — click to unset
+				</TooltipContent>
 			</Tooltip>
 		);
 	}
@@ -186,6 +204,7 @@ export default function BoardPage({
 
 	const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 	const [showHandoffs, setShowHandoffs] = useState(false);
+	const [showBriefings, setShowBriefings] = useState(false);
 	const [activityOpen, setActivityOpen] = useState(false);
 	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 	const refetchInterval = useBoardEvents(boardId);
@@ -219,9 +238,7 @@ export default function BoardPage({
 	// so CardDetailSheet doesn't stay open against a 404.
 	useEffect(() => {
 		if (!board || !selectedCardId) return;
-		const exists = board.columns.some((col) =>
-			col.cards.some((c) => c.id === selectedCardId)
-		);
+		const exists = board.columns.some((col) => col.cards.some((c) => c.id === selectedCardId));
 		if (!exists) setSelectedCardId(null);
 	}, [board, selectedCardId]);
 
@@ -366,6 +383,20 @@ export default function BoardPage({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
+								variant={showBriefings ? "secondary" : "outline"}
+								size="sm"
+								className="h-8 gap-1.5 text-xs"
+								onClick={() => setShowBriefings(!showBriefings)}
+							>
+								<History className="h-3.5 w-3.5" />
+								Briefings
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Rolling history of briefMe snapshots</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
 								variant={activityOpen ? "secondary" : "outline"}
 								size="sm"
 								className="h-8 gap-1.5 text-xs"
@@ -379,16 +410,18 @@ export default function BoardPage({
 					</Tooltip>
 				</div>
 				{showHandoffs && <SessionHistoryPanel boardId={board.id} />}
+				{showBriefings && <BriefingsPanel boardId={board.id} />}
 				<ActivitySheet
 					boardId={board.id}
 					open={activityOpen}
 					onOpenChange={setActivityOpen}
 					onCardClick={setSelectedCardId}
 				/>
-				{viewMode === "kanban"
-					? <BoardView board={board} {...viewProps} />
-					: <BoardListView board={board} {...viewProps} />
-				}
+				{viewMode === "kanban" ? (
+					<BoardView board={board} {...viewProps} />
+				) : (
+					<BoardListView board={board} {...viewProps} />
+				)}
 			</div>
 		</TooltipProvider>
 	);
@@ -465,5 +498,60 @@ function SessionHistoryPanel({ boardId }: { boardId: string }) {
 	);
 }
 
-// ─── Agent Notes Panel ───────────────────────────────────────────
+// ─── Briefings Panel ─────────────────────────────────────────────
 
+function BriefingsPanel({ boardId }: { boardId: string }) {
+	const { data: snapshots } = api.briefSnapshot.list.useQuery({ boardId, limit: 20 });
+	const [expandedId, setExpandedId] = useState<string | null>(null);
+
+	if (!snapshots || snapshots.length === 0) {
+		return (
+			<div className="border-b bg-muted/30 px-4 py-3 text-center text-xs text-muted-foreground">
+				No briefMe snapshots yet — call briefMe from an MCP client to start the history.
+			</div>
+		);
+	}
+
+	return (
+		<div className="max-h-64 overflow-y-auto border-b bg-muted/30">
+			<div className="divide-y">
+				{snapshots.map((s) => {
+					const isOpen = expandedId === s.id;
+					return (
+						<div key={s.id} className="px-4 py-2">
+							<button
+								type="button"
+								className="flex w-full items-center gap-2 text-left"
+								onClick={() => setExpandedId(isOpen ? null : s.id)}
+							>
+								<ChevronRight
+									className={`h-3 w-3 text-muted-foreground transition-transform ${
+										isOpen ? "rotate-90" : ""
+									}`}
+								/>
+								<History className="h-3.5 w-3.5 text-blue-500" />
+								<span className="text-xs font-medium">{s.agentName}</span>
+								<span className="text-2xs text-muted-foreground">
+									{new Date(s.createdAt).toLocaleString(undefined, {
+										month: "short",
+										day: "numeric",
+										hour: "2-digit",
+										minute: "2-digit",
+									})}
+								</span>
+								<span className="ml-1 truncate text-2xs text-muted-foreground">{s.pulse}</span>
+							</button>
+							{isOpen && (
+								<pre className="mt-2 max-h-80 overflow-auto rounded border bg-background p-2 text-2xs leading-snug">
+									{JSON.stringify(s.payload, null, 2)}
+								</pre>
+							)}
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
+// ─── Agent Notes Panel ───────────────────────────────────────────
