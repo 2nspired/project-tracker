@@ -75,7 +75,14 @@ Full walkthrough in `scripts/release.ts` comments. Short version:
 2. Bump `package.json` `version` and `MCP_SERVER_VERSION` in the same commit.
 3. Bump `SCHEMA_VERSION` if the schema changed.
 4. Add a new `## [x.y.z]` section at the top of `CHANGELOG.md`.
-5. `npx tsx scripts/release.ts` — validates, tags, pushes, and (optionally) opens a GitHub release.
+5. `npx tsx scripts/release.ts --tag` — validates and pushes the tag.
+6. `.github/workflows/release.yml` fires on the tag push and publishes the GitHub Release using the matching CHANGELOG section as the body. No manual step.
+
+For the rare case of shipping without CI (offline, GH Actions outage), `scripts/release.ts --tag --gh` does the tag push and release publish in one local step. Use one path or the other — the workflow skips a release that already exists, but the script does not, so running both creates a race.
+
+## GitHub Release title convention
+
+The workflow titles releases as bare `vX.Y.Z`. For a MAJOR bump where you want a human-readable theme (e.g. `v3.0.0 — Note+Claim cutover final drop`), edit the title in the GitHub UI after the workflow publishes. Bare titles are the rule for MINOR and PATCH.
 
 ## Why this matters at two users
 
