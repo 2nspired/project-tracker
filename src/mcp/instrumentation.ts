@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { db } from "./db.js";
-import { AGENT_NAME } from "./utils.js";
+import { requireIntentIfPolicyRequires, resolvePolicyForCall } from "./policy-enforcement.js";
 import type { ToolResult } from "./utils.js";
+import { AGENT_NAME, err } from "./utils.js";
 
 // ─── Session Identity ────────────────────────────────────────────────
 // One UUID per MCP server process — matches the MCP session lifecycle.
@@ -36,19 +37,13 @@ function record(entry: LogEntry): void {
 // ─── Extended Tool Logger ────────────────────────────────────────────
 // Called by tool-registry.ts after executing an extended tool handler.
 
-export function logToolCall(
-	toolName: string,
-	durationMs: number,
-	result: ToolResult,
-): void {
+export function logToolCall(toolName: string, durationMs: number, result: ToolResult): void {
 	record({
 		toolName,
 		toolType: "extended",
 		durationMs,
 		success: result.isError !== true,
-		errorMessage: result.isError
-			? result.content[0]?.text?.slice(0, 500)
-			: undefined,
+		errorMessage: result.isError ? result.content[0]?.text?.slice(0, 500) : undefined,
 	});
 }
 
@@ -58,20 +53,37 @@ export function logToolCall(
 // biome-ignore lint/suspicious/noExplicitAny: handler wrapper must preserve MCP SDK's generic handler types
 export function wrapEssentialHandler<F extends (...args: any[]) => Promise<any>>(
 	toolName: string,
-	handler: F,
+	handler: F
 ): F {
 	const wrapped = (async (...args: unknown[]) => {
 		const start = Date.now();
 		try {
+			// Per-project tracker.md policy enforcement (RFC #111, card 3/7).
+			// Runs *before* the tool handler so we reject missing-intent calls
+			// without mutating state. The hardcoded `.min(1)` schemas on
+			// moveCard/deleteCard remain as a back-compat safety net.
+			const params = args[0];
+			const policy = await resolvePolicyForCall(params);
+			const check = requireIntentIfPolicyRequires(policy, toolName, params);
+			if (!check.ok) {
+				const result = err(check.message);
+				record({
+					toolName,
+					toolType: "essential",
+					durationMs: Date.now() - start,
+					success: false,
+					errorMessage: result.content[0]?.text?.slice(0, 500),
+				});
+				return result;
+			}
+
 			const result = await handler(...args);
 			record({
 				toolName,
 				toolType: "essential",
 				durationMs: Date.now() - start,
 				success: result.isError !== true,
-				errorMessage: result.isError
-					? result.content[0]?.text?.slice(0, 500)
-					: undefined,
+				errorMessage: result.isError ? result.content[0]?.text?.slice(0, 500) : undefined,
 			});
 			return result;
 		} catch (error) {
@@ -80,9 +92,8 @@ export function wrapEssentialHandler<F extends (...args: any[]) => Promise<any>>
 				toolType: "essential",
 				durationMs: Date.now() - start,
 				success: false,
-				errorMessage: error instanceof Error
-					? error.message.slice(0, 500)
-					: String(error).slice(0, 500),
+				errorMessage:
+					error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
 			});
 			throw error;
 		}

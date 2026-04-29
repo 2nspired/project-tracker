@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { logToolCall } from "./instrumentation.js";
+import { requireIntentIfPolicyRequires, resolvePolicyForCall } from "./policy-enforcement.js";
 import type { ToolResult } from "./utils.js";
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -352,7 +353,23 @@ export async function executeTool(
 		return result;
 	}
 
-	const result = await def.handler(parsed.data as Record<string, unknown>);
+	// Per-project tracker.md policy enforcement (RFC #111, card 3/7). Runs
+	// after schema validation but before the handler — so a malformed call
+	// still gets the precise schema-level error, and a well-typed call
+	// gets the policy-level intent gate before any state mutation.
+	const validatedParams = parsed.data as Record<string, unknown>;
+	const policy = await resolvePolicyForCall(validatedParams);
+	const check = requireIntentIfPolicyRequires(policy, name, validatedParams);
+	if (!check.ok) {
+		const result: ToolResult = {
+			content: [{ type: "text" as const, text: check.message }],
+			isError: true,
+		};
+		logToolCall(name, Date.now() - start, result);
+		return result;
+	}
+
+	const result = await def.handler(validatedParams);
 	logToolCall(name, Date.now() - start, result);
 	return result;
 }
