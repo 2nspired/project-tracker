@@ -1,7 +1,7 @@
 /**
  * Reads `tracker.md` from a project's repo root and returns the parsed policy
  * object that briefMe (and later getCardContext, MCP middleware) surface to
- * agents. Implementation card 1/7 of RFC #111 (`docs/RFC-WORKFLOW.md`).
+ * agents. Implementation cards 1/7 + 5/7 of RFC #111 (`docs/RFC-WORKFLOW.md`).
  *
  * Day-one schema: `intent_required_on` + `columns.<name>.prompt` only. Body
  * (everything after the closing front-matter `---`) becomes `policy.prompt`.
@@ -12,7 +12,19 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { load as parseYaml } from "js-yaml";
+import { load as parseYaml, YAMLException } from "js-yaml";
+import { z } from "zod";
+
+const MAX_SUPPORTED_SCHEMA_VERSION = 1;
+
+const TrackerPolicySchema = z.object({
+	schema_version: z.number().int().min(1).default(1),
+	project_slug: z.string().optional(),
+	intent_required_on: z.array(z.string()).default([]),
+	columns: z.record(z.string(), z.object({ prompt: z.string() })).default({}),
+});
+
+type ValidatedFrontMatter = z.infer<typeof TrackerPolicySchema>;
 
 export type TrackerPolicy = {
 	prompt: string;
@@ -21,9 +33,15 @@ export type TrackerPolicy = {
 	schema_version: number;
 };
 
+export type PolicyError = {
+	stage: "yaml" | "schema" | "schema_version";
+	message: string;
+};
+
 export type LoadPolicyResult = {
 	policy: TrackerPolicy | null;
 	warnings: string[];
+	policy_error?: PolicyError;
 };
 
 const FILENAME = "tracker.md";
@@ -42,56 +60,75 @@ export async function loadTrackerPolicy(input: {
 	try {
 		raw = await readFile(join(repoPath, FILENAME), "utf8");
 	} catch {
-		// Treat any read error as "file absent." Card #127 will refine this into
-		// ENOENT vs unreadable, with a `policy_error` field for the latter.
+		// File absent (or unreadable) — both treated as "no policy". A future
+		// refinement could split ENOENT from unreadable, but the practical signal
+		// for agents is identical: there's no policy to apply.
 		return { policy: null, warnings: [] };
 	}
 
 	const match = FRONT_MATTER_RE.exec(raw);
-	let frontMatter: Record<string, unknown> = {};
+	let frontMatterRaw: unknown = {};
 	let body: string;
 	if (match) {
 		try {
-			const parsed = parseYaml(match[1]);
-			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-				frontMatter = parsed as Record<string, unknown>;
-			}
-		} catch {
-			// YAML parse failure degrades to "no policy" until card #127 surfaces
-			// `policy_error` in the briefMe response.
-			return { policy: null, warnings: [] };
+			frontMatterRaw = parseYaml(match[1]) ?? {};
+		} catch (err) {
+			const message = err instanceof YAMLException ? err.message : String(err);
+			return {
+				policy: null,
+				warnings: [],
+				policy_error: { stage: "yaml", message },
+			};
 		}
 		body = match[2];
 	} else {
 		body = raw;
 	}
 
-	const prompt = body.trim();
-
-	const intentRaw = frontMatter.intent_required_on;
-	const intent_required_on = Array.isArray(intentRaw)
-		? intentRaw.filter((v): v is string => typeof v === "string")
-		: [];
-
-	const columns: Record<string, { prompt: string }> = {};
-	const columnsRaw = frontMatter.columns;
-	if (columnsRaw && typeof columnsRaw === "object" && !Array.isArray(columnsRaw)) {
-		for (const [name, value] of Object.entries(columnsRaw as Record<string, unknown>)) {
-			if (value && typeof value === "object" && !Array.isArray(value)) {
-				const p = (value as { prompt?: unknown }).prompt;
-				if (typeof p === "string") columns[name] = { prompt: p };
-			}
-		}
+	if (
+		typeof frontMatterRaw !== "object" ||
+		frontMatterRaw === null ||
+		Array.isArray(frontMatterRaw)
+	) {
+		return {
+			policy: null,
+			warnings: [],
+			policy_error: {
+				stage: "schema",
+				message: "Front matter must be a YAML mapping (object).",
+			},
+		};
 	}
 
-	const schemaVersionRaw = frontMatter.schema_version;
-	const schema_version = typeof schemaVersionRaw === "number" ? schemaVersionRaw : 1;
+	const parsed = TrackerPolicySchema.safeParse(frontMatterRaw);
+	if (!parsed.success) {
+		return {
+			policy: null,
+			warnings: [],
+			policy_error: { stage: "schema", message: formatZodError(parsed.error) },
+		};
+	}
+
+	const validated: ValidatedFrontMatter = parsed.data;
+
+	if (validated.schema_version > MAX_SUPPORTED_SCHEMA_VERSION) {
+		return {
+			policy: null,
+			warnings: [],
+			policy_error: {
+				stage: "schema_version",
+				message: `tracker.md schema_version ${validated.schema_version} is not supported by this server (max ${MAX_SUPPORTED_SCHEMA_VERSION}).`,
+			},
+		};
+	}
+
+	const prompt = body.trim();
 
 	const policy: TrackerPolicy = {
 		prompt,
-		intent_required_on,
-		columns,
-		schema_version,
+		intent_required_on: validated.intent_required_on,
+		columns: validated.columns,
+		schema_version: validated.schema_version,
 	};
 
 	const warnings: string[] = [];
@@ -100,4 +137,13 @@ export async function loadTrackerPolicy(input: {
 	}
 
 	return { policy, warnings };
+}
+
+function formatZodError(error: z.ZodError): string {
+	return error.issues
+		.map((issue) => {
+			const path = issue.path.length > 0 ? issue.path.join(".") : "<root>";
+			return `${path}: ${issue.message}`;
+		})
+		.join("; ");
 }

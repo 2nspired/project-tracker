@@ -866,6 +866,7 @@ server.registerTool(
 				pulse,
 				...(autoResolved ? { resolvedFromCwd: { ...autoResolved, boardId } } : {}),
 				policy: policyResult.policy,
+				...(policyResult.policy_error ? { policy_error: policyResult.policy_error } : {}),
 				handoff,
 				diff,
 				topWork,

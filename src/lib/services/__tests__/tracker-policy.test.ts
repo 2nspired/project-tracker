@@ -22,12 +22,14 @@ describe("loadTrackerPolicy", () => {
 		});
 		expect(result.policy).toBeNull();
 		expect(result.warnings).toEqual([]);
+		expect(result.policy_error).toBeUndefined();
 	});
 
 	it("returns policy: null with no warning when repoPath is null", async () => {
 		const result = await loadTrackerPolicy({ repoPath: null, projectPrompt: null });
 		expect(result.policy).toBeNull();
 		expect(result.warnings).toEqual([]);
+		expect(result.policy_error).toBeUndefined();
 	});
 
 	it("parses front matter and exposes body as prompt when file present", async () => {
@@ -61,6 +63,7 @@ Run briefMe first. Prefer pinned over scored.
 		expect(policy.prompt).toContain("# Project policy");
 		expect(policy.prompt).toContain("Run briefMe first");
 		expect(result.warnings).toEqual([]);
+		expect(result.policy_error).toBeUndefined();
 	});
 
 	it("emits conflict warning when both tracker.md body and projectPrompt are populated", async () => {
@@ -98,7 +101,7 @@ schema_version: 1
 		expect(result.warnings).toEqual([]);
 	});
 
-	it("returns policy: null when YAML front matter is malformed", async () => {
+	it("returns policy_error with stage 'yaml' when YAML front matter is malformed", async () => {
 		const md = `---
 schema_version: 1
 columns:
@@ -112,6 +115,71 @@ Body.
 		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
 		expect(result.policy).toBeNull();
 		expect(result.warnings).toEqual([]);
+		expect(result.policy_error?.stage).toBe("yaml");
+		expect(result.policy_error?.message).toBeTruthy();
+	});
+
+	it("returns policy_error with stage 'schema' when intent_required_on is wrong type", async () => {
+		const md = `---
+schema_version: 1
+intent_required_on: moveCard
+---
+
+Body.
+`;
+		await writeFile(join(dir, "tracker.md"), md, "utf8");
+
+		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		expect(result.policy).toBeNull();
+		expect(result.policy_error?.stage).toBe("schema");
+		expect(result.policy_error?.message).toMatch(/intent_required_on/);
+	});
+
+	it("returns policy_error with stage 'schema' when columns entry is missing prompt", async () => {
+		const md = `---
+schema_version: 1
+columns:
+  In Progress:
+    note: oops wrong key
+---
+`;
+		await writeFile(join(dir, "tracker.md"), md, "utf8");
+
+		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		expect(result.policy).toBeNull();
+		expect(result.policy_error?.stage).toBe("schema");
+		expect(result.policy_error?.message).toMatch(/prompt/);
+	});
+
+	it("returns policy_error with stage 'schema_version' when schema_version is in the future", async () => {
+		const md = `---
+schema_version: 2
+---
+
+Body.
+`;
+		await writeFile(join(dir, "tracker.md"), md, "utf8");
+
+		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		expect(result.policy).toBeNull();
+		expect(result.policy_error?.stage).toBe("schema_version");
+		expect(result.policy_error?.message).toMatch(/schema_version 2 is not supported/);
+		expect(result.policy_error?.message).toMatch(/max 1/);
+	});
+
+	it("returns policy_error with stage 'schema' when front matter parses to a non-object (e.g. string)", async () => {
+		const md = `---
+just-a-string
+---
+
+Body.
+`;
+		await writeFile(join(dir, "tracker.md"), md, "utf8");
+
+		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		expect(result.policy).toBeNull();
+		expect(result.policy_error?.stage).toBe("schema");
+		expect(result.policy_error?.message).toMatch(/mapping/);
 	});
 
 	it("treats a body-only file (no front matter) as the prompt with default schema_version", async () => {
@@ -122,5 +190,21 @@ Body.
 		expect(result.policy?.schema_version).toBe(1);
 		expect(result.policy?.intent_required_on).toEqual([]);
 		expect(result.policy?.columns).toEqual({});
+		expect(result.policy_error).toBeUndefined();
+	});
+
+	it("treats whitespace-only front matter as defaults, no error", async () => {
+		const md = `---
+
+---
+
+Body content.
+`;
+		await writeFile(join(dir, "tracker.md"), md, "utf8");
+
+		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		expect(result.policy?.prompt).toBe("Body content.");
+		expect(result.policy?.schema_version).toBe(1);
+		expect(result.policy_error).toBeUndefined();
 	});
 });
