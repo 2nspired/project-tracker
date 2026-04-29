@@ -33,6 +33,7 @@ export function ActorChip({
 				<span
 					className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold leading-none text-white ${sizes.box}`}
 					style={{ backgroundColor: color }}
+					role="img"
 					aria-label={`${label} avatar`}
 				>
 					{initials}
@@ -40,6 +41,7 @@ export function ActorChip({
 			) : (
 				<span
 					className={`inline-flex shrink-0 items-center justify-center rounded-full bg-muted-foreground/80 text-background ${sizes.box}`}
+					role="img"
 					aria-label="Human avatar"
 				>
 					<User className={sizes.icon} />

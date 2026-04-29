@@ -305,9 +305,14 @@ function ViewSelector({
 				{/* Save current */}
 				<DropdownMenuSeparator />
 				{saving ? (
-					<div
+					// biome-ignore lint/a11y/useKeyWithClickEvents: onClick stops bubbling to the dropdown; form keyboard is handled by inputs/submit
+					<form
 						className="flex items-center gap-1.5 px-2 py-1.5"
 						onClick={(e) => e.stopPropagation()}
+						onSubmit={(e) => {
+							e.preventDefault();
+							handleSave();
+						}}
 					>
 						<Input
 							value={newName}
@@ -316,20 +321,19 @@ function ViewSelector({
 							className="h-7 text-xs"
 							autoFocus
 							onKeyDown={(e) => {
-								if (e.key === "Enter") handleSave();
 								if (e.key === "Escape") setSaving(false);
 							}}
 						/>
 						<Button
+							type="submit"
 							variant="outline"
 							size="sm"
 							className="h-7 px-2"
 							disabled={!newName.trim()}
-							onClick={handleSave}
 						>
 							<Save className="h-3 w-3" />
 						</Button>
-					</div>
+					</form>
 				) : (
 					<DropdownMenuItem
 						onClick={(e) => {

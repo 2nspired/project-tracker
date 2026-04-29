@@ -24,6 +24,7 @@ export function ActorDot({ actorType, actorName, size = 6, className }: ActorDot
 				border: isAgent ? "none" : `1px solid ${color}`,
 			}}
 			title={label}
+			role="img"
 			aria-label={`${label} indicator`}
 		/>
 	);

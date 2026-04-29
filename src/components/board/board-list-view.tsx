@@ -413,20 +413,13 @@ function DraggableListRow({ card, onClick }: { card: ListCard; onClick: () => vo
 			>
 				<GripVertical className="h-3.5 w-3.5" />
 			</div>
-			<div
-				role="button"
-				tabIndex={0}
-				className="flex min-w-0 flex-1 cursor-pointer items-center gap-4 py-3 pr-4"
+			<button
+				type="button"
+				className="flex min-w-0 flex-1 cursor-pointer items-center gap-4 py-3 pr-4 text-left"
 				onClick={onClick}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						onClick();
-					}
-				}}
 			>
 				<ListRowContent card={card} />
-			</div>
+			</button>
 		</div>
 	);
 }

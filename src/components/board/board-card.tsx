@@ -84,6 +84,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 	const bannerColor = banner ? getActorIdentity(banner.actorType, banner.actorName).color : null;
 
 	return (
+		// biome-ignore lint/a11y/useSemanticElements: nested banner/buttons forbid converting outer to <button>
 		<div
 			role="button"
 			tabIndex={0}

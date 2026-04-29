@@ -24,6 +24,7 @@ export function ProgressRing({
 
 	return (
 		<svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={className}>
+			<title>{Math.round(clamped * 100)}% complete</title>
 			{/* Background track */}
 			<circle
 				cx={size / 2}

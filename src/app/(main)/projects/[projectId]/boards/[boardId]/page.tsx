@@ -11,7 +11,7 @@ import {
 	Copy,
 	History,
 	List,
-	Map,
+	Map as MapIcon,
 	NotebookPen,
 	Pencil,
 	Pin,
@@ -348,7 +348,7 @@ export default function BoardPage({
 						<TooltipTrigger asChild>
 							<Link href={`/projects/${projectId}/boards/${boardId}/roadmap`}>
 								<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-									<Map className="h-3.5 w-3.5" />
+									<MapIcon className="h-3.5 w-3.5" />
 									Roadmap
 								</Button>
 							</Link>

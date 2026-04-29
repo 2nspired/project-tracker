@@ -285,6 +285,7 @@ function NoteCard({
 	const tags = parseTags(note.tags);
 
 	return (
+		// biome-ignore lint/a11y/useSemanticElements: nested action buttons forbid converting outer to <button>
 		<div
 			role="button"
 			tabIndex={0}
@@ -340,6 +341,7 @@ function NoteListItem({
 	const tags = parseTags(note.tags);
 
 	return (
+		// biome-ignore lint/a11y/useSemanticElements: nested action buttons forbid converting outer to <button>
 		<div
 			role="button"
 			tabIndex={0}

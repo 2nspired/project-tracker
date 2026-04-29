@@ -187,13 +187,16 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 	isEditingDescriptionRef.current = isEditingDescription;
 
 	useEffect(() => {
-		if (card) {
+		if (card?.id) {
 			if (!isEditingTitleRef.current) setLocalTitle(card.title);
 			if (!isEditingDescriptionRef.current) setLocalDescription(card.description ?? "");
 		}
 	}, [card?.id, card?.title, card?.description]);
 
-	// Reset edit states when switching cards
+	// Reset edit states when switching cards. cardId is a trigger-only dep:
+	// the effect resets state whenever the user navigates to a different card,
+	// even though cardId isn't read inside the body.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: cardId is the change trigger
 	useEffect(() => {
 		setIsEditingTitle(false);
 		setIsEditingDescription(false);
@@ -438,6 +441,8 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 										</div>
 									</div>
 								) : card.description ? (
+									// biome-ignore lint/a11y/noStaticElementInteractions: Markdown content can contain links — wrapping in <button> would be invalid HTML
+									// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard activation flows through the focusable Markdown links inside
 									<div
 										className="cursor-pointer rounded-md border border-transparent px-1 py-0.5 text-sm transition-colors hover:border-border hover:bg-muted/50"
 										onClick={() => {
