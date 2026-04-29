@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, CheckSquare, Clock, MessageSquare, Sparkles, X } from "lucide-react";
+import { Ban, CheckSquare, Clock, MessageSquare, MoonStar, Sparkles, X } from "lucide-react";
 
 import { ActorDot } from "@/components/ui/actor-dot";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,7 @@ type BoardCardProps = {
 		_count: { comments: number };
 		_blockedByCount?: number;
 		_workNextScore?: number;
+		stale?: { days: number; lastSignalAt: string };
 	};
 	showScore?: boolean;
 	onClick: () => void;
@@ -74,19 +75,20 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 	const checklistDone = card.checklists.filter((c) => c.completed).length;
 	const blockedByCount = card._blockedByCount ?? 0;
 	const ageDays = getAgeDays(card.updatedAt);
-	const aging = getAgeIndicator(ageDays);
+	// Stalled In-Progress takes precedence over the generic aging clock —
+	// it's a more specific, column-aware signal that this card has gone
+	// silent (no activity, comments, commits, or checklist changes).
+	const aging = card.stale ? null : getAgeIndicator(ageDays);
 	const authorship = getAuthorshipPill(card.lastEditedBy, card.updatedAt);
 	const { banner, dismiss } = useIntentBanner(card.id);
-	const bannerColor = banner
-		? getActorIdentity(banner.actorType, banner.actorName).color
-		: null;
+	const bannerColor = banner ? getActorIdentity(banner.actorType, banner.actorName).color : null;
 
 	return (
 		<div
 			role="button"
 			tabIndex={0}
 			data-card-id={card.id}
-			className={`relative cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-ring/20 ${priority !== "NONE" ? `border-l-[3px] ${PRIORITY_BORDER[priority]}` : ""}`}
+			className={`relative cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-ring/20 ${card.stale ? "opacity-60" : ""} ${priority !== "NONE" ? `border-l-[3px] ${PRIORITY_BORDER[priority]}` : ""}`}
 			onClick={onClick}
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") {
@@ -109,11 +111,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 					}}
 					title="Click to dismiss"
 				>
-					<ActorDot
-						actorType={banner.actorType}
-						actorName={banner.actorName}
-						className="mt-1"
-					/>
+					<ActorDot actorType={banner.actorType} actorName={banner.actorName} className="mt-1" />
 					<span className="line-clamp-2 flex-1 italic">{banner.intent}</span>
 					<X className="mt-0.5 h-3 w-3 shrink-0 opacity-60" />
 				</button>
@@ -144,12 +142,8 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 							actorType={authorship.isHuman ? "HUMAN" : "AGENT"}
 							actorName={authorship.name}
 						/>
-						<span className="font-medium text-foreground/80">
-							{authorship.name}
-						</span>
-						<span className="font-mono tabular-nums opacity-60">
-							{authorship.relative}
-						</span>
+						<span className="font-medium text-foreground/80">{authorship.name}</span>
+						<span className="font-mono tabular-nums opacity-60">{authorship.relative}</span>
 					</span>
 				)}
 
@@ -174,6 +168,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 				{(checklistTotal > 0 ||
 					card._count.comments > 0 ||
 					aging ||
+					card.stale ||
 					blockedByCount > 0) && (
 					<div className="flex items-center gap-3 text-xs text-muted-foreground">
 						{blockedByCount > 0 && (
@@ -183,6 +178,15 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 							>
 								<Ban className="h-3 w-3" />
 								{blockedByCount}
+							</span>
+						)}
+						{card.stale && (
+							<span
+								className="flex items-center gap-0.5 text-orange-500"
+								title={`No activity, comments, commits, or checklist changes for ${card.stale.days} days — revive, re-park, or close.`}
+							>
+								<MoonStar className="h-3 w-3" />
+								stalled {card.stale.days}d
 							</span>
 						)}
 						{aging && (

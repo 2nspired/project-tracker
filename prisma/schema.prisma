@@ -71,6 +71,10 @@ model Board {
   projectId   String   @map("project_id")
   name        String
   description String?
+  // Threshold (days) for the "stale in-progress" reconciler. null disables
+  // the check for this board; any positive integer is the silence window
+  // before a card in an `active`-role column is flagged as stalled.
+  staleInProgressDays Int? @default(3) @map("stale_in_progress_days")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

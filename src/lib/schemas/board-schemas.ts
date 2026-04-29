@@ -9,6 +9,7 @@ export const createBoardSchema = z.object({
 export const updateBoardSchema = z.object({
 	name: z.string().min(1).max(100).optional(),
 	description: z.string().max(500).optional(),
+	staleInProgressDays: z.number().int().min(0).max(365).nullable().optional(),
 });
 
 export type CreateBoardInput = z.infer<typeof createBoardSchema>;
