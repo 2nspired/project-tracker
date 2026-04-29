@@ -40,3 +40,6 @@ Thumbs.db
 
 # MCP config (contains absolute paths)
 .mcp.json
+
+# Claude Code subagent runtime worktrees
+.claude/worktrees/

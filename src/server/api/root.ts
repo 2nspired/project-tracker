@@ -13,6 +13,7 @@ import { milestoneRouter } from "@/server/api/routers/milestone";
 import { noteRouter } from "@/server/api/routers/note";
 import { projectRouter } from "@/server/api/routers/project";
 import { relationRouter } from "@/server/api/routers/relation";
+import { tagRouter } from "@/server/api/routers/tag";
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 
 export const appRouter = createTRPCRouter({
@@ -25,6 +26,7 @@ export const appRouter = createTRPCRouter({
 	activity: activityRouter,
 	note: noteRouter,
 	milestone: milestoneRouter,
+	tag: tagRouter,
 	relation: relationRouter,
 	handoff: handoffRouter,
 	decision: decisionRouter,

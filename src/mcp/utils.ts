@@ -1,3 +1,4 @@
+import { resolveOrCreateMilestone as resolveOrCreateMilestoneService } from "@/server/services/milestone-service";
 import { db } from "./db.js";
 import { toToon } from "./toon.js";
 
@@ -36,7 +37,7 @@ export function getAgentNameSource(): AgentNameSource {
  * Increment when schema changes require `db:push`.
  * Feature map tells agents what capabilities are available.
  */
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export type FeatureAvailability = {
 	version: number;
@@ -140,22 +141,20 @@ export async function resolveCardId(ref: string, projectId?: string): Promise<st
 }
 
 /**
- * Resolve a milestone by name within a project. Creates it if it doesn't exist.
+ * Resolve a milestone by name within a project. Creates it if it doesn't
+ * exist. Delegates to `milestone-service.resolveOrCreateMilestone` (v4.2)
+ * which case-insensitively dedupes via `slugify()`. Discards the
+ * `_didYouMean` neighbours — callers that want them should use the
+ * service-layer function directly. Behaviour-compat note: pre-v4.2 this
+ * used exact-byte name matching; "Getting Started" and "getting started"
+ * now resolve to the same milestone.
  */
 export async function resolveOrCreateMilestone(projectId: string, name: string): Promise<string> {
-	const existing = await db.milestone.findUnique({
-		where: { projectId_name: { projectId, name } },
-	});
-	if (existing) return existing.id;
-
-	const maxPos = await db.milestone.aggregate({
-		where: { projectId },
-		_max: { position: true },
-	});
-	const ms = await db.milestone.create({
-		data: { projectId, name, position: (maxPos._max.position ?? -1) + 1 },
-	});
-	return ms.id;
+	const result = await resolveOrCreateMilestoneService(db, projectId, name);
+	if (!result.success) {
+		throw new Error(result.error.message);
+	}
+	return result.data.id;
 }
 
 /**

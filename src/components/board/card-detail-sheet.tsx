@@ -10,7 +10,6 @@ import {
 	GitCommit,
 	Link2,
 	MessageSquare,
-	Milestone as MilestoneIcon,
 	MoonStar,
 	Pencil,
 	Plus,
@@ -20,6 +19,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { MilestoneCombobox } from "@/components/board/milestone-combobox";
+import { TagCombobox } from "@/components/board/tag-combobox";
 import { ActorChip } from "@/components/ui/actor-chip";
 import {
 	AlertDialog,
@@ -169,7 +170,6 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 	// Form inputs
 	const [newChecklistItem, setNewChecklistItem] = useState("");
 	const [newComment, setNewComment] = useState("");
-	const [tagInput, setTagInput] = useState("");
 
 	// Title: local buffer with inline edit
 	const [localTitle, setLocalTitle] = useState("");
@@ -244,19 +244,6 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 	);
 
 	const tags: string[] = card ? JSON.parse(card.tags) : [];
-
-	const handleAddTag = () => {
-		if (!card || !tagInput.trim()) return;
-		const newTags = [...tags, tagInput.trim()];
-		updateCard.mutate({ id: card.id, data: { tags: newTags } });
-		setTagInput("");
-	};
-
-	const handleRemoveTag = (tag: string) => {
-		if (!card) return;
-		const newTags = tags.filter((t) => t !== tag);
-		updateCard.mutate({ id: card.id, data: { tags: newTags } });
-	};
 
 	return (
 		<Sheet
@@ -358,7 +345,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 								</Select>
 
 								{/* Milestone */}
-								<MilestoneSelector
+								<MilestoneCombobox
 									cardId={card.id}
 									projectId={card.projectId}
 									currentMilestoneId={card.milestoneId}
@@ -469,40 +456,13 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 							{/* Tags */}
 							<div className="space-y-2">
 								<SectionHeader>Tags</SectionHeader>
-								<div className="flex flex-wrap gap-1">
-									{tags.map((tag) => (
-										<Badge
-											key={tag}
-											variant="secondary"
-											className="cursor-pointer"
-											onClick={() => handleRemoveTag(tag)}
-										>
-											{tag} &times;
-										</Badge>
-									))}
-								</div>
-								<div className="flex gap-2">
-									<Input
-										value={tagInput}
-										onChange={(e) => setTagInput(e.target.value)}
-										placeholder="Add tag (e.g. bug, feature:auth)"
-										onKeyDown={(e) => {
-											if (e.key === "Enter") {
-												e.preventDefault();
-												handleAddTag();
-											}
-										}}
-										className="text-sm"
-									/>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={handleAddTag}
-										disabled={!tagInput.trim()}
-									>
-										Add
-									</Button>
-								</div>
+								<TagCombobox
+									projectId={card.projectId}
+									currentTags={tags}
+									onChange={(nextTags) =>
+										updateCard.mutate({ id: card.id, data: { tags: nextTags } })
+									}
+								/>
 							</div>
 
 							{/* Dependencies */}
@@ -996,93 +956,3 @@ function CommitSummarySection({ cardId }: { cardId: string }) {
 	);
 }
 
-// ─── Milestone Selector ───────────────────────────────────────────
-
-function MilestoneSelector({
-	cardId,
-	projectId,
-	currentMilestoneId,
-	boardId,
-}: {
-	cardId: string;
-	projectId: string;
-	currentMilestoneId: string | null;
-	boardId: string;
-}) {
-	const utils = api.useUtils();
-	const [creating, setCreating] = useState(false);
-	const [newName, setNewName] = useState("");
-
-	const { data: milestones } = api.milestone.list.useQuery({ projectId });
-
-	const updateCard = api.card.update.useMutation({
-		onSuccess: () => {
-			utils.card.getById.invalidate({ id: cardId });
-			utils.board.getFull.invalidate({ id: boardId });
-		},
-		onError: (error) => toast.error(error.message),
-	});
-
-	const createMilestone = api.milestone.create.useMutation({
-		onSuccess: (ms) => {
-			utils.milestone.list.invalidate({ projectId });
-			updateCard.mutate({ id: cardId, data: { milestoneId: ms.id } });
-			setCreating(false);
-			setNewName("");
-		},
-		onError: (error) => toast.error(error.message),
-	});
-
-	return (
-		<>
-			<Select
-				value={currentMilestoneId ?? "__none__"}
-				onValueChange={(value) => {
-					if (value === "__create__") {
-						setCreating(true);
-						return;
-					}
-					updateCard.mutate({
-						id: cardId,
-						data: { milestoneId: value === "__none__" ? null : value },
-					});
-				}}
-			>
-				<SelectTrigger className="h-7 w-fit gap-1.5 rounded-full border px-2.5 text-xs font-medium shadow-none">
-					<MilestoneIcon className="h-3 w-3 text-muted-foreground" />
-					<SelectValue placeholder="No milestone" />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="__none__">No milestone</SelectItem>
-					{milestones?.map((ms) => (
-						<SelectItem key={ms.id} value={ms.id}>
-							{ms.name}
-						</SelectItem>
-					))}
-					<SelectItem value="__create__">+ Create new...</SelectItem>
-				</SelectContent>
-			</Select>
-			{creating && (
-				<form
-					className="flex gap-2"
-					onSubmit={(e) => {
-						e.preventDefault();
-						if (!newName.trim()) return;
-						createMilestone.mutate({ projectId, name: newName.trim() });
-					}}
-				>
-					<Input
-						value={newName}
-						onChange={(e) => setNewName(e.target.value)}
-						placeholder="Milestone name..."
-						autoFocus
-						className="text-sm"
-					/>
-					<Button type="submit" variant="outline" size="sm" disabled={!newName.trim()}>
-						Create
-					</Button>
-				</form>
-			)}
-		</>
-	);
-}

@@ -39,6 +39,22 @@ export function useBoardEvents(boardId: string): number | undefined {
 					const data = JSON.parse(event.data);
 					if (data.type === "connected") return;
 
+					// Project-scoped events (tag:changed, milestone:changed) carry
+					// projectId so invalidations widen past the board. Tags/milestones
+					// live on Project, not Board, so a change in one board notifies
+					// the project's other open boards via the per-board fanout in
+					// emitProjectEvent. Listeners on each board still get the event.
+					if (data.type === "tag:changed" && typeof data.projectId === "string") {
+						void utils.tag.list.invalidate({ projectId: data.projectId });
+						void utils.board.getFull.invalidate({ id: boardId });
+						return;
+					}
+					if (data.type === "milestone:changed" && typeof data.projectId === "string") {
+						void utils.milestone.list.invalidate({ projectId: data.projectId });
+						void utils.board.getFull.invalidate({ id: boardId });
+						return;
+					}
+
 					void utils.board.getFull.invalidate({ id: boardId });
 					void utils.handoff.list.invalidate({ boardId });
 					void utils.activity.listByBoard.invalidate({ boardId });

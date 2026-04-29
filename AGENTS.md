@@ -8,6 +8,31 @@ Shared guidelines for any AI agent (Claude, Codex, etc.) using the Project Track
 
 When this MCP is connected to a project, use the board as your shared workspace with the user. These guidelines keep it useful without burning tokens.
 
+## Tool Migration (v4.2)
+
+Tag rework + milestone governance. Tags are now a project-scoped entity with `slug` (immutable kebab-case identifier) + `label` (mutable display); milestones gained a `state` column ("active" | "archived") and case-insensitive normalization on resolveOrCreate. The four card-write sites (`createCard`, `updateCard`, `bulkCreateCards`, `bulkUpdateCards`) now accept new strict params alongside the legacy ones with `_deprecated` warnings. Strict params are removed in **v5.0.0**.
+
+| Before (v4.1) | After (v4.2 strict) | After (v5.0 — legacy removed) |
+|---|---|---|
+| `tags: string[]` (free-form replace-all; no normalization) | `tagSlugs: string[]` — slugs must already exist; missing slugs return `_didYouMean`. Use `createTag` for new vocabulary. | `tagSlugs` only; `tags` parameter removed; `Card.tags` JSON column dropped. |
+| `milestoneName: string` (exact-byte match; "Getting Started" ≠ "getting started") | `milestoneId: string` — UUID; null to unassign. Strict, no auto-create. | `milestoneId` only; `milestoneName` parameter removed. |
+
+Legacy paths still work in v4.2 but go through normalization (slugify for tags, case-insensitive slug-compare for milestones), so "Realtime"/"realtime"/"real-time" no longer create three tags and "Getting Started"/"getting started" no longer create two milestones. The response payload includes a `_deprecated` warning whenever a legacy param was used and `_didYouMean` neighbours when an input was within Levenshtein 2 of an existing slug.
+
+**New tools:**
+
+| Tool | Purpose |
+|---|---|
+| `listTags({ projectId })` | List tags with usage counts. Backs the autocomplete combobox + agent discovery. |
+| `createTag({ projectId, label })` | Explicit creation — slugifies the label. Idempotent on the slug. |
+| `renameTag({ tagId, label })` | Update display label only. Slug is immutable. |
+| `mergeTags({ fromTagId, intoTagId })` | Admin cleanup — rewrites all CardTag rows from `from` to `into`, then deletes the source. |
+| `mergeMilestones({ fromMilestoneId, intoMilestoneId })` | Admin cleanup — rewrites Card.milestoneId from `from` to `into`, then deletes the source. |
+| `migrateTags()` | One-shot idempotent backfill from the legacy JSON column to the Tag + CardTag junction. Composes with `migrateProjectPrompt`. |
+| `updateMilestone({ ..., state: "archived" })` | New `state` field — archived milestones are hidden from the picker by default but kept in the schema. |
+
+`listMilestones` now returns `_governanceHints` per milestone (singletons > 60 days, near-name neighbours within slug Levenshtein 2). Use these as signal for a one-time human triage pass with `mergeMilestones` / `updateMilestone({ state: "archived" })` — milestones are dedupe-by-judgment, not dedupe-by-rule.
+
 ## Tool Migration (v2.3)
 
 New essential tool `endSession` supersedes the `end-session` MCP prompt. Essential tool count: 8 → 9.
@@ -124,6 +149,10 @@ The same output is available as an auto-loadable MCP resource at `status://proje
 
 ## Tag Conventions
 
+Tags are project-scoped (since v4.2) — same string in two projects = two distinct Tag rows. Each tag has an immutable `slug` (kebab-case via `slugify()`: trim → NFKD → lowercase → collapse non-alphanumeric to `-` → cap at 50 chars) and a mutable `label` (display). Pre-v4.2 free-form strings were canonicalized into the new model by `migrateTags`; the audit JSON in `data/tag-migration-*.json` documents which variants were merged.
+
+Two slugs have reserved semantic meaning across projects (declared here, not enforced by schema):
+
 ### `component`
 
 Marks a card whose description anchors a system-component bullet in the "What's Built" section of `renderStatus` output. Component cards can be never-closed description anchors (e.g., "Infrastructure: Mac Mini inference setup") that exist purely to hold description text — they are not work items.
@@ -135,6 +164,14 @@ Marks a card whose `metadata` JSON holds metrics read by `renderStatus`. Shape:
 ```json
 { "metrics": [{ "key": "latency", "value": 17.5, "unit": "s", "recordedAt": "2026-04-10", "env": "Mac Mini M4" }] }
 ```
+
+## Milestones
+
+A milestone is a **release horizon** — a bounded set of cards intended to ship as a coherent unit. This is the v4.2 governance answer: it's the only definition that makes the existing `dueDate` field semantically coherent and makes singleton milestones obviously wrong (a release with one card is either a typo or premature).
+
+**Naming convention:** `vN.M.P — Theme` for software releases (e.g. `v4.2.0 — Taxonomy primitives`); free-form for non-release work, but every milestone description must answer "what's the unit of completion?"
+
+`updateMilestone({ ..., state: "archived" })` hides shipped/abandoned milestones from the picker without deleting their card assignments. `mergeMilestones` is the cleanup primitive for duplicate or near-duplicate names — `listMilestones` flags candidates via `_governanceHints` (singleton > 60 days, near-name neighbours within Levenshtein 2).
 
 ## Facts (Unified Knowledge Store)
 
@@ -255,14 +292,14 @@ Do this as part of your end-of-work flow, not after every small commit.
 
 ### Bulk Operations
 - Use `bulkCreateCards` instead of multiple `createCard` calls
-- Use `bulkUpdateCards` to set priority, tags, or milestone on multiple cards at once
+- Use `bulkUpdateCards` to set priority, tagSlugs, or milestoneId on multiple cards at once (legacy `tags` / `milestoneName` accepted with `_deprecated` warning through v4.2)
 - Use `bulkAddChecklistItems` to add checklist items to one or more cards in one call
 - Batch your board updates — don't interleave code work with constant board updates
 
 ### Board Health
 - Use `auditBoard` to find cards missing priority, tags, milestones, or checklists
-- Use `updateCard` with `milestoneName` for milestone assignment — auto-creates if new
-- Use `listMilestones` to see completion percentage per milestone
+- Use `updateCard` with `milestoneId` (preferred since v4.2) for milestone assignment; legacy `milestoneName` still works with case-insensitive normalization
+- Use `listMilestones` to see completion percentage per milestone + `_governanceHints` for triage targets
 
 ### General
 - Reference cards by `#number` (e.g. `#7`) instead of UUIDs — the agent and human both use this

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getHorizon, hasRole } from "../../lib/column-roles.js";
 import { getLatestHandoff } from "../../lib/services/handoff.js";
+import { slugify } from "../../lib/slugify.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { err, ok, safeExecute } from "../utils.js";
@@ -179,26 +180,30 @@ registerExtendedTool("getBoard", {
 
 registerExtendedTool("searchCards", {
 	category: "discovery",
-	description: "Search cards by title/description across all projects. Tag filter is exact-match.",
+	description:
+		"Search cards by title/description across all projects. Tag filter is normalized to a slug — 'Bug', 'bug', and 'BUG' all match the same tag.",
 	parameters: z.object({
 		query: z.string().describe("Text to match in title and description"),
-		tag: z.string().optional().describe("Exact tag match (e.g. 'bug')"),
+		tag: z.string().optional().describe("Tag label or slug — slugified for the lookup"),
 	}),
 	annotations: { readOnlyHint: true },
 	handler: (params) => {
 		const { query, tag } = params as { query: string; tag?: string };
 		return safeExecute(async () => {
+			const tagSlug = tag ? slugify(tag) : null;
 			const cards = await db.card.findMany({
 				where: {
 					OR: [{ title: { contains: query } }, { description: { contains: query } }],
+					...(tagSlug ? { cardTags: { some: { tag: { slug: tagSlug } } } } : {}),
 				},
 				include: {
 					column: { include: { board: { include: { project: true } } } },
+					cardTags: { include: { tag: { select: { slug: true, label: true } } } },
 				},
 				take: 50,
 			});
 
-			let results = cards.map((card) => ({
+			const results = cards.map((card) => ({
 				id: card.id,
 				number: card.number,
 				ref: `#${card.number}`,
@@ -207,16 +212,12 @@ registerExtendedTool("searchCards", {
 					? card.description.slice(0, 200) + (card.description.length > 200 ? "…" : "")
 					: "",
 				priority: card.priority,
-				tags: JSON.parse(card.tags) as string[],
+				tags: card.cardTags.map((ct) => ct.tag.label),
 				column: card.column.name,
 				board: card.column.board.name,
 				boardId: card.column.board.id,
 				project: card.column.board.project.name,
 			}));
-
-			if (tag) {
-				results = results.filter((r) => r.tags.includes(tag));
-			}
 
 			return ok(results);
 		});
