@@ -4,6 +4,7 @@ import { Geist } from "next/font/google";
 import { BreakpointIndicator } from "@/components/dev/breakpoint-indicator";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { TRPCReactProvider } from "@/trpc/react";
 
 import "./globals.css";
@@ -32,8 +33,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 					disableTransitionOnChange
 				>
 					<TRPCReactProvider>
-						{children}
-						<Toaster />
+						<TooltipProvider>
+							{children}
+							<Toaster />
+						</TooltipProvider>
 					</TRPCReactProvider>
 				</ThemeProvider>
 				<BreakpointIndicator />
