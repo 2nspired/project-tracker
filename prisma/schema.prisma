@@ -24,6 +24,7 @@ model Project {
   boards         Board[]
   defaultBoard   Board?   @relation("DefaultBoard", fields: [defaultBoardId], references: [id], onDelete: SetNull)
   labels         Label[]
+  tags           Tag[]
   cards          Card[]
   notes          Note[]
   milestones     Milestone[]
@@ -40,6 +41,11 @@ model Milestone {
   description String?
   targetDate  DateTime? @map("target_date")
   position    Int       @default(0)
+  // "active" | "archived" — archived milestones are hidden from the picker
+  // by default but kept in the schema so historical card assignments
+  // continue to resolve. v4.2 governance: avoids ad-hoc deletion when a
+  // milestone has shipped or turned out premature.
+  state       String    @default("active")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
@@ -64,6 +70,29 @@ model Label {
   @@unique([projectId, name])
   @@index([projectId])
   @@map("label")
+}
+
+// Project-scoped, normalized tag entity introduced in v4.2.
+//
+// Replaces the legacy `Card.tags String @default("[]")` JSON column,
+// which stays populated through v4.2 as a read fallback and is dropped
+// in v5. The split between `slug` (canonical, immutable identifier;
+// kebab-case via `slugify()`) and `label` (mutable display) keeps
+// `mergeTags` and `renameTag` cheap.
+model Tag {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  slug      String
+  label     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cardTags CardTag[]
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+  @@map("tag")
 }
 
 model Board {
@@ -131,6 +160,7 @@ model Card {
   comments      Comment[]
   activities    Activity[]
   cardLabels    CardLabel[]
+  cardTags      CardTag[]
   relationsFrom CardRelation[]  @relation("RelationFrom")
   relationsTo   CardRelation[]  @relation("RelationTo")
   gitLinks      GitLink[]
@@ -206,6 +236,21 @@ model CardLabel {
   @@id([cardId, labelId])
   @@index([labelId])
   @@map("card_label")
+}
+
+// Junction between Card and Tag (v4.2). Composite PK on (cardId, tagId)
+// gives implicit dedupe — a card can hold a given tag at most once.
+// Cascade on both sides so deleting a card or tag cleans the junction.
+model CardTag {
+  cardId String @map("card_id")
+  tagId  String @map("tag_id")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, tagId])
+  @@index([tagId])
+  @@map("card_tag")
 }
 
 model Note {
