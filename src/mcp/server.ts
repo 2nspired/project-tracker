@@ -173,6 +173,7 @@ import "./tools/query-tools.js";
 import "./tools/git-tools.js";
 import "./tools/summary-tools.js";
 import "./tools/onboarding-tools.js";
+import "./tools/migration-tools.js";
 import "./tools/status-tools.js";
 import "./tools/fact-tools.js";
 import "./tools/claim-tools.js";
