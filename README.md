@@ -2,7 +2,7 @@
 
 Pigeon carries context between your AI sessions. A local-first kanban board for you and your AI coding agent — SQLite on disk, MCP over stdio, no cloud.
 
-**Docs: [2nspired.github.io/project-tracker](https://2nspired.github.io/project-tracker/)** *(repo URL still says project-tracker; that's the legacy GitHub slug — see [docs/UPDATING.md](docs/UPDATING.md) if you're migrating from a pre-v5 install).*
+**Docs: [2nspired.github.io/pigeon](https://2nspired.github.io/pigeon/)**
 
 ## What it is
 
@@ -19,7 +19,7 @@ Nothing leaves your machine. The database is a single SQLite file you own.
 ## 60-second install
 
 ```bash
-git clone https://github.com/2nspired/project-tracker.git
+git clone https://github.com/2nspired/pigeon.git
 cd project-tracker
 npm install
 npm run setup          # creates the DB, optionally seeds a tutorial
@@ -37,7 +37,7 @@ Then, from inside any project you want to track:
 
 That's it. Start a new chat in that project and ask your agent to run `briefMe`.
 
-Full walkthrough, diagrams, and design rationale: **[docs site](https://2nspired.github.io/project-tracker/)**.
+Full walkthrough, diagrams, and design rationale: **[docs site](https://2nspired.github.io/pigeon/)**.
 
 ## Tech stack
 
@@ -62,7 +62,7 @@ Next.js 16 + React 19 · Prisma 7 + SQLite · tRPC v11 · shadcn/ui + Tailwind 4
 | `runTool` | Execute any extended tool by name. |
 <!-- tracker:essentials:end -->
 
-50+ extended tools (cards, checklist, context, decisions, discovery, git, milestones, notes, relations, session, setup) are discoverable via `getTools` and executable via `runTool`. See the [MCP tools reference](https://2nspired.github.io/project-tracker/tools/) for the full catalog.
+50+ extended tools (cards, checklist, context, decisions, discovery, git, milestones, notes, relations, session, setup) are discoverable via `getTools` and executable via `runTool`. See the [MCP tools reference](https://2nspired.github.io/pigeon/tools/) for the full catalog.
 
 ## Scripts
 
@@ -84,11 +84,11 @@ Next.js 16 + React 19 · Prisma 7 + SQLite · tRPC v11 · shadcn/ui + Tailwind 4
 
 ## Docs
 
-- [Quickstart](https://2nspired.github.io/project-tracker/quickstart/)
-- [The session loop](https://2nspired.github.io/project-tracker/workflow/)
-- [Design rationale](https://2nspired.github.io/project-tracker/why/)
-- [Anti-patterns](https://2nspired.github.io/project-tracker/anti-patterns/)
-- [MCP tools reference](https://2nspired.github.io/project-tracker/tools/)
+- [Quickstart](https://2nspired.github.io/pigeon/quickstart/)
+- [The session loop](https://2nspired.github.io/pigeon/workflow/)
+- [Design rationale](https://2nspired.github.io/pigeon/why/)
+- [Anti-patterns](https://2nspired.github.io/pigeon/anti-patterns/)
+- [MCP tools reference](https://2nspired.github.io/pigeon/tools/)
 - [docs/SURFACES.md](docs/SURFACES.md) — when to use `tracker.md` vs `CLAUDE.md` vs `AGENTS.md`
 - [AGENTS.md](AGENTS.md) — contributor guide for agent conventions
 - [CLAUDE.md](CLAUDE.md) — developer-facing project config

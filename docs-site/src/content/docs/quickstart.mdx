@@ -33,7 +33,7 @@ You need:
 1. **Clone and install**
 
 	```bash
-	git clone https://github.com/2nspired/project-tracker.git
+	git clone https://github.com/2nspired/pigeon.git
 	cd project-tracker
 	npm install
 	```
@@ -70,7 +70,7 @@ You need:
 	From inside the project you want to track:
 
 	```bash
-	/path/to/project-tracker/scripts/connect.sh
+	/path/to/pigeon/scripts/connect.sh
 	```
 
 	This writes a `.mcp.json` in the project root pointing at the tracker. Next time your agent starts a session in that directory, the tracker tools are available.
@@ -78,7 +78,7 @@ You need:
 	Using a non-Claude agent?
 
 	```bash
-	AGENT_NAME=Codex /path/to/project-tracker/scripts/connect.sh
+	AGENT_NAME=Codex /path/to/pigeon/scripts/connect.sh
 	```
 
 5. **Start a new chat and run `briefMe`**

@@ -311,9 +311,9 @@ Earlier history is captured in the git log. Highlights:
 
 Reconstructed entries below this point are best-effort; treat git log as authoritative.
 
-[Unreleased]: https://github.com/2nspired/project-tracker/compare/v4.0.0...HEAD
-[4.0.0]: https://github.com/2nspired/project-tracker/releases/tag/v4.0.0
-[3.0.0]: https://github.com/2nspired/project-tracker/releases/tag/v3.0.0
-[2.5.0]: https://github.com/2nspired/project-tracker/releases/tag/v2.5.0
-[2.4.0]: https://github.com/2nspired/project-tracker/releases/tag/v2.4.0
-[2.3.0]: https://github.com/2nspired/project-tracker/releases/tag/v2.3.0
+[Unreleased]: https://github.com/2nspired/pigeon/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/2nspired/pigeon/releases/tag/v4.0.0
+[3.0.0]: https://github.com/2nspired/pigeon/releases/tag/v3.0.0
+[2.5.0]: https://github.com/2nspired/pigeon/releases/tag/v2.5.0
+[2.4.0]: https://github.com/2nspired/pigeon/releases/tag/v2.4.0
+[2.3.0]: https://github.com/2nspired/pigeon/releases/tag/v2.3.0
