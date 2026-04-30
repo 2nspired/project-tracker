@@ -263,8 +263,7 @@ export function BoardListView({
 			const activeGroup = findGroupForCard(activeId, current);
 			if (!activeGroup) return prev;
 
-			const overGroup =
-				current.find((g) => g.id === overId) ?? findGroupForCard(overId, current);
+			const overGroup = current.find((g) => g.id === overId) ?? findGroupForCard(overId, current);
 			if (!overGroup) return prev;
 
 			if (activeGroup.id === overGroup.id) {
@@ -272,9 +271,7 @@ export function BoardListView({
 				const newIndex = activeGroup.cards.findIndex((c) => c.id === overId);
 				if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
 				const reordered = arrayMove(activeGroup.cards, oldIndex, newIndex);
-				return current.map((g) =>
-					g.id === activeGroup.id ? { ...g, cards: reordered } : g
-				);
+				return current.map((g) => (g.id === activeGroup.id ? { ...g, cards: reordered } : g));
 			}
 
 			const draggedCard = activeGroup.cards.find((c) => c.id === activeId);

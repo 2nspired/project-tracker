@@ -3,11 +3,7 @@ import { access, readdir } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { PrismaClient } from "prisma/generated/client";
-import {
-	type ModelPricing,
-	computeCost,
-	resolvePricing,
-} from "@/lib/token-pricing-defaults";
+import { type ModelPricing, computeCost, resolvePricing } from "@/lib/token-pricing-defaults";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
@@ -311,7 +307,11 @@ async function recordFromTranscript(
 	if (totals.size === 0) {
 		return {
 			success: true,
-			data: { created: 0, subAgentFiles: subAgentFiles.length, warnings: [...warnings, { code: "NO_USAGE_FOUND" }] },
+			data: {
+				created: 0,
+				subAgentFiles: subAgentFiles.length,
+				warnings: [...warnings, { code: "NO_USAGE_FOUND" }],
+			},
 		};
 	}
 

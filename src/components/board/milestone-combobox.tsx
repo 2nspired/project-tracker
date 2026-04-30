@@ -80,8 +80,7 @@ export function MilestoneCombobox({
 	// (case-insensitive) — the resolveOrCreate semantic. Uses ALL milestones
 	// (including archived) for the match check so the user doesn't accidentally
 	// re-create an archived one with the same name.
-	const exactMatch =
-		querySlug && milestones.find((m) => slugify(m.name) === querySlug);
+	const exactMatch = querySlug && milestones.find((m) => slugify(m.name) === querySlug);
 	const showCreate = trimmedQuery.length > 0 && !exactMatch;
 
 	const handleAssign = (milestoneId: string | null) => {
@@ -144,11 +143,7 @@ export function MilestoneCombobox({
 								<CommandSeparator />
 								<CommandGroup heading={showArchived ? "All milestones" : "Active"}>
 									{visible.slice(0, 30).map((m) => (
-										<CommandItem
-											key={m.id}
-											value={m.id}
-											onSelect={() => handleAssign(m.id)}
-										>
+										<CommandItem key={m.id} value={m.id} onSelect={() => handleAssign(m.id)}>
 											<span className="truncate">{m.name}</span>
 											{m.state === "archived" && (
 												<Archive className="ml-2 h-3 w-3 text-muted-foreground" />
@@ -188,9 +183,7 @@ export function MilestoneCombobox({
 										className="text-xs text-muted-foreground"
 									>
 										<Archive className="mr-2 h-3 w-3" />
-										{showArchived
-											? "Hide archived"
-											: `Show archived (${archivedCount})`}
+										{showArchived ? "Hide archived" : `Show archived (${archivedCount})`}
 									</CommandItem>
 								</CommandGroup>
 							</>

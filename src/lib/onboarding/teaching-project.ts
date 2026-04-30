@@ -355,7 +355,7 @@ export const teachingProject = {
 			description: [
 				"**What:** Even with v4.2 normalization, tags can drift when an agent introduces a near-miss spelling that the slug doesn't catch (`feature-auth` vs `featureauth`). `mergeTags` rewrites every CardTag from one tag onto another, then deletes the source.",
 				"**Why it matters:** Tag drift is dedupe-by-rule (slugify) AND dedupe-by-judgment (humans deciding two slugs mean the same thing). The first happens automatically on write; the second needs an explicit merge.",
-				'**Try it (UI):** Open the tag combobox on any card and look for near-duplicate slugs. The combobox shows usage counts so you can spot orphans (zero cards) and likely duplicates.',
+				"**Try it (UI):** Open the tag combobox on any card and look for near-duplicate slugs. The combobox shows usage counts so you can spot orphans (zero cards) and likely duplicates.",
 				'**Try it (agent):** `runTool({ tool: "listTags", params: { projectId } })` to inspect usage counts, then `runTool({ tool: "mergeTags", params: { fromTagId: "<uuid-of-loser>", intoTagId: "<uuid-of-winner>" } })`. The merge is transactional — composite-PK collisions on (cardId, tagId) are skipped, the source tag is deleted, and the response reports `rewroteCount` and `skippedDuplicates`.',
 				"**Outcome:** All cards previously tagged with the source tag now show the destination tag. The source tag no longer appears in `listTags` or the combobox. Merge is irreversible — keep the audit JSON from `migrateTags` if you want to know which variants got merged at v4.2 cutover.",
 			].join("\n\n"),

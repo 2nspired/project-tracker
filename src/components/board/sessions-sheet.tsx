@@ -96,10 +96,7 @@ export function SessionsSheet({
 						{agents.length > 1 && (
 							<>
 								<span className="mx-1 h-3 w-px bg-border" />
-								<FilterChip
-									active={agentFilter === null}
-									onClick={() => setAgentFilter(null)}
-								>
+								<FilterChip active={agentFilter === null} onClick={() => setAgentFilter(null)}>
 									All agents
 								</FilterChip>
 								{agents.map((a) => (

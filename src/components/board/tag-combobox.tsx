@@ -123,7 +123,10 @@ export function TagCombobox({ projectId, currentTags, onChange }: TagComboboxPro
 										{available
 											.filter((t) => {
 												if (!querySlug) return true;
-												return t.slug.includes(querySlug) || t.label.toLowerCase().includes(trimmedQuery.toLowerCase());
+												return (
+													t.slug.includes(querySlug) ||
+													t.label.toLowerCase().includes(trimmedQuery.toLowerCase())
+												);
 											})
 											.slice(0, 30)
 											.map((t) => (

@@ -697,10 +697,7 @@ registerExtendedTool("bulkUpdateCards", {
 				.object({
 					cardId: z.string().describe("Card UUID or #number"),
 					priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
-					tagSlugs: z
-						.array(z.string())
-						.optional()
-						.describe("Strict — replaces all tags."),
+					tagSlugs: z.array(z.string()).optional().describe("Strict — replaces all tags."),
 					tags: z
 						.array(z.string())
 						.optional()
@@ -781,9 +778,7 @@ registerExtendedTool("bulkUpdateCards", {
 					data: {
 						priority: input.priority as string | undefined,
 						tags: tagResolution.applied ? JSON.stringify(tagResolution.labels) : undefined,
-						milestoneId: milestoneResolution.applied
-							? milestoneResolution.milestoneId
-							: undefined,
+						milestoneId: milestoneResolution.applied ? milestoneResolution.milestoneId : undefined,
 						metadata: mergedMetadata,
 						lastEditedBy: AGENT_NAME,
 					},
@@ -1001,7 +996,7 @@ registerExtendedTool("createMilestone", {
 registerExtendedTool("updateMilestone", {
 	category: "milestones",
 	description:
-		"Update a milestone's name, description, target date, or state. Pass `state: \"archived\"` to hide the milestone from the picker without deleting it.",
+		'Update a milestone\'s name, description, target date, or state. Pass `state: "archived"` to hide the milestone from the picker without deleting it.',
 	parameters: z.object({
 		milestoneId: z.string().describe("UUID from getRoadmap or listMilestones"),
 		name: z.string().optional(),

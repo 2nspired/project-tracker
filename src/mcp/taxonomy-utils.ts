@@ -49,10 +49,8 @@ export async function resolveTagsForWrite(
 	input: TagResolutionInput
 ): Promise<TagResolution> {
 	const tagSlugsProvided = input.tagSlugs !== undefined && input.tagSlugs !== null;
-	const legacyProvided =
-		!tagSlugsProvided && input.tags !== undefined && input.tags !== null;
-	const ignoredLegacy =
-		tagSlugsProvided && input.tags !== undefined && input.tags !== null;
+	const legacyProvided = !tagSlugsProvided && input.tags !== undefined && input.tags !== null;
+	const ignoredLegacy = tagSlugsProvided && input.tags !== undefined && input.tags !== null;
 
 	if (!tagSlugsProvided && !legacyProvided) {
 		return {
@@ -68,9 +66,7 @@ export async function resolveTagsForWrite(
 
 	if (tagSlugsProvided) {
 		const rawSlugs = input.tagSlugs ?? [];
-		const slugs = Array.from(
-			new Set(rawSlugs.map((s) => slugify(s)).filter((s) => s.length > 0))
-		);
+		const slugs = Array.from(new Set(rawSlugs.map((s) => slugify(s)).filter((s) => s.length > 0)));
 		if (slugs.length === 0) {
 			return {
 				ok: true,

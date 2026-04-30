@@ -470,9 +470,7 @@ server.registerTool(
 						priority,
 						// Sync the legacy JSON column when tags were touched; leave alone otherwise.
 						tags: tagResolution.applied ? JSON.stringify(tagResolution.labels) : undefined,
-						milestoneId: milestoneResolution.applied
-							? milestoneResolution.milestoneId
-							: undefined,
+						milestoneId: milestoneResolution.applied ? milestoneResolution.milestoneId : undefined,
 						metadata: mergedMetadata,
 						lastEditedBy: AGENT_NAME,
 					},

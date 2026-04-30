@@ -16,15 +16,13 @@ export const tagRouter = createTRPCRouter({
 			return result.data;
 		}),
 
-	getById: publicProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.query(async ({ input }) => {
-			const result = await tagService.getById(input.id);
-			if (!result.success) {
-				throw new TRPCError({ code: "NOT_FOUND", message: result.error.message });
-			}
-			return result.data;
-		}),
+	getById: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
+		const result = await tagService.getById(input.id);
+		if (!result.success) {
+			throw new TRPCError({ code: "NOT_FOUND", message: result.error.message });
+		}
+		return result.data;
+	}),
 
 	create: publicProcedure.input(createTagSchema).mutation(async ({ input }) => {
 		const result = await tagService.create(input);

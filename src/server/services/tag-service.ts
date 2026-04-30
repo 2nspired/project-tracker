@@ -54,10 +54,7 @@ export function createTagService(prisma: PrismaClient) {
 
 	// Idempotent — upsert on (projectId, slug). Re-creating an existing tag
 	// returns the existing row unchanged so callers can fire-and-forget.
-	async function create(input: {
-		projectId: string;
-		label: string;
-	}): Promise<ServiceResult<Tag>> {
+	async function create(input: { projectId: string; label: string }): Promise<ServiceResult<Tag>> {
 		try {
 			const slug = slugify(input.label);
 			if (!slug) {

@@ -985,4 +985,3 @@ function CommitSummarySection({ cardId }: { cardId: string }) {
 		</div>
 	);
 }
-

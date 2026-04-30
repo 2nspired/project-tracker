@@ -117,7 +117,9 @@ export function computeCost(event: TokenUsageInput, pricing: Record<string, Mode
 // Merges user-overridden rates over defaults. Fail-soft: a malformed JSON
 // blob in AppSettings returns DEFAULT_PRICING — we'd rather underprice than
 // crash a briefMe call.
-export function resolvePricing(storedJson: string | null | undefined): Record<string, ModelPricing> {
+export function resolvePricing(
+	storedJson: string | null | undefined
+): Record<string, ModelPricing> {
 	if (!storedJson) return { ...DEFAULT_PRICING };
 	try {
 		const parsed = JSON.parse(storedJson) as unknown;
