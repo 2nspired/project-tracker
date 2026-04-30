@@ -22,26 +22,27 @@ The whole thing should take <10 minutes. There are exactly **two manual steps** 
 
 ### 1. You should already be on v4.2.0
 
-v5.0.0 builds on v4.2.0. If you skipped v4.2, do that first — it's additive (no breaking changes), and gives you the taxonomy primitives the v5 work assumes. From your existing local clone:
+v5.0.0 builds on v4.2.0. If you skipped v4.2, do that first — it's additive (no breaking API or data changes), and gives you the taxonomy primitives the v5 work assumes. From your existing local clone:
 
 ```bash
 git pull                  # pulls v4.2.0
 npm install
-npm run db:push           # only if v4.2 bumped SCHEMA_VERSION (check CHANGELOG)
+npm run db:push           # v4.2 bumped SCHEMA_VERSION 9 → 10 (new Tag, CardTag,
+                          # AppSettings, TokenUsageEvent tables; Milestone.state)
 npm run service:update
 ```
 
-### 2. You should already have completed the v4.1 → v4.2 `projectPrompt` migration
+### 2. You should clear any `projectPrompt` content before pulling v5.0
 
-Before pulling v5.0, run `briefMe()` in any agent session and look at the response:
-- If `_warnings[]` mentions `projectPrompt`, **stop and run that migration first.**
+v5.0 drops the legacy `projectPrompt` column entirely (Phase 3 of the `tracker.md` migration). The v4.0 `migrateProjectPrompt` tool writes a `tracker.md` from the column's value; v4.1 added a deprecation warning when content remains. Anything still in the column when you pull v5.0 will be lost.
+
+Run `briefMe()` in any agent session and look at the response:
+- If `_warnings[]` mentions `projectPrompt`, **stop and run the migration first.**
   ```
   runTool('migrateProjectPrompt', { projectId: '<your project id>' })
   # then clear the DB column manually (Prisma Studio, or update the project in the UI)
   ```
 - If no `projectPrompt` warning shows up, you're good.
-
-The v5.0 schema drops the `projectPrompt` column entirely (Phase 3 of the tracker.md migration), so any data still in there will be lost. The warning above is your last reminder.
 
 ### 3. Back up your database
 
