@@ -18,6 +18,7 @@ import {
 	Pencil,
 	Plus,
 	Quote,
+	Tags,
 	Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -36,6 +37,7 @@ import {
 	NoteViewToggle,
 } from "@/components/notes/note-views";
 import { CreateBoardDialog } from "@/components/project/create-board-dialog";
+import { TagManager } from "@/components/tag/tag-manager";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -230,6 +232,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 	const fromBoardId = searchParams.get("from");
 	const [tab, setTab] = useState<"boards" | "notes" | "decisions">(initialTab);
 	const [noteCreateOpen, setNoteCreateOpen] = useState(false);
+	const [tagManagerOpen, setTagManagerOpen] = useState(false);
 
 	const { data: project } = api.project.getById.useQuery({ id: projectId });
 	const { data: boards, isLoading: boardsLoading } = api.board.list.useQuery({ projectId });
@@ -265,7 +268,20 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 							)}
 						</div>
 					</div>
-					{tab === "boards" && <CreateBoardDialog projectId={projectId} />}
+					{tab === "boards" && (
+						<div className="flex items-center gap-2">
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 text-xs"
+								onClick={() => setTagManagerOpen(true)}
+							>
+								<Tags className="h-3.5 w-3.5" />
+								Manage tags
+							</Button>
+							<CreateBoardDialog projectId={projectId} />
+						</div>
+					)}
 					{tab === "notes" && (
 						<Button onClick={() => setNoteCreateOpen(true)}>
 							<Plus className="mr-2 h-4 w-4" />
@@ -274,6 +290,12 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 					)}
 				</div>
 			</div>
+
+			<TagManager
+				projectId={projectId}
+				open={tagManagerOpen}
+				onClose={() => setTagManagerOpen(false)}
+			/>
 
 			{/* Tabs */}
 			<div className="mb-6 flex gap-1 border-b">

@@ -1,8 +1,9 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { ArrowRight, Plus, Settings2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { TagManager } from "@/components/tag/tag-manager";
 import { Badge } from "@/components/ui/badge";
 import {
 	Command,
@@ -32,6 +33,7 @@ export function TagCombobox({ projectId, currentTags, onChange }: TagComboboxPro
 	const utils = api.useUtils();
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
+	const [managerOpen, setManagerOpen] = useState(false);
 
 	const { data: tags = [] } = api.tag.list.useQuery({ projectId }, { enabled: !!projectId });
 
@@ -161,11 +163,27 @@ export function TagCombobox({ projectId, currentTags, onChange }: TagComboboxPro
 										</CommandGroup>
 									</>
 								)}
+								<CommandSeparator />
+								<CommandGroup>
+									<CommandItem
+										value="__manage_tags__"
+										onSelect={() => {
+											setOpen(false);
+											setManagerOpen(true);
+										}}
+										className="text-muted-foreground"
+									>
+										<Settings2 className="mr-2 h-3 w-3" />
+										<span>Manage tags</span>
+										<ArrowRight className="ml-auto h-3 w-3 opacity-60" />
+									</CommandItem>
+								</CommandGroup>
 							</CommandList>
 						</Command>
 					</PopoverContent>
 				</Popover>
 			</div>
+			<TagManager projectId={projectId} open={managerOpen} onClose={() => setManagerOpen(false)} />
 		</div>
 	);
 }
