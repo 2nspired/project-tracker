@@ -149,8 +149,9 @@ function bootstrap() {
 			if (attempt < 2) execSync("sleep 1");
 		}
 	}
-	// Final attempt — let error propagate
-	bootstrap();
+	// All three attempts failed — make one final call without stdio:"pipe" so
+	// launchctl's error surfaces, then let it throw rather than recursing forever.
+	execSync(`launchctl bootstrap ${GUI_TARGET} ${PLIST_PATH}`);
 }
 
 // ---------------------------------------------------------------------------
