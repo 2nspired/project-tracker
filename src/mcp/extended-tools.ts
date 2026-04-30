@@ -2,13 +2,13 @@ import { z } from "zod";
 import { editDistance as nameDistance, slugify as slugifyName } from "@/lib/slugify";
 import { milestoneService } from "@/server/services/milestone-service";
 import { db } from "./db.js";
-import { registerExtendedTool } from "./tool-registry.js";
 import {
 	buildTaxonomyMeta,
 	resolveMilestoneForWrite,
 	resolveTagsForWrite,
 	syncCardTags,
 } from "./taxonomy-utils.js";
+import { registerExtendedTool } from "./tool-registry.js";
 import { toToon } from "./toon.js";
 import {
 	AGENT_NAME,

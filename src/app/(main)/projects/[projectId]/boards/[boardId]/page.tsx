@@ -22,9 +22,9 @@ import { toast } from "sonner";
 
 import { ActivitySheet } from "@/components/board/activity-sheet";
 import { BoardListView } from "@/components/board/board-list-view";
-import { SessionsSheet } from "@/components/board/sessions-sheet";
 import { type BoardFilters, emptyFilters, type SortMode } from "@/components/board/board-toolbar";
 import { BoardView } from "@/components/board/board-view";
+import { SessionsSheet } from "@/components/board/sessions-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

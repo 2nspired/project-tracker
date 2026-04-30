@@ -3,7 +3,7 @@ import { access, readdir } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { PrismaClient } from "prisma/generated/client";
-import { type ModelPricing, computeCost, resolvePricing } from "@/lib/token-pricing-defaults";
+import { computeCost, type ModelPricing, resolvePricing } from "@/lib/token-pricing-defaults";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 

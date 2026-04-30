@@ -27,8 +27,6 @@ import {
 } from "./manifest.js";
 import { registerResources } from "./resources.js";
 import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
-import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js";
-import { toToon } from "./toon.js";
 import {
 	buildTaxonomyMeta,
 	resolveMilestoneForWrite,
@@ -36,6 +34,8 @@ import {
 	syncCardTags,
 	type TagSuggestion,
 } from "./taxonomy-utils.js";
+import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js";
+import { toToon } from "./toon.js";
 import {
 	AGENT_NAME,
 	detectFeatures,

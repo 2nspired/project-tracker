@@ -13,8 +13,8 @@
 import { z } from "zod";
 import { resolveProjectIdFromCwd } from "@/lib/services/resolve-project";
 import { tokenUsageService } from "@/server/services/token-usage-service";
-import { SESSION_ID } from "../instrumentation.js";
 import { db } from "../db.js";
+import { SESSION_ID } from "../instrumentation.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, ok, safeExecute } from "../utils.js";
 

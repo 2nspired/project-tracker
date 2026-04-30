@@ -251,14 +251,12 @@ function HandoffSection({
 	const styles = ACCENT_STYLES[accent];
 
 	return (
-		<details open={open} className={`group ${styles.border} ${styles.bg}`}>
-			<summary
-				className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-1.5 text-2xs font-medium transition-colors hover:bg-muted/40"
-				onClick={(e) => {
-					e.preventDefault();
-					setOpen(!open);
-				}}
-			>
+		<details
+			open={open}
+			onToggle={(e) => setOpen(e.currentTarget.open)}
+			className={`group ${styles.border} ${styles.bg}`}
+		>
+			<summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-1.5 text-2xs font-medium transition-colors hover:bg-muted/40">
 				{open ? (
 					<ChevronDown className="h-3 w-3 text-muted-foreground" />
 				) : (
