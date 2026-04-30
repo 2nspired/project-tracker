@@ -12,7 +12,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 Taxonomy primitives rework lands as the headliner: tags promote from a JSON-string array to a project-scoped `Tag` entity joined via `CardTag`, and milestones gain governance hints + a `mergeMilestones` admin tool. MCP write paths accept new strict params (`tagSlugs`, `milestoneId`) **alongside** the legacy ones (`tags`, `milestoneName`), with deprecation warnings and `_didYouMean` near-miss hints — v5.0.0 will drop the legacy params and the `Card.tags` JSON column. (#89, #134)
 
-This release is purely additive on top of v4.1.0 — no migration is required to upgrade. The optional `migrateTags` MCP tool backfills the new junction from existing JSON tags when you're ready.
+This release is purely additive on top of v4.1.0 — no destructive migration is required. `SCHEMA_VERSION` bumps from 9 → 10 to add the new `Tag`, `CardTag`, `AppSettings`, and `TokenUsageEvent` tables (plus `Milestone.state`), so **run `npm run db:push` after pulling** before restarting the service. The optional `migrateTags` MCP tool backfills the new tag junction from existing JSON tags when you're ready.
 
 ### Added
 
