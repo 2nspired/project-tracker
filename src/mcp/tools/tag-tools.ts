@@ -14,21 +14,29 @@ const tagService = createTagService(db);
 registerExtendedTool("listTags", {
 	category: "tags",
 	description:
-		"List all tags in a project with usage counts. Backs the autocomplete combobox and agent-side discovery for tagSlugs.",
+		"List tags in a project with usage counts and governance hints. Backs the autocomplete combobox and agent-side discovery for tagSlugs.\n\nOptional `state` filter ('active' | 'archived') defaults to 'active' when omitted.\n\nEach row may include `_governanceHints` when something deserves the agent's attention:\n- `singleton: true` — the tag is referenced by exactly one card; consider whether the vocabulary is premature.\n- `possibleMerge: [{ id, label, distance }]` — peers within Levenshtein distance ≤ 2 of this tag's slug; collapse near-duplicates with `mergeTags`.\nAbsent fields mean no signal — agents should not treat missing hints as an empty array.",
 	parameters: z.object({
 		projectId: z.string().uuid().describe("Project UUID"),
+		state: z
+			.enum(["active", "archived"])
+			.optional()
+			.describe("Filter by tag state. Defaults to 'active' when omitted."),
 	}),
 	annotations: { readOnlyHint: true },
-	handler: ({ projectId }) =>
+	handler: ({ projectId, state }) =>
 		safeExecute(async () => {
-			const result = await tagService.listByProject(projectId as string);
+			const result = await tagService.listByProject(projectId as string, {
+				state: state as "active" | "archived" | undefined,
+			});
 			if (!result.success) return err(result.error.message);
 			return ok({
 				tags: result.data.map((t) => ({
 					id: t.id,
 					slug: t.slug,
 					label: t.label,
+					state: t.state,
 					usageCount: t._count.cardTags,
+					...(t._governanceHints && { _governanceHints: t._governanceHints }),
 				})),
 			});
 		}),
@@ -104,5 +112,20 @@ registerExtendedTool("mergeTags", {
 				rewroteCount: result.data.rewroteCount,
 				skippedDuplicates: result.data.skippedDuplicates,
 			});
+		}),
+});
+
+registerExtendedTool("deleteTag", {
+	category: "tags",
+	description:
+		"Delete a tag — only when zero cards reference it. To delete a tag that's still in use, call `mergeTags` first to drain its references into another tag, then delete the (now orphan) source if the merge didn't already remove it. The check is atomic against concurrent CardTag inserts: a tag picking up usage mid-request is rejected with USAGE_NOT_ZERO rather than getting deleted with rows still pointing at it.",
+	parameters: z.object({
+		tagId: z.string().uuid().describe("Tag UUID — must be an orphan (usageCount === 0)"),
+	}),
+	handler: ({ tagId }) =>
+		safeExecute(async () => {
+			const result = await tagService.deleteIfOrphan(tagId as string);
+			if (!result.success) return err(result.error.message);
+			return ok({ deleted: true });
 		}),
 });
