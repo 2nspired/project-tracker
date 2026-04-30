@@ -21,6 +21,19 @@ export const metadata: Metadata = {
 	},
 	description:
 		"Pigeon carries context between your AI sessions. A local-first kanban board with MCP integration for AI-assisted development.",
+	openGraph: {
+		title: "Pigeon",
+		description:
+			"Local-first kanban board with MCP integration. Carries context between AI coding sessions.",
+		type: "website",
+		siteName: "Pigeon",
+	},
+	twitter: {
+		card: "summary_large_image",
+		title: "Pigeon",
+		description:
+			"Local-first kanban board with MCP integration. Carries context between AI coding sessions.",
+	},
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

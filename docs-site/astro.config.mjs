@@ -20,8 +20,36 @@ export default defineConfig({
 			title: "Pigeon",
 			description:
 				"Local-first kanban board with MCP integration for AI-assisted development.",
-			logo: { src: "./src/assets/logo.svg", replacesTitle: false },
-			favicon: "/favicon.svg",
+			logo: {
+				light: "./src/assets/logo-dark.png",
+				dark: "./src/assets/logo-light.png",
+				replacesTitle: false,
+				alt: "Pigeon — local-first MCP kanban",
+			},
+			favicon: "/favicon.png",
+			head: [
+				{
+					tag: "link",
+					attrs: { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32.png" },
+				},
+				{
+					tag: "link",
+					attrs: { rel: "icon", type: "image/png", sizes: "192x192", href: "/favicon-192.png" },
+				},
+				{
+					tag: "link",
+					attrs: {
+						rel: "apple-touch-icon",
+						sizes: "180x180",
+						href: "/apple-touch-icon.png",
+					},
+				},
+				{ tag: "meta", attrs: { property: "og:image", content: `${SITE}${BASE}og.png` } },
+				{ tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
+				{ tag: "meta", attrs: { property: "og:image:height", content: "630" } },
+				{ tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },
+				{ tag: "meta", attrs: { name: "twitter:image", content: `${SITE}${BASE}og.png` } },
+			],
 			social: [
 				{
 					icon: "github",
