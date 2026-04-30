@@ -63,7 +63,15 @@ type ExtendedTool = {
 	destructive: boolean;
 };
 
-export function McpCatalogPopover({ enabled }: { enabled: boolean }) {
+export function McpCatalogPopover({
+	enabled,
+	fullWidth = false,
+}: {
+	enabled: boolean;
+	// In Sheet mode the parent already provides width; drop the fixed
+	// 28rem so the catalog spans the viewport.
+	fullWidth?: boolean;
+}) {
 	const { data, isLoading, error } = api.system.toolCatalog.useQuery(undefined, {
 		enabled,
 		staleTime: Number.POSITIVE_INFINITY,
@@ -123,14 +131,14 @@ export function McpCatalogPopover({ enabled }: { enabled: boolean }) {
 	};
 
 	return (
-		<Command className="w-[28rem] max-h-[min(36rem,75vh)]">
+		<Command className={fullWidth ? "h-full w-full" : "w-[28rem] max-h-[min(36rem,75vh)]"}>
 			<CommandInput
 				placeholder="Search MCP tools…"
 				value={search}
 				onValueChange={handleSearchChange}
 				autoFocus
 			/>
-			<CommandList className="max-h-[min(32rem,65vh)]">
+			<CommandList className={fullWidth ? "flex-1" : "max-h-[min(32rem,65vh)]"}>
 				{isLoading && (
 					<div className="px-4 py-6 text-center text-xs text-muted-foreground">Loading tools…</div>
 				)}

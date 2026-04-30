@@ -74,7 +74,9 @@ export function McpToolRow({
 					onPointerDown={stopPointerDown}
 					aria-expanded={expanded}
 					aria-label={expanded ? `Collapse ${name} parameters` : `Expand ${name} parameters`}
-					className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+					// Touch target ≥ 44px on mobile (Apple HIG), shrinks to a
+					// quiet 4px hit on desktop where pointer precision is high.
+					className="-my-2 flex h-11 w-11 flex-shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground sm:my-0 sm:h-4 sm:w-4"
 				>
 					<ChevronRight
 						className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-90")}
