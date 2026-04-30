@@ -8,6 +8,51 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Rebrand: project-tracker → Pigeon (#108)
+
+The tool is renamed to **Pigeon** — local-first kanban that carries context between AI sessions like a homing pigeon carrying a message. The metaphor: agents release at `endSession`, the next agent catches at `briefMe`.
+
+**Why now.** The 2026 kanban-with-MCP space is crowded (Vibe Kanban, Kanbo, VS Code Agent Kanban, getbaton.dev, BatonAI). "project-tracker" reads as generic infrastructure; Pigeon names the differentiator.
+
+**Non-breaking via dual-bin.** The MCP server registers under the new name `pigeon` (entrypoint `scripts/pigeon-start.sh`) but keeps the legacy `mcp-start.sh` working under brand alias `project-tracker`. Existing `mcpServers.project-tracker` config keys keep functioning; `briefMe` and `checkOnboarding` responses include a `_deprecation` field nudging migration. Alias removed in v6.0.
+
+#### Migration — required after pulling v5.0
+
+Full walkthrough: [docs/MIGRATING-TO-PIGEON.md](docs/MIGRATING-TO-PIGEON.md). TL;DR:
+
+```bash
+npm install
+npm run migrate-rebrand    # one-shot: tutorial DB rename, .mcp.json key rewrites
+npm run service:update
+```
+
+`migrate-rebrand` is idempotent. It updates:
+
+1. The tutorial project name "Learn Project Tracker" → "Learn Pigeon" (cards, milestone, best-practices note).
+2. Every `.mcp.json` in projects you've connected (via `Project.repoPath`) — rewrites `"project-tracker"` key → `"pigeon"`, swaps `mcp-start.sh` → `pigeon-start.sh` in the command path.
+
+Then it prints a final checklist for steps it deliberately doesn't auto-execute:
+
+- **launchd label rename.** `SERVICE_LABEL` changed from `com.2nspired.project-tracker` to `com.2nspired.pigeon`. To migrate, run `npm run service:uninstall && npm run service:install`. Old logs at `~/Library/Logs/project-tracker/` can be deleted by hand.
+- **`~/.claude.json` MCP key rename.** The script does NOT auto-edit your Claude Code config (that file lives outside the repo and we don't want to silently rewrite it). Open it, rename `mcpServers.project-tracker` → `mcpServers.pigeon`, swap the script path to `pigeon-start.sh`. The legacy key still works during v5.x with a deprecation warning.
+
+#### What changed in code
+
+- New canonical entrypoint: `scripts/pigeon-start.sh` (sets `MCP_SERVER_BRAND=pigeon`).
+- Legacy entrypoint: `scripts/mcp-start.sh` (sets `MCP_SERVER_BRAND=project-tracker`, emits stderr deprecation notice).
+- `src/mcp/server.ts` reads `MCP_SERVER_BRAND` to set the SDK `name` field and inject a `_deprecation` field into `briefMe` / `checkOnboarding` responses when legacy.
+- All user-visible Pigeon strings updated: web UI header, browser title, CLI banners, slash command descriptions, README/CLAUDE.md/AGENTS.md/docs.
+- Tutorial seed (`src/lib/onboarding/teaching-project.ts`) renamed; new installs get "Learn Pigeon".
+- `package.json` `name` → `pigeon-mcp` (npm `pigeon` is squatted by an abandoned 2013 package).
+- Tutorial seed handoff finding "Board has 5 columns" → "4 columns" (drive-by fix; v4.0.0 removed Up Next).
+
+#### Out of scope (deferred)
+
+- Removing the `project-tracker` alias / `mcp-start.sh` — v6.0.
+- Renaming `tracker.db` filename, `tracker.md` filename, Prisma table names, `tracker://` MCP resource URIs, `TUTORIAL_SLUG = "learn-project-tracker"` — permanent (DB idempotency / public API).
+- Renaming the GitHub repo / URL slugs in docs — coordinate with `gh repo rename` separately.
+- Internal `TrackerPolicy` type names and similar internal symbols — internal-only.
+
 ## [4.1.0] — 2026-04-29
 
 `briefMe` now emits a deprecation warning whenever a project still has content in the legacy `projectPrompt` DB column. The column will be removed in v5.0.0; this release is the migration window.

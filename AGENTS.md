@@ -1,10 +1,10 @@
-# Agent Guidelines for Project Tracker
+# Agent Guidelines for Pigeon
 
 > **Runtime board policy lives in [`tracker.md`](tracker.md)** at the project's repo root — that file is the source of truth for `intent_required_on`, per-column prompts, and the project's general agent prompt. This document is contributor docs: tool migration history, conventions, and reference material that hasn't been moved (and may not need to be). When this file and `tracker.md` overlap, `tracker.md` wins. See [docs/SURFACES.md](docs/SURFACES.md) for the full surface map.
 
 > If the human can't see it and correct it in the surface where they'd naturally encounter it, the agent shouldn't trust it.
 
-Shared guidelines for any AI agent (Claude, Codex, etc.) using the Project Tracker MCP.
+Shared guidelines for any AI agent (Claude, Codex, etc.) using the Pigeon MCP.
 
 When this MCP is connected to a project, use the board as your shared workspace with the user. These guidelines keep it useful without burning tokens.
 
@@ -322,7 +322,7 @@ Then add to the project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc
 ```
 ## Project Tracking
 
-This project uses a Project Tracker board via MCP.
+This project uses Pigeon (a kanban board with MCP integration) for context continuity across AI sessions.
 
 **Session lifecycle:** Call `briefMe()` at the start of each conversation for
 a one-shot session primer (handoff, top work, blockers, pulse). Call

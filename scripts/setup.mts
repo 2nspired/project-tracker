@@ -1,5 +1,5 @@
 /**
- * Interactive setup wizard for Project Tracker.
+ * Interactive setup wizard for Pigeon.
  * Guides the user through database creation, tutorial project seeding,
  * and connecting an external project to the MCP server.
  *
@@ -34,7 +34,7 @@ async function askYesNo(question: string, defaultYes = true): Promise<boolean> {
 async function main() {
 	console.log("");
 	console.log("┌─────────────────────────────────────────┐");
-	console.log("│       Project Tracker — Setup            │");
+	console.log("│            Pigeon — Setup               │");
 	console.log("└─────────────────────────────────────────┘");
 	console.log("");
 
@@ -88,7 +88,7 @@ async function main() {
 	// ─── Step 3: Connect a Project ────────────────────────────────────
 
 	console.log("Step 3: Connect a Project");
-	console.log("  Link an external project so its AI agents can use Project Tracker via MCP.");
+	console.log("  Link an external project so its AI agents can use Pigeon via MCP.");
 
 	const projectPath = await ask("  Path to your project (or press Enter to skip): ");
 
@@ -99,22 +99,22 @@ async function main() {
 			console.log(`  ✗ Directory not found: ${targetDir}`);
 		} else if (targetDir === TRACKER_ROOT) {
 			console.log(
-				"  ✗ That's the project-tracker directory itself. Run this from a different project."
+				"  ✗ That's the Pigeon directory itself. Run this from a different project."
 			);
 		} else {
 			const mcpFile = resolve(targetDir, ".mcp.json");
-			const mpcStartScript = resolve(TRACKER_ROOT, "scripts", "mcp-start.sh");
+			const pigeonStartScript = resolve(TRACKER_ROOT, "scripts", "pigeon-start.sh");
 
 			if (existsSync(mcpFile)) {
 				const content = readFileSync(mcpFile, "utf-8");
-				if (content.includes("project-tracker")) {
-					console.log("  ✓ project-tracker already configured in .mcp.json");
+				if (content.includes('"pigeon"') || content.includes('"project-tracker"')) {
+					console.log("  ✓ Pigeon already configured in .mcp.json");
 				} else {
 					console.log("  .mcp.json already exists with other servers.");
 					console.log("  Add this to the mcpServers object in .mcp.json:");
 					console.log("");
-					console.log('    "project-tracker": {');
-					console.log(`      "command": "${mpcStartScript}",`);
+					console.log('    "pigeon": {');
+					console.log(`      "command": "${pigeonStartScript}",`);
 					console.log('      "args": []');
 					console.log("    }");
 				}
@@ -122,8 +122,8 @@ async function main() {
 				const agentName = await ask("  Agent name (default: Claude): ", "Claude");
 				const config = {
 					mcpServers: {
-						"project-tracker": {
-							command: mpcStartScript,
+						pigeon: {
+							command: pigeonStartScript,
 							args: [],
 							env: { AGENT_NAME: agentName },
 						},

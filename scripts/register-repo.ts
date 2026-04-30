@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 /**
- * Register a repo path with Project Tracker so briefMe can auto-detect the
+ * Register a repo path with Pigeon so briefMe can auto-detect the
  * project from the current working directory.
  *
  * Usage:

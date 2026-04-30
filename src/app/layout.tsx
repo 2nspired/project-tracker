@@ -15,10 +15,11 @@ const geist = Geist({
 
 export const metadata: Metadata = {
 	title: {
-		template: "%s - Project Tracker",
-		default: "Project Tracker",
+		template: "%s - Pigeon",
+		default: "Pigeon",
 	},
-	description: "Visual kanban board with MCP integration for AI-assisted development",
+	description:
+		"Pigeon carries context between your AI sessions. A local-first kanban board with MCP integration for AI-assisted development.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

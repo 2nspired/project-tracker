@@ -8,7 +8,7 @@ Three Markdown files at the root of a connected project. Each answers a differen
 |---|---|---|---|
 | `tracker.md` | Tracker MCP tools (`briefMe`, `getCardContext`, `planCard`, write tools listed in `intent_required_on`) | Runtime board policy: project agent prompt, per-column prompts, intent enforcement | Hot-reloaded on every MCP tool call |
 | `CLAUDE.md` | Claude Code (the CLI), at session start | Build commands, code conventions, repo-specific developer instructions | Loaded once per Claude Code session |
-| `AGENTS.md` | Humans (and agents on demand) | Cross-agent contributor reference: conventions, tool migration history, project-tracker UX guidance | Read on demand |
+| `AGENTS.md` | Humans (and agents on demand) | Cross-agent contributor reference: conventions, tool migration history, Pigeon UX guidance | Read on demand |
 
 ## When to put a thing in `tracker.md`
 

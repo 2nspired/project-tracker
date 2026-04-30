@@ -2,7 +2,7 @@
 
 > If the human can't see it and correct it in the surface where they'd naturally encounter it, the agent shouldn't trust it.
 
-Project Tracker is the first persistent project-knowledge tool whose data model assumes an agent is one of the users, not just an observer.
+Pigeon is the first persistent project-knowledge tool whose data model assumes an agent is one of the users, not just an observer.
 
 This document describes the design principles, current implementation, and planned evolution of the context model that makes that possible.
 

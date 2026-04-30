@@ -1,4 +1,4 @@
-# Updating Project Tracker
+# Updating Pigeon
 
 One page, written for people who run a local copy. Thomas writes the code; this doc tells you what to do after `git pull`.
 
@@ -12,6 +12,20 @@ npm run service:update   # rebuild + restart the launchd service
 ```
 
 That's it for MINOR and PATCH updates. For MAJOR updates, keep reading.
+
+## Upgrading from v4.x to v5.0 (Pigeon rebrand)
+
+v5.0 renames the tool from "project-tracker" to "Pigeon". The MCP server still answers under the legacy `project-tracker` config key during v5.x (deprecation warning logged on connect); v6.0 drops the alias.
+
+After `git pull` to v5.0:
+
+```bash
+npm install
+npm run migrate-rebrand    # one-shot: tutorial DB rename + .mcp.json key rewrites + checklist
+npm run service:update
+```
+
+`migrate-rebrand` is idempotent — safe to re-run. It prints a final checklist for the manual steps it deliberately doesn't auto-execute (e.g. renaming the launchd service label from `com.2nspired.project-tracker` to `com.2nspired.pigeon`).
 
 ## Checking the CHANGELOG first
 
@@ -65,7 +79,7 @@ npm run db:studio        # eyeball the tables
 
 ## MCP agent connection
 
-If you're running an MCP agent (Claude, Codex, etc.) against project-tracker, restart the agent after an update — the agent caches the server manifest and will show a `_versionMismatch` warning on `briefMe` until it reconnects.
+If you're running an MCP agent (Claude, Codex, etc.) against Pigeon, restart the agent after an update — the agent caches the server manifest and will show a `_versionMismatch` warning on `briefMe` until it reconnects.
 
 ## When something goes wrong
 

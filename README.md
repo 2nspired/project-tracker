@@ -1,14 +1,14 @@
-# Project Tracker
+# Pigeon
 
-A local-first kanban board for you and your AI coding agent. SQLite on disk, MCP over stdio, no cloud.
+Pigeon carries context between your AI sessions. A local-first kanban board for you and your AI coding agent — SQLite on disk, MCP over stdio, no cloud.
 
-**Docs: [2nspired.github.io/project-tracker](https://2nspired.github.io/project-tracker/)**
+**Docs: [2nspired.github.io/project-tracker](https://2nspired.github.io/project-tracker/)** *(repo URL still says project-tracker; that's the legacy GitHub slug — see [docs/UPDATING.md](docs/UPDATING.md) if you're migrating from a pre-v5 install).*
 
 ## What it is
 
-When you work with a coding agent, context evaporates between conversations. You re-explain what was planned, what's done, what was decided.
+When you work with a coding agent, context evaporates between conversations. You re-explain what was planned, what's done, what was decided. Pigeon is the homing pigeon for that context — the agent releases it at session end, the next agent catches it at session start.
 
-Project Tracker gives you and the agent a shared workspace:
+Pigeon gives you and the agent a shared workspace:
 
 - **You see a kanban board** — cards, columns, priorities, activity, drag-and-drop.
 - **The agent reads and writes the same board** via MCP tools — `createCard`, `moveCard`, `addComment`, and more.
@@ -27,12 +27,12 @@ npm run service:install  # macOS: UI on localhost:3100 as a background service
                          # or: npm run dev for a foreground dev server on :3000
 ```
 
-After `git pull`, see [docs/UPDATING.md](docs/UPDATING.md) for the upgrade steps — `npm run service:update` alone is not always enough.
+After `git pull`, see [docs/UPDATING.md](docs/UPDATING.md) for the upgrade steps — `npm run service:update` alone is not always enough. Upgrading from v4.x? Run `npm run migrate-rebrand` once after pulling v5.0 to migrate the tutorial project's name and your connected projects' `.mcp.json` keys.
 
 Then, from inside any project you want to track:
 
 ```bash
-/path/to/project-tracker/scripts/connect.sh
+/path/to/pigeon/scripts/connect.sh
 ```
 
 That's it. Start a new chat in that project and ask your agent to run `briefMe`.

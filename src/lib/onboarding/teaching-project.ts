@@ -1,5 +1,5 @@
 /**
- * Pure data definition for the "Learn Project Tracker" tutorial project.
+ * Pure data definition for the "Learn Pigeon" tutorial project.
  *
  * Dual-audience: every content card teaches both a human (UI action) and a
  * connected agent (MCP call), so the tutorial board works as a live demo
@@ -13,12 +13,15 @@
  *   **Outcome:** observable change
  *
  * No Prisma or runtime imports — just plain objects.
+ *
+ * Note: TUTORIAL_SLUG stays as "learn-project-tracker" — it's the DB
+ * idempotency guard. Existing installs migrate via `npm run migrate-rebrand`.
  */
 
 export const TUTORIAL_SLUG = "learn-project-tracker";
 
 export const teachingProject = {
-	name: "Learn Project Tracker",
+	name: "Learn Pigeon",
 	slug: TUTORIAL_SLUG,
 	description:
 		"A hands-on tutorial that teaches humans the UI and agents the MCP surface. Every card has a Try it (UI) and a Try it (agent) step — walk the board solo, or watch your connected agent walk it for you.",
@@ -32,7 +35,7 @@ export const teachingProject = {
 
 	milestone: {
 		name: "Getting Started",
-		description: "Complete these cards to learn the basics of Project Tracker",
+		description: "Complete these cards to learn the basics of Pigeon",
 	},
 
 	/** Card numbers attached to the "Getting Started" milestone */
@@ -41,9 +44,9 @@ export const teachingProject = {
 	cards: [
 		// ── Done (3) — concepts demonstrated by their existence ──────────
 		{
-			title: "Welcome to Project Tracker",
+			title: "Welcome to Pigeon",
 			description: [
-				"**What:** Cards are the building blocks of Project Tracker. Each one represents a task, feature, bug, or idea.",
+				"**What:** Cards are the building blocks of Pigeon — the homing-pigeon metaphor: each card is a piece of context that travels with you between AI sessions. Each one represents a task, feature, bug, or idea.",
 				"**Why it matters:** Everything downstream — priorities, relations, handoffs, commits — hangs off a card. Agents and humans share the same cards as the single source of truth.",
 				"**Try it (UI):** You're reading one now! Click any card on the board to open its details.",
 				"**Try it (agent):** `briefMe()` — run this first in any session. It returns the last handoff, recent diff, top work, and the current pulse in ~300 tokens instead of a full board dump.",
@@ -320,7 +323,7 @@ export const teachingProject = {
 		{
 			title: "Explore More Features",
 			description: [
-				"**What:** The tutorial is a starting point — Project Tracker has more to discover once you're comfortable.",
+				"**What:** The tutorial is a starting point — Pigeon has more to discover once you're comfortable.",
 				"**Why it matters:** The MCP surface is broader than the essentials. Extended tools handle facts, measurements, staleness checks, roadmap views, and more — the docs site and `getTools` are the canonical index.",
 				"**Try it (UI):** Explore the Dashboard, Roadmap view, Notes, and the Decisions tab on the project page.",
 				'**Try it (agent):** `getTools()` with no filter returns the full list grouped by category. Pick one that looks useful and fetch its schema with `getTools({ tool: "name" })`.',
@@ -430,7 +433,7 @@ export const teachingProject = {
 			"Seeded the dual-audience tutorial board with 21 cards. Each content card has both a Try it (UI) and a Try it (agent) step.",
 		workingOn: ["Seeding the tutorial cards across all columns"],
 		findings: [
-			"Board has 5 columns: Backlog, Up Next, In Progress, Done, Parking Lot",
+			"Board has 4 columns: Backlog, In Progress, Done, Parking Lot",
 			"Card #9 blocks card #8 to demonstrate blocking relations",
 			"Sample decision, checklist, comments, and handoff are attached so briefMe and getCardContext return real data on first load",
 		],
@@ -446,7 +449,7 @@ export const teachingProject = {
 	note: {
 		title: "Best Practices",
 		content: [
-			"# Project Tracker Best Practices",
+			"# Pigeon Best Practices",
 			"",
 			"## Card Hygiene",
 			"- Keep card titles short and actionable",

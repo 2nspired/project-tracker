@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Launcher for the Project Tracker MCP server.
-# Ensures correct working directory regardless of where it's invoked from.
-#
-# MCP_CALLER_CWD preserves the spawning client's cwd (typically the project
-# root, from .mcp.json) so briefMe can auto-detect the project. Without this,
-# the server would always see the tracker root after the `cd` below.
+# Legacy launcher for the Pigeon MCP server (renamed from project-tracker).
+# Kept so existing `mcpServers.project-tracker` config keys keep working;
+# new installs should point at scripts/pigeon-start.sh under key `pigeon`.
+# Removed in v6.0. Run `npm run migrate-rebrand` for the full migration.
+echo "[pigeon] DEPRECATION: scripts/mcp-start.sh is the legacy entrypoint. Update your mcpServers config to use scripts/pigeon-start.sh under key 'pigeon'. Removed in v6.0." >&2
+export MCP_SERVER_BRAND=project-tracker
 export MCP_CALLER_CWD="${MCP_CALLER_CWD:-$PWD}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TRACKER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

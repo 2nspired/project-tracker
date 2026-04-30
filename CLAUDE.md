@@ -1,6 +1,6 @@
-# Project Tracker
+# Pigeon
 
-Local-first kanban board with MCP integration for AI-assisted development.
+Local-first kanban board with MCP integration for AI-assisted development. Pigeon carries context between AI sessions — `briefMe` at session start, `endSession` at session end.
 
 ## Tech Stack
 

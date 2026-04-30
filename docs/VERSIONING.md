@@ -1,6 +1,6 @@
 # Versioning
 
-Project Tracker follows [Semantic Versioning](https://semver.org/). The rules below are what we actually apply — not aspirational. If a change doesn't match a rule, update the rule or pick a different bump.
+Pigeon follows [Semantic Versioning](https://semver.org/). The rules below are what we actually apply — not aspirational. If a change doesn't match a rule, update the rule or pick a different bump.
 
 ## Semver triggers
 

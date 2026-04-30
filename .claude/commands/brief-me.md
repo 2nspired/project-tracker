@@ -1,5 +1,5 @@
 ---
-description: Start a Project Tracker session — load the latest handoff, top work, blockers, and pulse via the briefMe MCP tool.
+description: Start a Pigeon session — load the latest handoff, top work, blockers, and pulse via the briefMe MCP tool.
 ---
 
 Call the `briefMe` MCP tool to load this session's primer.

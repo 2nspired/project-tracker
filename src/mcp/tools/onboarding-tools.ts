@@ -9,7 +9,7 @@ import { ok, safeExecute } from "../utils.js";
 registerExtendedTool("seedTutorial", {
 	category: "setup",
 	description:
-		'Create the "Learn Project Tracker" tutorial project with sample cards, checklists, milestones, and more. Idempotent — safe to call multiple times.',
+		'Create the "Learn Pigeon" tutorial project with sample cards, checklists, milestones, and more. Idempotent — safe to call multiple times.',
 	parameters: z.object({}),
 	handler: () =>
 		safeExecute(async () => {
