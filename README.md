@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs-site/src/assets/logo.svg" alt="Pigeon logo" width="84" />
+<img src="docs-site/src/assets/logo-readme.png" alt="Pigeon logo" width="96" />
 
 # Pigeon
 
