@@ -170,6 +170,20 @@ The migration script does **not** auto-edit `~/.claude.json` (or `~/.claude-alt/
 
 Two changes only: the key name and the script filename in the command path. Everything else (the absolute path prefix, any `env`/`AGENT_NAME` overrides) stays exactly as it was.
 
+#### Don't miss: `mcp_tool` hooks reference the server key by name
+
+If you have any Claude Code hooks that call MCP tools — e.g., a `Stop` hook that records token usage, or a `PreToolUse` hook that logs activity — they hard-code the server name. Search your config:
+
+```bash
+grep -n '"server": "project-tracker"' ~/.claude.json ~/.claude-alt/.claude.json 2>/dev/null
+```
+
+Each match needs `"server": "project-tracker"` → `"server": "pigeon"`. These do **not** fall back to the deprecation alias — a stale `server` reference makes the hook silently no-op (the hook fires, can't find the server, drops the call). You won't see an error, you just stop getting the data.
+
+Skill-usage telemetry entries like `mcp__project-tracker__some-tool` (under `slashCommandLastUsed` or similar) are harmless — they're stats, not wiring. Leave them alone.
+
+#### Optional during v5.x
+
 This step is technically optional during v5.x — the legacy `mcpServers.project-tracker` + `mcp-start.sh` combination still works with a deprecation warning. But the warning will show up in every session until you do the rename, and the alias goes away in v6.0.
 
 ### Step 5 — Restart any running MCP sessions

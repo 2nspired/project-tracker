@@ -40,3 +40,4 @@ Thumbs.db
 
 # MCP config (contains absolute paths)
 .mcp.json
+.mcp.json.bak.*
