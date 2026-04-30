@@ -4,7 +4,13 @@ import { History } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CardRefText, CollapsibleSection, FilterChip } from "@/components/board/session-shell";
 import { Markdown } from "@/components/ui/markdown";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { TokenCostChip } from "@/components/ui/token-cost-chip";
 import { formatRelativeCompact } from "@/lib/format-date";
 import type {
@@ -62,6 +68,9 @@ export function BriefingsSheet({
 							{snapshots?.length ?? 0}
 						</span>
 					</SheetTitle>
+					<SheetDescription className="sr-only">
+						Rolling history of briefMe snapshots — what each agent saw at the start of its session.
+					</SheetDescription>
 					{agents.length > 1 && (
 						<div className="mt-2 flex items-center gap-1">
 							<FilterChip active={agentFilter === null} onClick={() => setAgentFilter(null)}>
