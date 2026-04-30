@@ -18,6 +18,8 @@ The tool is renamed to **Pigeon** — local-first kanban that carries context be
 
 #### Migration — required after pulling v5.0
 
+Full walkthrough: [docs/MIGRATING-TO-PIGEON.md](docs/MIGRATING-TO-PIGEON.md). TL;DR:
+
 ```bash
 npm install
 npm run migrate-rebrand    # one-shot: tutorial DB rename, .mcp.json key rewrites
