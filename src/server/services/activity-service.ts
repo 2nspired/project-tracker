@@ -68,6 +68,8 @@ export type FlowMetrics = {
 	backwardMoves: number;
 	/** Column with the longest average dwell time */
 	bottleneck: { column: string; avgHours: number } | null;
+	/** Cards completed in the prior 7-day window (days 8–14 ago) — used for WoW delta */
+	previousWeekCompleted: number;
 };
 
 async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetrics>> {
@@ -183,7 +185,30 @@ async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetric
 			}
 		}
 
-		return { success: true, data: { throughput, forwardMoves, backwardMoves, bottleneck } };
+		// Previous-week completions for the WoW delta. Separate query to keep the
+		// 7-day throughput/dwell logic above unchanged — extending the main
+		// `activities` query to 14 days would shift dwell-time calculations by
+		// including older arrivals.
+		const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+		const priorWeekActivities = await db.activity.findMany({
+			where: {
+				card: { column: { boardId } },
+				action: "moved",
+				createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo },
+			},
+			select: { details: true },
+		});
+		let previousWeekCompleted = 0;
+		for (const activity of priorWeekActivities) {
+			if (!activity.details) continue;
+			const match = activity.details.match(/Moved from "(.+?)" to "(.+?)"/);
+			if (match && doneColumnNames.has(match[2])) previousWeekCompleted++;
+		}
+
+		return {
+			success: true,
+			data: { throughput, forwardMoves, backwardMoves, bottleneck, previousWeekCompleted },
+		};
 	} catch (error) {
 		console.error("[ACTIVITY_SERVICE] getFlowMetrics error:", error);
 		return {

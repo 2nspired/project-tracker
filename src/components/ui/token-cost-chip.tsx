@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { formatCost } from "@/lib/format-cost";
 import { cn } from "@/lib/utils";
 
 type TokenCostChipProps = {
@@ -35,13 +36,4 @@ export function TokenCostChip({
 			{formatted}
 		</Badge>
 	);
-}
-
-// Show 4 significant figures so we can distinguish $0.0042 from $0.0420.
-// Drops to standard 2-decimal currency formatting once we cross $1.
-function formatCost(value: number): string {
-	if (value >= 100) return `$${value.toFixed(0)}`;
-	if (value >= 1) return `$${value.toFixed(2)}`;
-	if (value >= 0.01) return `$${value.toFixed(4)}`;
-	return `$${value.toPrecision(2)}`;
 }

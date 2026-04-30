@@ -535,6 +535,57 @@ async function getMilestoneSummary(milestoneId: string): Promise<ServiceResult<U
 	}
 }
 
+export type DailyCostSeries = {
+	/** Daily cost USD over the last 7 days (index 0 = 6 days ago, index 6 = today). */
+	dailyCostUsd: number[];
+	/** Sum of `dailyCostUsd` — the headline number for the Pulse strip. */
+	weekTotalCostUsd: number;
+};
+
+// 7-day rolling cost series, indexed identically to `activityService.getFlowMetrics`'s
+// `throughput`, so the Pulse UI can render both sparklines on aligned x-axes.
+async function getDailyCostSeries(projectId: string): Promise<ServiceResult<DailyCostSeries>> {
+	try {
+		const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+		const [events, pricing] = await Promise.all([
+			db.tokenUsageEvent.findMany({
+				where: { projectId, recordedAt: { gte: sevenDaysAgo } },
+				select: {
+					sessionId: true,
+					model: true,
+					inputTokens: true,
+					outputTokens: true,
+					cacheReadTokens: true,
+					cacheCreation1hTokens: true,
+					cacheCreation5mTokens: true,
+					recordedAt: true,
+				},
+			}),
+			loadPricing(db),
+		]);
+
+		const dailyCostUsd = new Array<number>(7).fill(0);
+		let weekTotalCostUsd = 0;
+		for (const event of events) {
+			const dayIndex = Math.floor(
+				(event.recordedAt.getTime() - sevenDaysAgo.getTime()) / (24 * 60 * 60 * 1000)
+			);
+			if (dayIndex < 0 || dayIndex >= 7) continue;
+			const cost = computeCost(event, pricing);
+			dailyCostUsd[dayIndex] += cost;
+			weekTotalCostUsd += cost;
+		}
+
+		return { success: true, data: { dailyCostUsd, weekTotalCostUsd } };
+	} catch (error) {
+		console.error("[TOKEN_USAGE_SERVICE] getDailyCostSeries error:", error);
+		return {
+			success: false,
+			error: { code: "QUERY_FAILED", message: "Failed to load daily cost series." },
+		};
+	}
+}
+
 async function getPricing(): Promise<ServiceResult<Record<string, ModelPricing>>> {
 	try {
 		const pricing = await loadPricing(db);
@@ -629,6 +680,7 @@ export const tokenUsageService = {
 	getSessionSummary,
 	getCardSummary,
 	getMilestoneSummary,
+	getDailyCostSeries,
 	getPricing,
 	updatePricing,
 };

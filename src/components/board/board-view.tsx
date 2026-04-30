@@ -404,7 +404,7 @@ export function BoardView({
 						visibleCards={visibleCards}
 					/>
 
-					<BoardPulse boardId={board.id} />
+					<BoardPulse boardId={board.id} projectId={board.projectId} />
 
 					{/* Columns — parking columns are pinned and not reorderable; the
 					    rest are wrapped in a horizontal SortableContext so the
