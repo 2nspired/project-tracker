@@ -4,6 +4,7 @@ import { Kanban } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CommandPalette } from "@/components/command-palette";
+import { ServerStatusPill } from "@/components/layout/server-status-pill";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -64,6 +65,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 						Search
 						<kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">⌘K</kbd>
 					</button>
+					<ServerStatusPill />
 					<ThemeToggle />
 				</div>
 			</header>
