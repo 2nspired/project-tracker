@@ -77,7 +77,7 @@ export async function loadCardContext(
 		select: {
 			id: true,
 			projectId: true,
-			project: { select: { repoPath: true, projectPrompt: true } },
+			project: { select: { repoPath: true } },
 		},
 	});
 	if (!board)
@@ -176,7 +176,6 @@ export async function loadCardContext(
 
 	const policyResult = await loadTrackerPolicy({
 		repoPath: board.project.repoPath,
-		projectPrompt: board.project.projectPrompt,
 	});
 	const columnPrompt = getColumnPrompt(policyResult.policy, card.column.name);
 

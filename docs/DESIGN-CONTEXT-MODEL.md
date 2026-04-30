@@ -18,7 +18,7 @@ Shared surfaces get corrected as a side effect of normal use. When the human and
 
 These terms are reserved for future implementation. They describe where persistent context sits on the salience spectrum:
 
-- **`ambient`** — auto-loaded into agent context at session start (e.g., `projectPrompt`, `status://` resource)
+- **`ambient`** — auto-loaded into agent context at session start (e.g., `tracker.md` policy, `status://` resource)
 - **`indexed`** — queryable but not surfaced in UI main flow (e.g., archived decisions, old handoffs)
 - **`surfaced`** — appears in the board UI main flow (e.g., active cards, milestones)
 
@@ -30,7 +30,7 @@ The smallest intervention that proves the shared-surface principle on one high-v
 
 ### What Shipped
 
-**`Project.projectPrompt`** — A project-scoped orientation paragraph stored in the tracker DB and auto-loaded at session start via `checkOnboarding`. Replaces per-account `PROJECT_PROMPT.md` files so all agents share one source of truth the human can inspect and edit.
+**`tracker.md`** (RFC #111) — A project-scoped orientation file at repo root. YAML front matter carries machine-parsed policy (`intent_required_on`, per-column prompts); body is the agent-orientation prompt auto-loaded at session start via `briefMe`. Originally shipped as the `Project.projectPrompt` DB column in Phase 1; promoted to the file-based `tracker.md` surface in v4.0 (#126) and the column was removed in v5.0.0 (#129) to give the prompt git-versioning, review, and rollback that DB content lacked.
 
 **`renderStatus(projectId)`** — An MCP tool that generates a STATUS.md-equivalent markdown snapshot from board data. Sections: header with last-updated and current phase, milestone checklist with card refs, per-milestone narrative from `Milestone.description`, "What's Built" from cards tagged `component`, metrics from `Card.metadata` on cards tagged `metric`, and a parking lot summary.
 

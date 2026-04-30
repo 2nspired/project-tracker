@@ -143,7 +143,7 @@ describe("buildPlanProtocol", () => {
 			cardRef: "#42",
 			columnName: "Backlog",
 			columnPrompt: undefined,
-			projectPrompt: undefined,
+			projectOrientation: undefined,
 		});
 		expect(out).toContain("Planning #42");
 		expect(out).toContain("## Why now");
@@ -159,18 +159,18 @@ describe("buildPlanProtocol", () => {
 			cardRef: "#7",
 			columnName: "Review",
 			columnPrompt: "Don't move to Done without explicit approval.",
-			projectPrompt: undefined,
+			projectOrientation: undefined,
 		});
 		expect(out).toContain("Column policy (Review)");
 		expect(out).toContain("Don't move to Done without explicit approval.");
 	});
 
-	it("appends the project prompt when present", () => {
+	it("appends the project orientation when present", () => {
 		const out = buildPlanProtocol({
 			cardRef: "#7",
 			columnName: "Backlog",
 			columnPrompt: undefined,
-			projectPrompt: "Phase 1 — shared-surface context foundation.",
+			projectOrientation: "Phase 1 — shared-surface context foundation.",
 		});
 		expect(out).toContain("Project orientation");
 		expect(out).toContain("Phase 1 — shared-surface context foundation.");
@@ -181,7 +181,7 @@ describe("buildPlanProtocol", () => {
 			cardRef: "#7",
 			columnName: "Backlog",
 			columnPrompt: undefined,
-			projectPrompt: undefined,
+			projectOrientation: undefined,
 		});
 		expect(out).not.toContain("Column policy");
 		expect(out).not.toContain("Project orientation");

@@ -16,7 +16,6 @@ model Project {
   favorite        Boolean  @default(false)
   repoPath        String?  @unique @map("repo_path")
   defaultBoardId  String?  @unique @map("default_board_id")
-  projectPrompt   String?  @map("project_prompt")
   nextCardNumber  Int      @default(1) @map("next_card_number")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")

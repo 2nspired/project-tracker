@@ -207,7 +207,6 @@ import "./tools/query-tools.js";
 import "./tools/git-tools.js";
 import "./tools/summary-tools.js";
 import "./tools/onboarding-tools.js";
-import "./tools/migration-tools.js";
 import "./tools/status-tools.js";
 import "./tools/fact-tools.js";
 import "./tools/claim-tools.js";
@@ -753,7 +752,6 @@ server.registerTool(
 			projects: projects.map((p) => ({
 				id: p.id,
 				name: p.name,
-				...(p.projectPrompt ? { projectPrompt: p.projectPrompt } : {}),
 				boards: p.boards.map((b) => ({
 					id: b.id,
 					name: b.name,
@@ -806,7 +804,7 @@ server.registerTool(
 				where: { id: boardId },
 				include: {
 					project: {
-						select: { id: true, name: true, repoPath: true, projectPrompt: true },
+						select: { id: true, name: true, repoPath: true },
 					},
 					columns: {
 						orderBy: { position: "asc" },
@@ -874,7 +872,6 @@ server.registerTool(
 				findStaleInProgress(db, boardId),
 				loadTrackerPolicy({
 					repoPath: board.project.repoPath,
-					projectPrompt: board.project.projectPrompt,
 				}),
 				tokenUsageService.getProjectSummary(board.project.id),
 			]);

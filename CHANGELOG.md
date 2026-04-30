@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [5.0.0] — 2026-04-29
+
+Major release: rebrand to **Pigeon** + drop the legacy `projectPrompt` DB column. Builds on the v4.2 taxonomy + token-tracking baseline.
+
 ### Rebrand: project-tracker → Pigeon (#108)
 
 The tool is renamed to **Pigeon** — local-first kanban that carries context between AI sessions like a homing pigeon carrying a message. The metaphor: agents release at `endSession`, the next agent catches at `briefMe`.
@@ -50,8 +54,26 @@ Then it prints a final checklist for steps it deliberately doesn't auto-execute:
 
 - Removing the `project-tracker` alias / `mcp-start.sh` — v6.0.
 - Renaming `tracker.db` filename, `tracker.md` filename, Prisma table names, `tracker://` MCP resource URIs, `TUTORIAL_SLUG = "learn-project-tracker"` — permanent (DB idempotency / public API).
-- Renaming the GitHub repo / URL slugs in docs — coordinate with `gh repo rename` separately.
 - Internal `TrackerPolicy` type names and similar internal symbols — internal-only.
+
+### Removed
+
+- **`Project.projectPrompt` DB column** (#129) — the legacy column shipped in Phase 1 of the shared-surface migration. The `migrateProjectPrompt` tool wrote a `tracker.md` from the column's value (v4.0); the column has been deprecated since v4.1 with a `briefMe` warning whenever content remained. v5.0 drops the column entirely. `tracker.md` is the only project orientation surface going forward.
+- **`migrateProjectPrompt` MCP tool** (#129) — its purpose was to migrate FROM the column TO `tracker.md`. With the column gone, the tool is non-functional; removed.
+- **`updateProjectPrompt` MCP tool** (#129) — wrote to the dropped column. Edit `tracker.md` directly instead.
+- **`SCHEMA_VERSION`** bumps from 10 → 11 to drop the `project_prompt` column. Run `npm run db:push` after pulling.
+
+### Migration — required before pulling v5.0
+
+For each project that still has content in the `projectPrompt` column, follow the v4.1 → v5.0 migration path documented in [docs/MIGRATING-TO-PIGEON.md](docs/MIGRATING-TO-PIGEON.md). TL;DR:
+
+1. Run `briefMe()` — if the response includes a `_warnings[]` entry mentioning `projectPrompt`, **stop and migrate first.**
+2. `runTool({ tool: "migrateProjectPrompt", params: { projectId } })` (on v4.x — the tool is gone in v5.0).
+3. Review the new `tracker.md`, commit it.
+4. Clear the DB column via Prisma Studio or the v4.x `updateProjectPrompt` tool.
+5. Then pull v5.0.
+
+Anything still in the column when you pull v5.0 is lost when the column drops. Schema migration applies cleanly via `npm run db:push`.
 
 ## [4.2.0] — 2026-04-29
 

@@ -101,9 +101,9 @@ The knowledge tools were consolidated in v2.2. If your prompts or learned workfl
 
 **Key concept:** The `content` field replaces `claim` (context), `fact` (code), and `description` (measurement). All three fact types share CRUD through `saveFact`/`listFacts` with a `type` discriminator. The underlying data is unchanged.
 
-## Project Prompt — deprecated, see `tracker.md`
+## Project orientation — `tracker.md`
 
-The `projectPrompt` DB column has been superseded by [`tracker.md`](tracker.md) at repo root (RFC #111). New projects should write `tracker.md` directly; existing projects can run `migrateProjectPrompt({ projectId })` to copy the DB value into a fresh `tracker.md`, then clear the column. The field will be removed in v5.0.0.
+A project's runtime orientation lives in [`tracker.md`](tracker.md) at repo root (RFC #111). The legacy `projectPrompt` DB column was removed in v5.0.0 (#129); the body of `tracker.md` is now the only place to set the agent-orientation prompt for a project.
 
 **When to use `tracker.md` vs. repo-side CLAUDE.md:**
 - `tracker.md` is the project's runtime board policy — agent prompt body + machine-parsed front matter (`intent_required_on`, per-column prompts). Read by `briefMe` and `getCardContext`.

@@ -18,7 +18,7 @@ If the answer is **yes** to any of these, it belongs in `tracker.md`:
 - "When a card is in column X, the agent should…" → `columns.<X>.prompt`
 - A short orientation paragraph the agent should read at session start (current phase, key constraints) → body
 
-The body is the project's general agent prompt. It replaces the legacy `projectPrompt` DB column.
+The body is the project's general agent prompt.
 
 ```markdown
 ---
@@ -66,17 +66,6 @@ If it's **cross-agent contributor reference** that doesn't belong in `tracker.md
 - Anything that helps a contributor onboard but doesn't affect runtime board behavior
 
 `AGENTS.md` is read on demand. If something in `AGENTS.md` overlaps with `tracker.md`, `tracker.md` wins.
-
-## Migration: `projectPrompt` → `tracker.md`
-
-If a project still has a non-empty `projectPrompt` DB column, `briefMe` emits a `_warnings` entry. To migrate:
-
-1. Run `migrateProjectPrompt({ projectId })` — writes a `tracker.md` from the existing DB value, with auto-generated front matter. Idempotent (aborts if `tracker.md` already exists).
-2. Review the new file. Edit the front matter to add `columns.<name>.prompt` or `intent_required_on` if useful.
-3. Commit `tracker.md` to your repo.
-4. Clear the DB column: `updateProjectPrompt({ projectId, prompt: null })`.
-
-The `projectPrompt` column will be removed in v5.0.0. `tracker.md` is the documented path.
 
 ## planCard — locked-output card planning
 

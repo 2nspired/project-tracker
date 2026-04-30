@@ -107,9 +107,9 @@ export function buildPlanProtocol(opts: {
 	cardRef: string;
 	columnName: string;
 	columnPrompt: string | undefined;
-	projectPrompt: string | undefined;
+	projectOrientation: string | undefined;
 }): string {
-	const { cardRef, columnName, columnPrompt, projectPrompt } = opts;
+	const { cardRef, columnName, columnPrompt, projectOrientation } = opts;
 	const parts: string[] = [
 		`# Planning ${cardRef}`,
 		``,
@@ -152,8 +152,8 @@ export function buildPlanProtocol(opts: {
 		);
 	}
 
-	if (projectPrompt) {
-		parts.push(`## Project orientation`, ``, projectPrompt, ``);
+	if (projectOrientation) {
+		parts.push(`## Project orientation`, ``, projectOrientation, ``);
 	}
 
 	return parts.join("\n").trimEnd();
@@ -243,7 +243,7 @@ registerExtendedTool("planCard", {
 					cardRef: `#${cardNumber}`,
 					columnName,
 					columnPrompt,
-					projectPrompt:
+					projectOrientation:
 						policy?.prompt && policy.prompt.trim().length > 0 ? policy.prompt : undefined,
 				});
 

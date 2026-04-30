@@ -19,40 +19,18 @@ describe("loadTrackerPolicy", () => {
 		await rm(dir, { recursive: true, force: true });
 	});
 
-	it("returns policy: null with deprecation warning when tracker.md is absent but projectPrompt has content", async () => {
-		const result = await loadTrackerPolicy({
-			repoPath: dir,
-			projectPrompt: "stale db value",
-		});
-		expect(result.policy).toBeNull();
-		expect(result.warnings).toHaveLength(1);
-		expect(result.warnings[0]).toMatch(/DEPRECATED.*v5\.0\.0/);
-		expect(result.warnings[0]).toMatch(/migrateProjectPrompt/);
-		expect(result.policy_error).toBeUndefined();
-	});
-
-	it("returns policy: null with no warning when tracker.md is absent and projectPrompt is null", async () => {
-		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+	it("returns policy: null with no warning when tracker.md is absent", async () => {
+		const result = await loadTrackerPolicy({ repoPath: dir });
 		expect(result.policy).toBeNull();
 		expect(result.warnings).toEqual([]);
 		expect(result.policy_error).toBeUndefined();
 	});
 
-	it("returns policy: null with no warning when repoPath is null and projectPrompt is null", async () => {
-		const result = await loadTrackerPolicy({ repoPath: null, projectPrompt: null });
+	it("returns policy: null with no warning when repoPath is null", async () => {
+		const result = await loadTrackerPolicy({ repoPath: null });
 		expect(result.policy).toBeNull();
 		expect(result.warnings).toEqual([]);
 		expect(result.policy_error).toBeUndefined();
-	});
-
-	it("returns policy: null with deprecation warning when repoPath is null but projectPrompt has content", async () => {
-		const result = await loadTrackerPolicy({
-			repoPath: null,
-			projectPrompt: "stale db value",
-		});
-		expect(result.policy).toBeNull();
-		expect(result.warnings).toHaveLength(1);
-		expect(result.warnings[0]).toMatch(/DEPRECATED.*v5\.0\.0/);
 	});
 
 	it("parses front matter and exposes body as prompt when file present", async () => {
@@ -76,7 +54,7 @@ Run briefMe first. Prefer pinned over scored.
 `;
 		await writeFile(join(dir, "tracker.md"), md, "utf8");
 
-		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		const result = await loadTrackerPolicy({ repoPath: dir });
 		const policy = result.policy;
 		if (!policy) throw new Error("expected policy to be present");
 		expect(policy.schema_version).toBe(1);
@@ -87,58 +65,6 @@ Run briefMe first. Prefer pinned over scored.
 		expect(policy.prompt).toContain("Run briefMe first");
 		expect(result.warnings).toEqual([]);
 		expect(result.policy_error).toBeUndefined();
-	});
-
-	it("emits deprecation warning when both tracker.md body and projectPrompt are populated", async () => {
-		const md = `---
-schema_version: 1
----
-
-Body content here.
-`;
-		await writeFile(join(dir, "tracker.md"), md, "utf8");
-
-		const result = await loadTrackerPolicy({
-			repoPath: dir,
-			projectPrompt: "old DB-stored project prompt",
-		});
-		expect(result.policy?.prompt).toBe("Body content here.");
-		expect(result.warnings).toHaveLength(1);
-		expect(result.warnings[0]).toMatch(/DEPRECATED.*v5\.0\.0/);
-		expect(result.warnings[0]).toMatch(/migrateProjectPrompt/);
-	});
-
-	it("emits deprecation warning when tracker.md body is empty but projectPrompt has content", async () => {
-		const md = `---
-schema_version: 1
----
-
-`;
-		await writeFile(join(dir, "tracker.md"), md, "utf8");
-
-		const result = await loadTrackerPolicy({
-			repoPath: dir,
-			projectPrompt: "still in DB",
-		});
-		expect(result.policy?.prompt).toBe("");
-		expect(result.warnings).toHaveLength(1);
-		expect(result.warnings[0]).toMatch(/DEPRECATED.*v5\.0\.0/);
-	});
-
-	it("does not warn when tracker.md is present and projectPrompt is null", async () => {
-		const md = `---
-schema_version: 1
----
-
-Body content here.
-`;
-		await writeFile(join(dir, "tracker.md"), md, "utf8");
-
-		const result = await loadTrackerPolicy({
-			repoPath: dir,
-			projectPrompt: null,
-		});
-		expect(result.warnings).toEqual([]);
 	});
 
 	it("returns policy_error with stage 'yaml' when YAML front matter is malformed", async () => {
@@ -152,7 +78,7 @@ Body.
 `;
 		await writeFile(join(dir, "tracker.md"), md, "utf8");
 
-		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		const result = await loadTrackerPolicy({ repoPath: dir });
 		expect(result.policy).toBeNull();
 		expect(result.warnings).toEqual([]);
 		expect(result.policy_error?.stage).toBe("yaml");
@@ -169,7 +95,7 @@ Body.
 `;
 		await writeFile(join(dir, "tracker.md"), md, "utf8");
 
-		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		const result = await loadTrackerPolicy({ repoPath: dir });
 		expect(result.policy).toBeNull();
 		expect(result.policy_error?.stage).toBe("schema");
 		expect(result.policy_error?.message).toMatch(/intent_required_on/);
@@ -185,7 +111,7 @@ columns:
 `;
 		await writeFile(join(dir, "tracker.md"), md, "utf8");
 
-		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		const result = await loadTrackerPolicy({ repoPath: dir });
 		expect(result.policy).toBeNull();
 		expect(result.policy_error?.stage).toBe("schema");
 		expect(result.policy_error?.message).toMatch(/prompt/);
@@ -200,7 +126,7 @@ Body.
 `;
 		await writeFile(join(dir, "tracker.md"), md, "utf8");
 
-		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		const result = await loadTrackerPolicy({ repoPath: dir });
 		expect(result.policy).toBeNull();
 		expect(result.policy_error?.stage).toBe("schema_version");
 		expect(result.policy_error?.message).toMatch(/schema_version 2 is not supported/);
@@ -216,7 +142,7 @@ Body.
 `;
 		await writeFile(join(dir, "tracker.md"), md, "utf8");
 
-		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		const result = await loadTrackerPolicy({ repoPath: dir });
 		expect(result.policy).toBeNull();
 		expect(result.policy_error?.stage).toBe("schema");
 		expect(result.policy_error?.message).toMatch(/mapping/);
@@ -225,7 +151,7 @@ Body.
 	it("treats a body-only file (no front matter) as the prompt with default schema_version", async () => {
 		await writeFile(join(dir, "tracker.md"), "Just a prose policy with no YAML.\n", "utf8");
 
-		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		const result = await loadTrackerPolicy({ repoPath: dir });
 		expect(result.policy?.prompt).toBe("Just a prose policy with no YAML.");
 		expect(result.policy?.schema_version).toBe(1);
 		expect(result.policy?.intent_required_on).toEqual([]);
@@ -242,7 +168,7 @@ Body content.
 `;
 		await writeFile(join(dir, "tracker.md"), md, "utf8");
 
-		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		const result = await loadTrackerPolicy({ repoPath: dir });
 		expect(result.policy?.prompt).toBe("Body content.");
 		expect(result.policy?.schema_version).toBe(1);
 		expect(result.policy_error).toBeUndefined();
