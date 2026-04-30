@@ -195,26 +195,10 @@ async function unregisteredRepoResponse(repoRoot: string) {
 	});
 }
 
-// Initialize extended tools (registers them in the catalog)
-import "./extended-tools.js";
-import "./tools/discovery-tools.js";
-import "./tools/relation-tools.js";
-import "./tools/session-tools.js";
-import "./tools/decision-tools.js";
-import "./tools/context-tools.js";
-import "./tools/plan-card.js";
-import "./tools/query-tools.js";
-import "./tools/git-tools.js";
-import "./tools/summary-tools.js";
-import "./tools/onboarding-tools.js";
-import "./tools/status-tools.js";
-import "./tools/fact-tools.js";
-import "./tools/claim-tools.js";
-import "./tools/knowledge-tools.js";
-import "./tools/instrumentation-tools.js";
-import "./tools/tag-tools.js";
-import "./tools/token-tools.js";
-import "./tools/doctor-tools.js";
+// Initialize extended tools (registers them in the catalog).
+// Single source of truth lives in register-all-tools.ts so the live MCP
+// server, the docs sync script, and the catalog generator stay in lockstep.
+import "./register-all-tools.js";
 
 import { LEGACY_BRAND_DEPRECATION, resolveServerBrand } from "./brand.js";
 

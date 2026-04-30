@@ -20,28 +20,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Populate the registry by importing every tool module. Order matches
-// src/mcp/server.ts so the generated catalog mirrors what the MCP server
-// actually exposes.
-import "../src/mcp/extended-tools.js";
-import "../src/mcp/tools/claim-tools.js";
-import "../src/mcp/tools/context-tools.js";
-import "../src/mcp/tools/decision-tools.js";
-import "../src/mcp/tools/discovery-tools.js";
-import "../src/mcp/tools/doctor-tools.js";
-import "../src/mcp/tools/fact-tools.js";
-import "../src/mcp/tools/git-tools.js";
-import "../src/mcp/tools/instrumentation-tools.js";
-import "../src/mcp/tools/knowledge-tools.js";
-import "../src/mcp/tools/onboarding-tools.js";
-import "../src/mcp/tools/plan-card.js";
-import "../src/mcp/tools/query-tools.js";
-import "../src/mcp/tools/relation-tools.js";
-import "../src/mcp/tools/session-tools.js";
-import "../src/mcp/tools/status-tools.js";
-import "../src/mcp/tools/summary-tools.js";
-import "../src/mcp/tools/tag-tools.js";
-import "../src/mcp/tools/token-tools.js";
+// Populate the registry — single source of truth for which modules exist.
+import "../src/mcp/register-all-tools.js";
 
 import { ESSENTIAL_TOOLS } from "../src/mcp/manifest.js";
 import { getAllExtendedTools, getToolCatalog } from "../src/mcp/tool-registry.js";
