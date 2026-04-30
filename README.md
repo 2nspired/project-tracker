@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs-site/src/assets/logo-readme.png" alt="Pigeon logo" width="96" />
+<img src="docs-site/public/og.png" alt="Pigeon — carry context between AI coding sessions" width="900" />
 
 # Pigeon
 

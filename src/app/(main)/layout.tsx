@@ -1,6 +1,6 @@
 "use client";
 
-import { Kanban } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CommandPalette } from "@/components/command-palette";
@@ -16,7 +16,22 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 			<header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
 				<div className="flex h-14 items-center gap-6 px-4">
 					<Link href="/" className="flex items-center gap-2 text-lg font-semibold">
-						<Kanban className="h-5 w-5 text-primary" />
+						<Image
+							src="/pigeon-dark.png"
+							alt=""
+							width={20}
+							height={20}
+							className="h-5 w-5 dark:hidden"
+							priority
+						/>
+						<Image
+							src="/pigeon-light.png"
+							alt=""
+							width={20}
+							height={20}
+							className="hidden h-5 w-5 dark:block"
+							priority
+						/>
 						Pigeon
 					</Link>
 					<nav className="flex flex-1 items-center gap-4 text-sm">
