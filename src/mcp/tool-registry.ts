@@ -96,11 +96,11 @@ type ToolDetail = ToolSummary & {
 	parameters: Record<string, ParamInfo>;
 };
 
-// biome-ignore lint: Zod internals require unsafe casts for schema introspection
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore-start lint/suspicious/noExplicitAny: Zod internals expose `_def` as Record<string, any> for runtime schema introspection; narrowing requires duplicating Zod's internal type machinery
 function getDef(schema: z.ZodTypeAny): Record<string, any> {
 	return schema._def as unknown as Record<string, any>;
 }
+// biome-ignore-end lint/suspicious/noExplicitAny: end Zod _def access scope
 
 function unwrapZod(schema: z.ZodTypeAny): z.ZodTypeAny {
 	const def = getDef(schema);

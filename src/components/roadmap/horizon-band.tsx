@@ -44,13 +44,11 @@ export function HorizonBand({
 	horizon,
 	milestones,
 	density,
-	boardId,
 	onCardClick,
 }: {
 	horizon: Horizon;
 	milestones: MilestoneGroup[];
 	density: DensityMode;
-	boardId: string;
 	onCardClick: (cardId: string) => void;
 }) {
 	const config = HORIZON_CONFIG[horizon];
@@ -101,7 +99,6 @@ export function HorizonBand({
 								milestone={milestone}
 								horizon={horizon}
 								density={density}
-								boardId={boardId}
 								onCardClick={onCardClick}
 							/>
 						))}

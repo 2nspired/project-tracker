@@ -72,8 +72,9 @@ function groupByMilestoneAndHorizon(
 		const key = card.milestone?.id ?? "__ungrouped__";
 		const name = card.milestone?.name ?? "Unplanned";
 
-		if (!map.has(key)) {
-			map.set(key, {
+		let group = map.get(key);
+		if (!group) {
+			group = {
 				id: card.milestone?.id ?? null,
 				name,
 				cards: [],
@@ -82,10 +83,10 @@ function groupByMilestoneAndHorizon(
 				primaryHorizon: "later",
 				targetDate:
 					(card.milestone as { targetDate?: Date | string | null } | undefined)?.targetDate ?? null,
-			});
+			};
+			map.set(key, group);
 		}
 
-		const group = map.get(key)!;
 		group.cards.push(card);
 		group.total++;
 		if (card.horizon === "done") group.done++;
@@ -326,14 +327,12 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 						horizon="now"
 						milestones={horizonGroups.now}
 						density={density}
-						boardId={board.id}
 						onCardClick={handleCardClick}
 					/>
 					<HorizonBand
 						horizon="later"
 						milestones={horizonGroups.later}
 						density={density}
-						boardId={board.id}
 						onCardClick={handleCardClick}
 					/>
 					{horizonGroups.done.length > 0 && (
@@ -341,7 +340,6 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 							horizon="done"
 							milestones={horizonGroups.done}
 							density={density}
-							boardId={board.id}
 							onCardClick={handleCardClick}
 						/>
 					)}

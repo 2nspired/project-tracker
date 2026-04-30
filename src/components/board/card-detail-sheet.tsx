@@ -76,14 +76,19 @@ type CardDetailSheetProps = {
 export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDetailSheetProps) {
 	const utils = api.useUtils();
 
-	const { data: card } = api.card.getById.useQuery({ id: cardId! }, { enabled: !!cardId });
+	// All cache reads/writes below use the same id. When cardId is null the
+	// sheet is closed and these never fire — but we narrow inside each
+	// callback rather than carrying `!` everywhere. The query is disabled
+	// when cardId is null so the sentinel "" is never actually requested.
+	const { data: card } = api.card.getById.useQuery({ id: cardId ?? "" }, { enabled: !!cardId });
 
 	const updateCard = api.card.update.useMutation({
-		onMutate: async ({ id, data }) => {
-			await utils.card.getById.cancel({ id: cardId! });
-			const previous = utils.card.getById.getData({ id: cardId! });
+		onMutate: async ({ data }) => {
+			if (!cardId) return;
+			await utils.card.getById.cancel({ id: cardId });
+			const previous = utils.card.getById.getData({ id: cardId });
 
-			utils.card.getById.setData({ id: cardId! }, (old) => {
+			utils.card.getById.setData({ id: cardId }, (old) => {
 				if (!old) return old;
 				// Build a cache-compatible patch: tags are stored as JSON strings in cache
 				const { tags, ...rest } = data;
@@ -97,13 +102,14 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 			return { previous };
 		},
 		onError: (error, _vars, context) => {
-			if (context?.previous) {
-				utils.card.getById.setData({ id: cardId! }, context.previous);
+			if (cardId && context?.previous) {
+				utils.card.getById.setData({ id: cardId }, context.previous);
 			}
 			toast.error(error.message);
 		},
 		onSettled: () => {
-			utils.card.getById.invalidate({ id: cardId! });
+			if (!cardId) return;
+			utils.card.getById.invalidate({ id: cardId });
 			utils.board.getFull.invalidate({ id: boardId });
 		},
 	});
@@ -119,7 +125,8 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 
 	const createChecklist = api.checklist.create.useMutation({
 		onSuccess: () => {
-			utils.card.getById.invalidate({ id: cardId! });
+			if (!cardId) return;
+			utils.card.getById.invalidate({ id: cardId });
 			utils.board.getFull.invalidate({ id: boardId });
 		},
 		onError: (error) => toast.error(error.message),
@@ -127,10 +134,11 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 
 	const updateChecklist = api.checklist.update.useMutation({
 		onMutate: async ({ id: checklistId, data }) => {
-			await utils.card.getById.cancel({ id: cardId! });
-			const previous = utils.card.getById.getData({ id: cardId! });
+			if (!cardId) return;
+			await utils.card.getById.cancel({ id: cardId });
+			const previous = utils.card.getById.getData({ id: cardId });
 
-			utils.card.getById.setData({ id: cardId! }, (old) => {
+			utils.card.getById.setData({ id: cardId }, (old) => {
 				if (!old) return old;
 				return {
 					...old,
@@ -143,26 +151,29 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				utils.card.getById.setData({ id: cardId! }, context.previous);
+			if (cardId && context?.previous) {
+				utils.card.getById.setData({ id: cardId }, context.previous);
 			}
 		},
 		onSettled: () => {
-			utils.card.getById.invalidate({ id: cardId! });
+			if (!cardId) return;
+			utils.card.getById.invalidate({ id: cardId });
 			utils.board.getFull.invalidate({ id: boardId });
 		},
 	});
 
 	const deleteChecklist = api.checklist.delete.useMutation({
 		onSuccess: () => {
-			utils.card.getById.invalidate({ id: cardId! });
+			if (!cardId) return;
+			utils.card.getById.invalidate({ id: cardId });
 			utils.board.getFull.invalidate({ id: boardId });
 		},
 	});
 
 	const createComment = api.comment.create.useMutation({
 		onSuccess: () => {
-			utils.card.getById.invalidate({ id: cardId! });
+			if (!cardId) return;
+			utils.card.getById.invalidate({ id: cardId });
 			utils.board.getFull.invalidate({ id: boardId });
 		},
 		onError: (error) => toast.error(error.message),

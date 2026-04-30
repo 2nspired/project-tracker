@@ -107,7 +107,7 @@ registerExtendedTool("recordTokenUsage", {
 registerExtendedTool("recordTokenUsageFromTranscript", {
 	category: "session",
 	description:
-		"Stream a Claude Code session transcript JSONL (plus any sibling sub-agent transcripts) and record per-model token usage. Idempotent on sessionId — re-running replaces rows. Designed for the Claude Code Stop hook (type: 'mcp_tool') with ${transcript_path}, ${session_id}, ${cwd} substitution. Returns soft warnings (NO_USAGE_FOUND, PROJECT_NOT_FOUND, TRANSCRIPT_NOT_FOUND) instead of erroring so the hook never blocks.",
+		"Stream a Claude Code session transcript JSONL (plus any sibling sub-agent transcripts) and record per-model token usage. Idempotent on sessionId — re-running replaces rows. Designed for the Claude Code Stop hook (type: 'mcp_tool'); accepts the hook's transcript_path / session_id / cwd substitution variables. Returns soft warnings (NO_USAGE_FOUND, PROJECT_NOT_FOUND, TRANSCRIPT_NOT_FOUND) instead of erroring so the hook never blocks.",
 	parameters: z.object({
 		transcriptPath: z.string().describe("Absolute path to the session JSONL transcript"),
 		sessionId: z

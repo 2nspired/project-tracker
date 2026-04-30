@@ -88,14 +88,17 @@ export default function DashboardPage() {
 			const horizon = getHorizon(card.column);
 			horizonCounts[horizon]++;
 
-			// Project stats
+			// Project stats — get-or-create so the local binding stays narrowed.
 			const pId = card.column.board.project.id;
 			const pName = card.column.board.project.name;
-			if (!projectStats.has(pId)) {
-				projectStats.set(pId, { name: pName, id: pId, done: 0, total: 0, milestones: [] });
-				projectMilestones.set(pId, new Map());
+			let ps = projectStats.get(pId);
+			let msMap = projectMilestones.get(pId);
+			if (!ps || !msMap) {
+				ps = { name: pName, id: pId, done: 0, total: 0, milestones: [] };
+				msMap = new Map();
+				projectStats.set(pId, ps);
+				projectMilestones.set(pId, msMap);
 			}
-			const ps = projectStats.get(pId)!;
 			ps.total++;
 			if (horizon === "done") ps.done++;
 
@@ -104,7 +107,6 @@ export default function DashboardPage() {
 
 			// Milestones per project
 			if (card.milestone) {
-				const msMap = projectMilestones.get(pId)!;
 				if (!msMap.has(card.milestone.id))
 					msMap.set(card.milestone.id, { name: card.milestone.name, cells: [] });
 				msMap.get(card.milestone.id)?.cells.push(horizon);
@@ -121,10 +123,13 @@ export default function DashboardPage() {
 			groups.get(pId)?.cards.push(card);
 		}
 
-		// Attach sorted milestones to each project
+		// Attach sorted milestones to each project. The msMap loop only ever
+		// fires for project IDs we registered above, so projectStats always has
+		// a hit — but bail safely on the impossible case rather than `!`-asserting.
 		const cellOrder = { done: 0, now: 1, later: 2 };
 		for (const [pId, msMap] of projectMilestones) {
-			const ps = projectStats.get(pId)!;
+			const ps = projectStats.get(pId);
+			if (!ps) continue;
 			ps.milestones = Array.from(msMap.values())
 				.filter((m) => m.cells.length > 1)
 				.map((m) => {
