@@ -594,7 +594,7 @@ export type SetupConfigPath = {
 	path: string;
 	/** True when the file exists and is readable JSON. */
 	exists: boolean;
-	/** True when a Stop hook targeting `recordTokenUsageFromTranscript` is present. */
+	/** True when a Stop hook invoking `scripts/stop-hook.sh` is present. */
 	hasHook: boolean;
 };
 
@@ -604,15 +604,26 @@ export type SetupDiagnostics = {
 	lastEventAt: Date | null;
 	/** Count of `Project` rows missing `repoPath` — these can't be resolved by `resolveProjectIdFromCwd` and silently drop their token data. */
 	projectsWithoutRepoPath: number;
+	/** Absolute path to this server's `scripts/stop-hook.sh` — paste verbatim into `command:` in the user's `settings.json`. */
+	recommendedHookCommand: string;
 };
 
 // Standard Claude Code config locations checked by the setup dialog.
-// Order matters: CLAUDE_CONFIG_DIR (Claude Code's documented override) is
-// honored first when set in the server process's environment. Then the two
-// canonical homedir locations: `~/.claude` (default) and `~/.claude-alt`
-// (the "alternate install" pattern used by users running side-by-side
-// configs). Anything else falls through to the dialog's "no config found"
-// state, which lets the user paste manually.
+//
+// CC 2.1.x reads hooks ONLY from `settings.json` files (user, project, and
+// project-local) — `.claude.json` is an internal state file and its `hooks`
+// key is silently ignored. This is the single most common cause of "the
+// hook is wired but no events ever land": the snippet went in the wrong
+// file. We scan the four locations CC actually reads:
+//
+//   1. `$CLAUDE_CONFIG_DIR/settings.json`   (env override, when set)
+//   2. `~/.claude/settings.json`             (user — default install)
+//   3. `~/.claude-alt/settings.json`         (user — side-by-side alt install)
+//   4. `<repo>/.claude/settings.json`        (project, shared/committed)
+//   5. `<repo>/.claude/settings.local.json`  (project, per-machine/gitignored)
+//
+// Anything else falls through to the "no config found" state, which lets
+// the user paste manually.
 //
 // Caveat for launchd-installed Pigeon: launchctl services don't inherit
 // shell env, so a CLAUDE_CONFIG_DIR set in ~/.zshrc won't be visible here
@@ -622,17 +633,32 @@ function resolveConfigCandidates(): string[] {
 	const home = homedir();
 	const candidates: string[] = [];
 	const envOverride = process.env.CLAUDE_CONFIG_DIR;
-	if (envOverride && envOverride.trim()) {
-		candidates.push(path.join(envOverride, ".claude.json"));
+	if (envOverride?.trim()) {
+		candidates.push(path.join(envOverride, "settings.json"));
 	}
-	candidates.push(path.join(home, ".claude", ".claude.json"));
-	candidates.push(path.join(home, ".claude-alt", ".claude.json"));
+	candidates.push(path.join(home, ".claude", "settings.json"));
+	candidates.push(path.join(home, ".claude-alt", "settings.json"));
+	candidates.push(path.resolve(".claude", "settings.json"));
+	candidates.push(path.resolve(".claude", "settings.local.json"));
 	// Dedupe in case env override resolves to one of the standards.
 	return Array.from(new Set(candidates));
 }
 
-// Loose typing: we walk the JSON without enforcing the full Claude Code config
-// schema. We only need `hooks.Stop[*].hooks[*].tool === "recordTokenUsageFromTranscript"`.
+// Absolute path to this server's stop-hook entrypoint. The script lives at
+// the project root and is portable (it `cd`s to its own grandparent before
+// invoking tsx). Returned in diagnostics so the setup dialog can render a
+// per-machine snippet — users paste verbatim instead of substituting a
+// placeholder.
+export function resolveRecommendedHookCommand(): string {
+	return path.resolve("scripts", "stop-hook.sh");
+}
+
+// Loose typing: we walk the JSON without enforcing the full Claude Code
+// config schema. We recognize a Stop hook of `type: "command"` whose
+// `command` ends in `/stop-hook.sh` — the entrypoint shipped at
+// `scripts/stop-hook.sh`. The legacy `type: "mcp_tool"` Stop hook is NOT
+// recognized: it silently no-ops in CC 2.1.x and showing it as
+// "configured" would mislead users into thinking tracking is wired.
 function configHasTokenHook(json: unknown): boolean {
 	if (!json || typeof json !== "object") return false;
 	const hooks = (json as { hooks?: { Stop?: unknown } }).hooks?.Stop;
@@ -641,11 +667,10 @@ function configHasTokenHook(json: unknown): boolean {
 		const inner = (stop as { hooks?: unknown }).hooks;
 		if (!Array.isArray(inner)) continue;
 		for (const h of inner) {
-			if (
-				h &&
-				typeof h === "object" &&
-				(h as { tool?: string }).tool === "recordTokenUsageFromTranscript"
-			) {
+			if (!h || typeof h !== "object") continue;
+			const entry = h as { type?: string; command?: string };
+			if (entry.type !== "command" || typeof entry.command !== "string") continue;
+			if (entry.command.endsWith("/stop-hook.sh") || entry.command.endsWith("\\stop-hook.sh")) {
 				return true;
 			}
 		}
@@ -683,6 +708,7 @@ async function getDiagnostics(): Promise<ServiceResult<SetupDiagnostics>> {
 				eventCount: total,
 				lastEventAt: latest?.recordedAt ?? null,
 				projectsWithoutRepoPath: missingRepoPath,
+				recommendedHookCommand: resolveRecommendedHookCommand(),
 			},
 		};
 	} catch (error) {
@@ -793,3 +819,8 @@ export const tokenUsageService = {
 	getPricing,
 	updatePricing,
 };
+
+/** Test seam: lets unit tests exercise the hook-detection logic without
+ * spinning up the DB-backed `getDiagnostics` path. Not part of the public
+ * service API. */
+export const __testing__ = { configHasTokenHook };

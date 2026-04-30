@@ -20,7 +20,11 @@ import {
 	SheetTrigger,
 } from "@/components/ui/sheet";
 import { formatRelative } from "@/lib/format-date";
-import { TOKEN_TRACKING_DOCS_URL, TOKEN_TRACKING_HOOK_SNIPPET } from "@/lib/token-tracking-docs";
+import {
+	buildTokenTrackingHookSnippet,
+	TOKEN_TRACKING_DOCS_URL,
+	TOKEN_TRACKING_HOOK_SCRIPT_PLACEHOLDER,
+} from "@/lib/token-tracking-docs";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 import type { RouterOutputs } from "@/trpc/react";
@@ -270,9 +274,12 @@ function SetupDialogBody({ enabled }: { enabled: boolean }) {
 function HookSnippetSection({ diagnostics }: { diagnostics: Diagnostics | undefined }) {
 	const [copied, setCopied] = useState(false);
 
+	const scriptPath = diagnostics?.recommendedHookCommand ?? TOKEN_TRACKING_HOOK_SCRIPT_PLACEHOLDER;
+	const snippet = buildTokenTrackingHookSnippet(scriptPath);
+
 	const onCopy = async () => {
 		try {
-			await navigator.clipboard.writeText(TOKEN_TRACKING_HOOK_SNIPPET);
+			await navigator.clipboard.writeText(snippet);
 			setCopied(true);
 			window.setTimeout(() => setCopied(false), 1500);
 		} catch {
@@ -291,7 +298,7 @@ function HookSnippetSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 					</span>
 					<span className="font-mono text-2xs text-muted-foreground/40">·</span>
 					<span className="truncate font-mono text-2xs text-muted-foreground/80">
-						{targetPath ? abbreviateHome(targetPath) : "your-claude-config.json"}
+						{targetPath ? abbreviateHome(targetPath) : "settings.json"}
 					</span>
 					<button
 						type="button"
@@ -312,7 +319,7 @@ function HookSnippetSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 					</button>
 				</div>
 				<pre className="overflow-x-auto whitespace-pre px-3 py-3 font-mono text-2xs leading-snug text-foreground/90">
-					{TOKEN_TRACKING_HOOK_SNIPPET}
+					{snippet}
 				</pre>
 			</div>
 			<p className="text-xs text-muted-foreground">
@@ -341,9 +348,13 @@ function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 		return (
 			<Section step="02" title="Where it goes">
 				<div className="rounded-md border border-dashed bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground">
-					No Claude Code config found at <InlineCode>~/.claude/.claude.json</InlineCode> or{" "}
-					<InlineCode>~/.claude-alt/.claude.json</InlineCode>. If you have one elsewhere, open it
-					and paste the snippet into its top-level <InlineCode>hooks</InlineCode> field.
+					No <InlineCode>settings.json</InlineCode> found at the standard Claude Code locations
+					(user-level <InlineCode>~/.claude/settings.json</InlineCode>, project-level{" "}
+					<InlineCode>.claude/settings.json</InlineCode>, or per-machine{" "}
+					<InlineCode>.claude/settings.local.json</InlineCode>). Create one of those and paste the
+					snippet into its top-level <InlineCode>hooks</InlineCode> field. If you want the hook only
+					on this machine, prefer <InlineCode>.claude/settings.local.json</InlineCode> — it's
+					gitignored.
 				</div>
 			</Section>
 		);
@@ -537,8 +548,9 @@ function VerifyMessage({
 					<li className="flex items-start gap-2">
 						<span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
 						<span>
-							Your Claude Code version may not support <InlineCode>type: "mcp_tool"</InlineCode>{" "}
-							hooks. Restart Claude Code after editing.
+							The script at <InlineCode>scripts/stop-hook.sh</InlineCode> is missing or not
+							executable. Run <InlineCode>chmod +x scripts/stop-hook.sh</InlineCode> from the repo
+							root.
 						</span>
 					</li>
 				</ul>
