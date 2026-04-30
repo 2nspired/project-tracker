@@ -1,0 +1,208 @@
+---
+title: tracker.md — your project's policy file
+description: A per-repo Markdown file that tells Pigeon how an agent should behave in your project. Hot-reloaded, git-versioned, reviewable.
+---
+
+import { Aside, FileTree, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
+
+Every project Pigeon connects to gets a `tracker.md` file at its repo root. It's the project's **policy contract** — a small Markdown file with YAML frontmatter that tells Pigeon how agents should behave when they're working on this project specifically.
+
+If the human can't see it and edit it in the surface where they'd naturally encounter it, the agent shouldn't trust it. `tracker.md` is that surface.
+
+## What goes in it
+
+A `tracker.md` is a single Markdown file with two parts:
+
+- **Frontmatter (YAML)** — structured policy: which write tools require an `intent`, per-column prompts the agent should respect when a card sits in that column.
+- **Body (Markdown)** — your project's general orientation prompt. The current phase, key constraints, what the agent should know to make good calls.
+
+```markdown
+---
+schema_version: 1
+project_slug: my-project
+intent_required_on:
+  - moveCard
+  - deleteCard
+columns:
+  In Progress:
+    prompt: |
+      Limit to 2-3 cards. Move here when you start writing code,
+      not when planning.
+  Review:
+    prompt: |
+      Code is written and needs human verification. Don't move
+      to Done without explicit approval in a comment.
+---
+
+# Project policy for my-project
+
+Current phase: shipping the v2 onboarding flow. Treat anything
+outside that as backlog unless it's blocking the release.
+
+Start every session with `briefMe`. Prefer `source: 'pinned'`
+work over `source: 'scored'`. End every session with `endSession`.
+```
+
+## Where it lives
+
+At the **repo root** of every connected project — alongside `package.json`, `CLAUDE.md`, `README.md`. Pigeon resolves it from `Project.repoPath`, which is set when you run `scripts/connect.sh` from inside the project (or call `registerRepo` from your agent).
+
+<FileTree>
+- your-project/
+  - **tracker.md**
+  - CLAUDE.md
+  - AGENTS.md
+  - package.json
+  - src/
+</FileTree>
+
+It's git-versioned. It rolls back like any other file. It diffs in pull requests. The version your agent sees is exactly the version on the branch you're working on.
+
+## How agents read it
+
+Pigeon's MCP tools call `loadTrackerPolicy(projectId)` whenever they need policy context. That's:
+
+- `briefMe` — surfaces the body prompt as part of session start
+- `getCardContext` — includes the relevant column prompt when you ask about a specific card
+- `planCard` — feeds both the body and the column prompt into the planning protocol so the plan respects project constraints
+- Every write tool in `intent_required_on` — checks the call has a non-empty `intent` and refuses if not
+
+The file is **hot-reloaded on every tool call**. Edit it, save, and the next agent call sees the change. No restart required.
+
+<Aside type="tip" title="The intent enforcement is per-tool">
+List only the tools that need it. `moveCard` is the most common — it makes board moves traceable in the activity feed. `deleteCard` is the next. You can leave the list empty if you don't want any enforcement.
+</Aside>
+
+## Writing a good `tracker.md`
+
+The best `tracker.md` files share three properties.
+
+### 1. Short
+
+If your file scrolls more than a screen, it's too long. The body is read in full at session start; long bodies inflate every conversation. Keep it to:
+
+- A one-line statement of the project's current focus
+- Two or three constraints the agent should default to
+- Any "rules of the house" specific to this project
+
+If you find yourself writing tutorials or rationale, that belongs in `AGENTS.md` or `docs/`. The `tracker.md` is for **runtime decisions**.
+
+### 2. About behavior, not context
+
+`tracker.md` answers: *what should the agent do, and not do, in this project?*
+
+It does **not** answer:
+
+- "How do I install this project?" → `README.md`
+- "What's the build command?" → `CLAUDE.md`
+- "Why did we choose Postgres?" → architectural decisions (`recordDecision`)
+- "What does this codebase look like?" → the codebase
+
+Crossing those lines makes `tracker.md` long, stale, and load-bearing for the wrong reasons.
+
+### 3. Phase-aware
+
+Projects move through phases. The constraints that mattered in week 1 are noise in week 8. Update the body when the project does:
+
+```markdown
+# Project policy
+
+Current phase: **post-launch stabilization (week 3 of 4)**.
+
+- Bug fixes only. No feature work without explicit go-ahead in a comment.
+- All `moveCard` to In Progress requires linking to the GitHub issue.
+- The reliability dashboard (link) is the source of truth for SLO regressions.
+```
+
+A future agent reads that and knows the right defaults without you re-explaining.
+
+## Per-column prompts
+
+The `columns.<name>.prompt` block lets you teach the agent how each column behaves in your workflow. The prompt is surfaced when the agent reads or writes a card in that column.
+
+<Tabs>
+  <TabItem label="Sprint workflow">
+
+```yaml
+columns:
+  In Progress:
+    prompt: WIP limit 2. Anything more is a smell — finish or unstick.
+  Review:
+    prompt: |
+      Don't merge without an approval comment from a human.
+      Auto-moves to Done when the linked PR merges.
+```
+
+  </TabItem>
+  <TabItem label="Research workflow">
+
+```yaml
+columns:
+  Investigating:
+    prompt: |
+      Time-box every spike to 2 hours. If you're not making
+      progress at the deadline, write up the dead-end and move
+      to Parking Lot.
+  Spike Done:
+    prompt: |
+      Every card here needs a comment summarizing what we learned.
+      Move to Backlog only after a follow-up card is created.
+```
+
+  </TabItem>
+  <TabItem label="Solo flow (minimal)">
+
+```yaml
+intent_required_on:
+  - moveCard
+columns: {}
+```
+
+The minimum viable `tracker.md`. Just enforces intent on moves, nothing else.
+
+  </TabItem>
+</Tabs>
+
+## Migration from `projectPrompt`
+
+Pigeon v4.x stored project policy as a `projectPrompt` DB column. v5.0 dropped that column and replaced it with `tracker.md`.
+
+If you're upgrading from v4.x:
+
+<Steps>
+
+1. **On v4.x, run `briefMe()` in any agent session.** If `_warnings[]` mentions `projectPrompt`, you have content that needs migrating.
+
+2. **For each project with content**, call:
+
+   ```
+   runTool('migrateProjectPrompt', { projectId: '<your project id>' })
+   ```
+
+   The tool writes a `tracker.md` to the project's `repoPath` containing whatever was in the column. Idempotent — refuses to overwrite an existing `tracker.md`.
+
+3. **Review the new file**, edit it for clarity, and commit it to your repo.
+
+4. **Then pull v5.0.** The column is dropped on `npm run db:push`. Anything still in the column when you pull is lost.
+
+</Steps>
+
+The full migration walkthrough lives in [`docs/MIGRATING-TO-PIGEON.md`](https://github.com/2nspired/pigeon/blob/main/docs/MIGRATING-TO-PIGEON.md).
+
+## Why this and not a database column?
+
+The v4 model stored project policy as a DB string (`Project.projectPrompt`). The thinking was "one less file to manage." In practice it had three problems:
+
+- **Not reviewable.** Edits happened invisibly, in the web UI or via an MCP tool call. No diff, no PR, no rollback.
+- **Not versioned with the code.** Branch out a feature; the policy didn't follow. Merge back; the policy might have drifted under you.
+- **Not visible.** A new contributor didn't know it existed. The agent appeared to have opinions out of nowhere.
+
+`tracker.md` solves all three by making the policy a normal file in your repo. The agent reads from disk; the human reads the same file; both see the same thing.
+
+The shared-surface principle: *if the human can't see it and correct it where they'd naturally encounter it, the agent shouldn't trust it.*
+
+## See also
+
+- [Plan a card](/plan-card/) — how `planCard` uses your `tracker.md` to inform structured plans
+- [The session loop](/workflow/) — where `briefMe` reads the body prompt from
+- [`docs/SURFACES.md`](https://github.com/2nspired/pigeon/blob/main/docs/SURFACES.md) — `tracker.md` vs `CLAUDE.md` vs `AGENTS.md` cheat sheet

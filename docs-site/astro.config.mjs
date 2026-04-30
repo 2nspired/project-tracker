@@ -32,18 +32,26 @@ export default defineConfig({
 			customCss: ["./src/styles/custom.css"],
 			sidebar: [
 				{
-					label: "Get started",
+					label: "Start here",
 					items: [
 						{ label: "What is Pigeon?", slug: "index" },
 						{ label: "Quickstart", slug: "quickstart" },
 					],
 				},
 				{
-					label: "How it works",
+					label: "Concepts",
+					items: [
+						{ label: "Mental model", slug: "concepts" },
+						{ label: "Design rationale", slug: "why" },
+					],
+				},
+				{
+					label: "How-to",
 					items: [
 						{ label: "The session loop", slug: "workflow" },
-						{ label: "Design rationale", slug: "why" },
-						{ label: "Anti-patterns", slug: "anti-patterns" },
+						{ label: "Plan a card", slug: "plan-card" },
+						{ label: "Write a tracker.md", slug: "tracker-md" },
+						{ label: "Avoid anti-patterns", slug: "anti-patterns" },
 					],
 				},
 				{

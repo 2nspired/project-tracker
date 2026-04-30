@@ -1,0 +1,119 @@
+---
+/**
+ * FeatureGrid — 4-up grid of "specifications" cards.
+ *
+ * Reads as a spec sheet rather than marketing benefits. Each item
+ * has a short numbered tag, a label, and a one-paragraph body. The
+ * grid uses subtle dividers (no card borders) so it composes with
+ * the drafting aesthetic.
+ */
+interface Item {
+	tag: string; // "01", "FS", etc.
+	title: string;
+	body: string;
+}
+
+interface Props {
+	items: Item[];
+}
+
+const { items } = Astro.props;
+---
+
+<ul class="features" role="list">
+	{
+		items.map((item) => (
+			<li class="features__item">
+				<span class="features__tag" aria-hidden="true">
+					{item.tag}
+				</span>
+				<h3 class="features__title">{item.title}</h3>
+				<p class="features__body">{item.body}</p>
+			</li>
+		))
+	}
+</ul>
+
+<style>
+	.features {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		border-top: 1px solid var(--sl-color-gray-5);
+	}
+
+	@media (min-width: 40rem) {
+		.features {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+
+	@media (min-width: 64rem) {
+		.features {
+			grid-template-columns: repeat(4, 1fr);
+		}
+	}
+
+	.features__item {
+		display: flex;
+		flex-direction: column;
+		gap: 0.55rem;
+		padding: var(--space-5) var(--space-4) var(--space-5) 0;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+		position: relative;
+	}
+
+	@media (min-width: 40rem) {
+		.features__item {
+			padding-left: var(--space-5);
+			border-left: 1px solid var(--sl-color-gray-5);
+		}
+		.features__item:nth-child(2n + 1) {
+			border-left: none;
+			padding-left: 0;
+		}
+	}
+
+	@media (min-width: 64rem) {
+		.features__item {
+			padding-left: var(--space-5);
+			border-left: 1px solid var(--sl-color-gray-5);
+			border-bottom: none;
+		}
+		.features__item:nth-child(2n + 1) {
+			border-left: 1px solid var(--sl-color-gray-5);
+			padding-left: var(--space-5);
+		}
+		.features__item:first-child {
+			border-left: none;
+			padding-left: 0;
+		}
+	}
+
+	.features__tag {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		font-weight: 500;
+		letter-spacing: 0.14em;
+		color: var(--sl-color-text-accent);
+	}
+
+	.features__title {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: 1.05rem;
+		font-weight: 600;
+		line-height: var(--lh-tight);
+		color: var(--sl-color-white);
+	}
+
+	.features__body {
+		margin: 0;
+		font-size: 0.92rem;
+		line-height: var(--lh-prose);
+		color: var(--sl-color-gray-2);
+	}
+</style>

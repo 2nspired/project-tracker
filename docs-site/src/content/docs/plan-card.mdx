@@ -1,0 +1,114 @@
+---
+title: Plan a card
+description: Structured planning that ends in four locked sections — Why now, Plan, Out of scope, Acceptance. Same shape every time.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Cards arrive in your backlog with a fuzzy idea ("rebuild the search experience") and have to leave with a plan a reviewer can verify. The space between is where most agent conversations get loose: scope creeps, justification drifts, the plan ends up living in the chat transcript rather than on the card.
+
+`planCard` is the structured fix. One MCP tool, one slash command, one consistent shape on every planned card.
+
+## What it does
+
+`planCard({ boardId, cardId })` returns four things:
+
+- **The card's full context** — title, current description, column, milestone, comments, checklist, related cards.
+- **The project's `tracker.md` policy** — the body prompt and the column-specific prompt for the card's current column.
+- **Investigation hints** — file paths, URLs, card refs, and code symbols extracted from the description so the agent has starting points instead of having to guess.
+- **A protocol** — a fixed prompt instructing the agent to investigate, draft a plan with four locked level-2 headings, propose in chat, and write to the card only after explicit user confirmation.
+
+Every planned card ends up with this exact shape:
+
+```markdown
+## Why now
+Why is this trigger now and not last quarter or next quarter?
+
+## Plan
+Concrete steps. Files, tools, integration points. Numbered when order matters.
+
+## Out of scope
+What was considered and deferred. Pre-empts scope creep in review.
+
+## Acceptance
+How a reviewer can verify it shipped. Bullet list of testable criteria.
+```
+
+That's the contract. Future agents and humans always find the plan in the same place.
+
+## How to use it
+
+<Steps>
+
+1. **Pick a card to plan.** Anything in Backlog (or already In Progress without a published plan) is fair game. Card refs accept `#42` or the UUID.
+
+2. **In Claude Code, run the slash command:**
+
+   ```
+   /plan-card 42
+   ```
+
+   In any other agent (Codex, Cursor, Windsurf), call the tool directly:
+
+   ```
+   runTool('planCard', { boardId: '<board uuid>', cardId: '#42' })
+   ```
+
+3. **The agent investigates.** It reads the description, follows the investigation hints (Read for files, WebFetch for URLs, `getCardContext` for related cards), and asks you anything it needs.
+
+4. **The agent drafts the plan in chat.** The four sections, populated with what it found. This is *draft*, not *publish* — nothing has touched the card yet.
+
+5. **You confirm or redirect.** Adjust scope, add context, push back on assumptions. The agent re-drafts as needed.
+
+6. **On explicit confirmation, the agent writes to the card.** `updateCard` replaces the description with the published plan; `moveCard` to In Progress (with an intent) if you're starting work this session.
+
+</Steps>
+
+The card description is the publishing surface. Chat is the drafting surface. Conflating them is the bug.
+
+## What "tracker.md policy" actually injects
+
+The protocol the agent follows includes whatever the project's `tracker.md` declares for the card's column. So if your `tracker.md` has:
+
+```yaml
+columns:
+  In Progress:
+    prompt: |
+      Limit to 2-3 cards. Move here when you start writing code,
+      not when planning.
+```
+
+…then planning a card that's currently In Progress brings that prompt into the planning context. The plan respects the column's intent.
+
+This is why `tracker.md` is load-bearing for planning — it's not just policy enforcement, it's the project's voice in the room.
+
+<Aside type="note" title="Why a fixed protocol">
+Asking an agent "plan this card" without scaffolding gets you a different shape every time. Some plans have rationale, some don't. Some have acceptance criteria, some end at "ship it." Reviewers can't compare cards because they're not in a comparable shape. Locking the four sections forces consistency without forcing content — what goes inside each heading is still all you.
+</Aside>
+
+## Refuse-on-exists
+
+If the card description already has the locked headers (`## Why now` + `## Plan` + `## Acceptance`), `planCard` refuses. It returns a warning with `code === "PLAN_EXISTS"` and omits the `protocol` field, so the agent can't accidentally overwrite a published plan.
+
+To force a re-plan: edit the description, remove the headers, then call `planCard` again.
+
+This is a deliberate guardrail. Plans live in the description for a reason — they're the published artifact. Treating them as overwrite-able by the next agent who happens to call `planCard` would defeat the contract.
+
+## When *not* to use it
+
+`planCard` is for non-trivial work — scope decisions, multi-file changes, anything where a reviewer benefits from seeing why-and-how before they read the diff.
+
+It's overkill for:
+
+- Small bug fixes you can describe in one sentence.
+- Trivial UI tweaks where the card title is the plan.
+- Spikes — use `Bug Report` or `Spike / Research` templates from `createCardFromTemplate` instead.
+- Cards you'll close in the same session you opened them.
+
+The four-section shape is structure for memory: when you, or someone else, opens this card three months from now, the structure is what makes it readable. If a card won't outlive the conversation, structure isn't paying for itself.
+
+## See also
+
+- [`tracker.md`](/tracker-md/) — the policy file that feeds the protocol
+- [The session loop](/workflow/) — where planning fits in the briefMe → work → endSession cycle
+- [MCP tools](/tools/) — full reference for `planCard`, `updateCard`, `moveCard`

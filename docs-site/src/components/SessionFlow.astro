@@ -1,0 +1,409 @@
+---
+/**
+ * SessionFlow — annotated walkthrough of the four moves.
+ *
+ * Where SessionLoop (landing page) is the abstract metaphor — packet
+ * flies between two stations — SessionFlow is the concrete drilldown:
+ * four stages laid out left-to-right, each showing what payload moves
+ * through it. Mono captions, signature crosshairs, station numbering.
+ *
+ * Designed to feel like a process diagram from a printed engineering
+ * manual: numbered steps, registration marks, no decorative bloat.
+ *
+ * Pure markup + CSS. No motion (the landing page handles that role).
+ * prefers-reduced-motion compliant by construction.
+ */
+
+const steps = [
+	{
+		index: "01",
+		title: "briefMe",
+		role: "READ",
+		caption: "session start",
+		summary: "One call. Returns the previous handoff plus a diff of what changed since. ~300–500 tokens.",
+		payload: [
+			{ k: "handoff.summary", v: "structured" },
+			{ k: "diff.cardsMoved", v: "since last" },
+			{ k: "topWork", v: "3 candidates" },
+			{ k: "blockers", v: "open count" },
+			{ k: "pulse", v: "1-line" },
+		],
+	},
+	{
+		index: "02",
+		title: "Work",
+		role: "WRITE",
+		caption: "during the session",
+		summary: "Agent moves cards, updates fields, comments — every write carries an `intent` so the activity feed is readable.",
+		payload: [
+			{ k: "moveCard", v: "intent: …" },
+			{ k: "updateCard", v: "intent: …" },
+			{ k: "addComment", v: "free-form" },
+			{ k: "planCard", v: "structured" },
+		],
+	},
+	{
+		index: "03",
+		title: "endSession",
+		role: "PERSIST",
+		caption: "session end",
+		summary: "One call. Writes the next handoff, links any new commits via `syncGitActivity`, returns a resume prompt.",
+		payload: [
+			{ k: "summary", v: "1 paragraph" },
+			{ k: "workingOn", v: "string[]" },
+			{ k: "findings", v: "string[]" },
+			{ k: "nextSteps", v: "string[]" },
+			{ k: "blockers", v: "string[]" },
+		],
+	},
+	{
+		index: "04",
+		title: "Resume",
+		role: "FORWARD",
+		caption: "next session",
+		summary: "Paste the resume prompt into a fresh chat. The next agent calls briefMe and reads exactly what you just wrote.",
+		payload: [
+			{ k: "boardId", v: "uuid" },
+			{ k: "lastHandoff", v: "ref" },
+			{ k: "directive", v: "→ briefMe" },
+		],
+	},
+];
+---
+
+<figure
+	class="session-flow"
+	role="figure"
+	aria-labelledby="session-flow-title"
+	aria-describedby="session-flow-desc"
+>
+	<figcaption class="session-flow__caption">
+		<span id="session-flow-title" class="session-flow__title">
+			<span class="session-flow__eyebrow">FIG.02</span>
+			The four moves, in order
+		</span>
+		<span id="session-flow-desc" class="session-flow__desc">
+			Each call carries a specific payload. Get the four right, and the loop closes.
+		</span>
+	</figcaption>
+
+	<ol class="session-flow__rail">
+		{
+			steps.map((step, i) => (
+				<li class="session-flow__step">
+					<div class="session-flow__step-head">
+						<span class="session-flow__num">{step.index}</span>
+						<span class="session-flow__role">{step.role}</span>
+					</div>
+					<h3 class="session-flow__step-title">
+						<code>{step.title}</code>
+					</h3>
+					<p class="session-flow__step-caption">{step.caption}</p>
+					<p class="session-flow__step-summary">{step.summary}</p>
+					<dl class="session-flow__payload">
+						{step.payload.map(({ k, v }) => (
+							<div class="session-flow__payload-row">
+								<dt>{k}</dt>
+								<dd>{v}</dd>
+							</div>
+						))}
+					</dl>
+					{i < steps.length - 1 && (
+						<svg
+							class="session-flow__arrow"
+							viewBox="0 0 32 16"
+							role="presentation"
+							aria-hidden="true"
+						>
+							<line
+								x1="0"
+								y1="8"
+								x2="26"
+								y2="8"
+								stroke="currentColor"
+								stroke-width="1.25"
+								stroke-dasharray="2 3"
+							/>
+							<path
+								d="M 22 4 L 30 8 L 22 12"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.25"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+						</svg>
+					)}
+				</li>
+			))
+		}
+	</ol>
+
+	<svg
+		class="session-flow__loopback"
+		viewBox="0 0 800 60"
+		preserveAspectRatio="xMidYMid meet"
+		role="presentation"
+		aria-hidden="true"
+	>
+		<path
+			d="M 760 8 Q 800 8 800 30 Q 800 52 760 52 L 40 52 Q 0 52 0 30 Q 0 8 40 8"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1"
+			stroke-dasharray="2 4"
+			opacity="0.5"
+		></path>
+		<path
+			d="M 48 4 L 40 8 L 48 12"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			opacity="0.7"
+		></path>
+		<text
+			x="400"
+			y="35"
+			text-anchor="middle"
+			fill="currentColor"
+			class="session-flow__loop-label"
+		>
+			loops back
+		</text>
+	</svg>
+</figure>
+
+<style>
+	.session-flow {
+		--flow-fg: var(--sl-color-gray-2);
+		--flow-fg-strong: var(--sl-color-white);
+		--flow-rule: var(--sl-color-gray-5);
+		--flow-rule-strong: var(--sl-color-gray-4);
+		--flow-accent: var(--sl-color-text-accent);
+		--flow-bg: var(--sl-color-bg);
+		--flow-step-bg: var(--sl-color-bg-nav);
+
+		display: grid;
+		gap: 1.25rem;
+		margin: 1.5rem 0 2rem;
+		color: var(--flow-fg);
+	}
+
+	.session-flow__caption {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		max-width: 64ch;
+	}
+
+	.session-flow__eyebrow {
+		display: inline-block;
+		margin-right: 0.6rem;
+		padding: 0.05rem 0.4rem;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.12em;
+		color: var(--flow-accent);
+		border: 1px solid color-mix(in oklab, var(--flow-accent) 45%, transparent);
+		border-radius: 2px;
+		vertical-align: middle;
+	}
+
+	.session-flow__title {
+		font-family: var(--font-sans);
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: var(--flow-fg-strong);
+		line-height: 1.25;
+		letter-spacing: -0.01em;
+	}
+
+	.session-flow__desc {
+		font-size: 0.95rem;
+		line-height: 1.55;
+		color: var(--flow-fg);
+	}
+
+	/* ===== Rail ===== */
+
+	.session-flow__rail {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 0;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		align-items: stretch;
+	}
+
+	.session-flow__step {
+		position: relative;
+		padding: 1rem 1.1rem 1.1rem;
+		background: var(--flow-step-bg);
+		border: 1px solid var(--flow-rule);
+		border-radius: 4px;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.session-flow__step + .session-flow__step {
+		margin-left: 1.5rem;
+	}
+
+	.session-flow__step-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.5rem;
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		letter-spacing: 0.12em;
+	}
+
+	.session-flow__num {
+		color: var(--flow-accent);
+		font-weight: 600;
+	}
+
+	.session-flow__role {
+		color: var(--flow-fg);
+		font-size: 0.58rem;
+		text-transform: uppercase;
+		padding: 0 0.3rem;
+		border: 1px solid currentColor;
+		border-radius: 2px;
+		opacity: 0.85;
+	}
+
+	.session-flow__step-title {
+		margin: 0;
+		font-size: 1.05rem;
+		font-weight: 600;
+		color: var(--flow-fg-strong);
+		line-height: 1.2;
+	}
+
+	.session-flow__step-title code {
+		font-family: var(--font-mono);
+		font-size: inherit;
+		padding: 0;
+		background: transparent;
+	}
+
+	.session-flow__step-caption {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--flow-fg);
+		opacity: 0.7;
+	}
+
+	.session-flow__step-summary {
+		margin: 0.15rem 0 0.4rem;
+		font-size: 0.86rem;
+		line-height: 1.5;
+		color: var(--flow-fg);
+	}
+
+	/* ===== Payload table ===== */
+
+	.session-flow__payload {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0;
+		margin: 0;
+		padding-top: 0.4rem;
+		border-top: 1px dashed var(--flow-rule);
+	}
+
+	.session-flow__payload-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+		gap: 0.5rem;
+		padding: 0.18rem 0;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		line-height: 1.4;
+	}
+
+	.session-flow__payload-row + .session-flow__payload-row {
+		border-top: 1px solid color-mix(in oklab, var(--flow-rule) 55%, transparent);
+	}
+
+	.session-flow__payload-row dt {
+		color: var(--flow-fg-strong);
+		margin: 0;
+		font-weight: 500;
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.session-flow__payload-row dd {
+		color: var(--flow-fg);
+		margin: 0;
+		text-align: right;
+		min-width: 0;
+		opacity: 0.78;
+		overflow-wrap: anywhere;
+	}
+
+	/* ===== Connecting arrows ===== */
+
+	.session-flow__arrow {
+		position: absolute;
+		top: 50%;
+		right: -1.4rem;
+		width: 1.5rem;
+		height: 1rem;
+		color: var(--flow-accent);
+		transform: translateY(-50%);
+		pointer-events: none;
+	}
+
+	/* ===== Loop-back rail ===== */
+
+	.session-flow__loopback {
+		width: 100%;
+		height: 3.25rem;
+		color: var(--flow-rule-strong);
+		margin-top: -0.25rem;
+	}
+
+	.session-flow__loop-label {
+		font-family: var(--font-mono);
+		font-size: 11px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		opacity: 0.7;
+	}
+
+	/* ===== Responsive ===== */
+
+	@media (max-width: 60rem) {
+		.session-flow__rail {
+			grid-template-columns: 1fr;
+			gap: 1.5rem;
+		}
+
+		.session-flow__step + .session-flow__step {
+			margin-left: 0;
+		}
+
+		.session-flow__arrow {
+			top: auto;
+			right: auto;
+			bottom: -1.25rem;
+			left: 50%;
+			transform: translateX(-50%) rotate(90deg);
+		}
+
+		.session-flow__loopback {
+			display: none;
+		}
+	}
+</style>

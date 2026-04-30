@@ -1,0 +1,603 @@
+---
+/**
+ * SessionLoop — animated "transit" diagram of the Pigeon session loop.
+ *
+ * Conceptually: agent A finishes a session, hands a packet to Pigeon
+ * (the homing carrier), the packet flies along the wire, the next agent
+ * catches it via briefMe and is in-context. Pure CSS animation; no JS.
+ *
+ * Visually: aerospace-drafting station diagram. Two anchored "stations"
+ * (Session N, Session N+1) on a baseline, with a packet glyph traveling
+ * the wire between them. Tick marks on the baseline mark the protocol
+ * checkpoints (endSession, in-flight, briefMe).
+ *
+ * Accessible: the figure has a caption and ariadescribed-by; the animated
+ * decoration is hidden from AT (aria-hidden). prefers-reduced-motion
+ * pauses the packet at midpoint.
+ */
+---
+
+<figure
+	class="session-loop"
+	role="figure"
+	aria-labelledby="session-loop-title"
+	aria-describedby="session-loop-desc"
+>
+	<figcaption class="session-loop__caption">
+		<span id="session-loop-title" class="session-loop__title">
+			<span class="session-loop__eyebrow">FIG.01</span>
+			The session loop
+		</span>
+		<span id="session-loop-desc" class="session-loop__desc">
+			Context released at <code>endSession</code>, carried in flight,
+			recovered at <code>briefMe</code>. The next agent starts in-context.
+		</span>
+	</figcaption>
+
+	<div class="session-loop__stage" aria-hidden="true">
+		{/* Drafting baseline + tick marks (SVG, theme-aware via currentColor) */}
+		<svg
+			class="session-loop__baseline"
+			viewBox="0 0 800 220"
+			preserveAspectRatio="xMidYMid slice"
+			role="presentation"
+		>
+			<defs>
+				<pattern
+					id="session-loop-grid"
+					x="0"
+					y="0"
+					width="20"
+					height="20"
+					patternUnits="userSpaceOnUse"
+				>
+					<path
+						d="M 20 0 L 0 0 0 20"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="0.5"
+						opacity="0.18"
+					></path>
+				</pattern>
+				<marker
+					id="session-loop-arrow"
+					viewBox="0 0 10 10"
+					refX="9"
+					refY="5"
+					markerWidth="6"
+					markerHeight="6"
+					orient="auto-start-reverse"
+				>
+					<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+				</marker>
+			</defs>
+
+			{/* grid substrate */}
+			<rect width="800" height="220" fill="url(#session-loop-grid)"></rect>
+
+			{/* baseline */}
+			<line
+				x1="60"
+				y1="130"
+				x2="740"
+				y2="130"
+				stroke="currentColor"
+				stroke-width="1"
+				opacity="0.55"
+			></line>
+
+			{/* registration ticks at 25/50/75% — center tick longer to anchor the lower 'in flight' label */}
+			<g opacity="0.45">
+				<line
+					x1="230"
+					y1="124"
+					x2="230"
+					y2="136"
+					stroke="currentColor"
+					stroke-width="1"></line>
+				<line
+					x1="400"
+					y1="124"
+					x2="400"
+					y2="178"
+					stroke="currentColor"
+					stroke-width="1"
+					stroke-dasharray="2 3"></line>
+				<line
+					x1="570"
+					y1="124"
+					x2="570"
+					y2="136"
+					stroke="currentColor"
+					stroke-width="1"></line>
+			</g>
+
+			{/* tick labels — endSession/briefMe sit just below the baseline; 'in flight' drops lower so the packet glyph never overlaps it */}
+			<g class="session-loop__ticks">
+				<text x="230" y="156" text-anchor="middle">endSession</text>
+				<text x="400" y="194" text-anchor="middle">in flight</text>
+				<text x="570" y="156" text-anchor="middle">briefMe</text>
+			</g>
+
+			{/* corner crosshairs (signature mark) */}
+			<g class="session-loop__crosshair" opacity="0.5">
+				<path d="M 12 12 H 22 M 12 12 V 22" stroke="currentColor" stroke-width="1"></path>
+				<path d="M 788 12 H 778 M 788 12 V 22" stroke="currentColor" stroke-width="1"></path>
+				<path d="M 12 208 H 22 M 12 208 V 198" stroke="currentColor" stroke-width="1"></path>
+				<path d="M 788 208 H 778 M 788 208 V 198" stroke="currentColor" stroke-width="1"></path>
+			</g>
+		</svg>
+
+		{/* Station A — outgoing session */}
+		<div class="session-loop__station session-loop__station--a">
+			<div class="session-loop__station-meta">
+				<span class="session-loop__id">SESSION&nbsp;N</span>
+				<span class="session-loop__state session-loop__state--closing">closing</span>
+			</div>
+			<div class="session-loop__station-body">
+				<span class="session-loop__role">agent</span>
+				<span class="session-loop__divider"></span>
+				<span class="session-loop__action">
+					<code>endSession</code>
+				</span>
+			</div>
+		</div>
+
+		{/* Station B — incoming session */}
+		<div class="session-loop__station session-loop__station--b">
+			<div class="session-loop__station-meta">
+				<span class="session-loop__id">SESSION&nbsp;N+1</span>
+				<span class="session-loop__state session-loop__state--opening">opening</span>
+			</div>
+			<div class="session-loop__station-body">
+				<span class="session-loop__role">agent</span>
+				<span class="session-loop__divider"></span>
+				<span class="session-loop__action">
+					<code>briefMe</code>
+				</span>
+			</div>
+		</div>
+
+		{/* Wire — drawn separately so the packet glyph rides on top of it */}
+		<div class="session-loop__wire" aria-hidden="true">
+			<svg viewBox="0 0 680 24" preserveAspectRatio="none" role="presentation">
+				<line
+					x1="0"
+					y1="12"
+					x2="680"
+					y2="12"
+					stroke="currentColor"
+					stroke-width="1.5"
+					stroke-dasharray="2 4"
+					opacity="0.7"></line>
+			</svg>
+
+			{/* Packet — the "homing" payload in flight */}
+			<div class="session-loop__packet">
+				<svg viewBox="0 0 56 32" role="presentation" aria-hidden="true">
+					{/* envelope body */}
+					<rect
+						x="1"
+						y="1"
+						width="42"
+						height="30"
+						rx="2"
+						fill="var(--sl-color-bg, #fff)"
+						stroke="currentColor"
+						stroke-width="1.25"></rect>
+					{/* envelope flap */}
+					<path
+						d="M 1 1 L 22 18 L 43 1"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.25"></path>
+					{/* speed lines / motion indication */}
+					<path
+						d="M 47 8 H 55 M 47 16 H 53 M 47 24 H 55"
+						stroke="currentColor"
+						stroke-width="1.25"
+						stroke-linecap="round"
+						opacity="0.6"></path>
+				</svg>
+				<span class="session-loop__packet-label">handoff.md</span>
+			</div>
+		</div>
+	</div>
+
+	{/* Legend (visible at all sizes; doubles as machine-readable list) */}
+	<ol class="session-loop__legend">
+		<li>
+			<span class="session-loop__num">01</span>
+			<span class="session-loop__legend-text">
+				<strong>endSession</strong> writes a handoff record from session N.
+			</span>
+		</li>
+		<li>
+			<span class="session-loop__num">02</span>
+			<span class="session-loop__legend-text">
+				The handoff persists on disk &mdash; a SQLite row. No network.
+			</span>
+		</li>
+		<li>
+			<span class="session-loop__num">03</span>
+			<span class="session-loop__legend-text">
+				<strong>briefMe</strong> hydrates session N+1 with the same context.
+			</span>
+		</li>
+	</ol>
+</figure>
+
+<style>
+	.session-loop {
+		--loop-fg: var(--sl-color-gray-2);
+		--loop-fg-strong: var(--sl-color-white);
+		--loop-rule: var(--sl-color-gray-5);
+		--loop-rule-strong: var(--sl-color-gray-4);
+		--loop-accent: var(--sl-color-text-accent);
+		--loop-bg: var(--sl-color-bg);
+		--loop-station-bg: var(--sl-color-bg-nav);
+
+		display: grid;
+		gap: var(--space-5);
+		margin: 0;
+		color: var(--loop-fg);
+	}
+
+	.session-loop__caption {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		max-width: 64ch;
+	}
+
+	.session-loop__eyebrow {
+		display: inline-block;
+		margin-right: 0.6rem;
+		padding: 0.05rem 0.4rem;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.12em;
+		color: var(--loop-accent);
+		border: 1px solid color-mix(in oklab, var(--loop-accent) 45%, transparent);
+		border-radius: 2px;
+		vertical-align: middle;
+	}
+
+	.session-loop__title {
+		font-family: var(--font-sans);
+		font-size: var(--text-section);
+		font-weight: 600;
+		color: var(--loop-fg-strong);
+		line-height: var(--lh-tight);
+		letter-spacing: -0.01em;
+	}
+
+	.session-loop__desc {
+		font-size: var(--text-body);
+		line-height: var(--lh-prose);
+		color: var(--loop-fg);
+	}
+
+	.session-loop__desc code {
+		font-family: var(--font-mono);
+		font-size: 0.92em;
+		padding: 0.05em 0.3em;
+		background: var(--sl-color-bg-inline-code);
+		border-radius: 3px;
+	}
+
+	/* ===== Stage ===== */
+
+	.session-loop__stage {
+		position: relative;
+		padding: 1.25rem;
+		min-height: 14rem;
+		border: 1px solid var(--loop-rule);
+		border-radius: 6px;
+		background: var(--loop-bg);
+		color: var(--loop-fg);
+		overflow: hidden;
+		isolation: isolate;
+	}
+
+	.session-loop__baseline {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		color: var(--loop-rule-strong);
+	}
+
+	.session-loop__ticks text {
+		font-family: var(--font-mono);
+		font-size: 11px;
+		fill: var(--loop-fg);
+		letter-spacing: 0.04em;
+		opacity: 0.85;
+	}
+
+	/* ===== Stations ===== */
+
+	.session-loop__station {
+		position: absolute;
+		top: 50%;
+		transform: translateY(-50%);
+		display: flex;
+		flex-direction: column;
+		gap: 0.45rem;
+		min-width: 10.5rem;
+		padding: 0.7rem 0.85rem;
+		background: var(--loop-station-bg);
+		border: 1px solid var(--loop-rule-strong);
+		border-radius: 4px;
+		box-shadow:
+			0 0 0 4px var(--loop-bg),
+			0 1px 0 0 color-mix(in oklab, var(--loop-rule-strong) 60%, transparent);
+		z-index: 1;
+	}
+
+	.session-loop__station--a {
+		left: 1rem;
+	}
+
+	.session-loop__station--b {
+		right: 1rem;
+		text-align: right;
+	}
+
+	.session-loop__station-meta {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 0.5rem;
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		letter-spacing: 0.12em;
+	}
+
+	.session-loop__id {
+		color: var(--loop-fg-strong);
+	}
+
+	.session-loop__state {
+		padding: 0 0.3rem;
+		font-size: 0.58rem;
+		text-transform: uppercase;
+		border: 1px solid currentColor;
+		border-radius: 2px;
+	}
+
+	.session-loop__state--closing {
+		color: oklch(0.7 0.16 35);
+	}
+
+	.session-loop__state--opening {
+		color: oklch(0.72 0.16 155);
+	}
+
+	.session-loop__station-body {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		font-size: 0.85rem;
+	}
+
+	.session-loop__station--b .session-loop__station-body {
+		justify-content: flex-end;
+	}
+
+	.session-loop__role {
+		font-family: var(--font-sans);
+		color: var(--loop-fg);
+	}
+
+	.session-loop__divider {
+		width: 0.8rem;
+		height: 1px;
+		background: var(--loop-rule);
+	}
+
+	.session-loop__action code {
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+		color: var(--loop-fg-strong);
+		font-weight: 500;
+	}
+
+	/* ===== Wire + packet ===== */
+
+	.session-loop__wire {
+		position: absolute;
+		top: 50%;
+		left: 13rem;
+		right: 13rem;
+		transform: translateY(-50%);
+		height: 24px;
+		color: var(--loop-accent);
+	}
+
+	.session-loop__wire svg {
+		width: 100%;
+		height: 100%;
+		display: block;
+	}
+
+	.session-loop__packet {
+		position: absolute;
+		top: 50%;
+		left: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.25rem;
+		transform: translate(-50%, -50%);
+		color: var(--loop-accent);
+		animation: session-loop-fly 6.5s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+		filter: drop-shadow(0 1px 0 var(--loop-bg));
+	}
+
+	.session-loop__packet svg {
+		width: 36px;
+		height: 22px;
+		display: block;
+	}
+
+	.session-loop__packet-label {
+		font-family: var(--font-mono);
+		font-size: 0.6rem;
+		letter-spacing: 0.06em;
+		color: var(--loop-accent);
+		opacity: 0.85;
+	}
+
+	@keyframes session-loop-fly {
+		0% {
+			left: 0%;
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(0.92);
+		}
+		8% {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1);
+		}
+		46% {
+			left: 50%;
+			opacity: 1;
+		}
+		54% {
+			left: 50%;
+			opacity: 1;
+		}
+		92% {
+			left: 100%;
+			opacity: 1;
+		}
+		100% {
+			left: 100%;
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(0.92);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.session-loop__packet {
+			animation: none;
+			left: 50%;
+		}
+	}
+
+	/* ===== Legend ===== */
+
+	.session-loop__legend {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 1rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		counter-reset: legend;
+	}
+
+	.session-loop__legend li {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.65rem;
+		padding-top: 0.5rem;
+		border-top: 1px solid var(--loop-rule);
+	}
+
+	.session-loop__num {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		color: var(--loop-accent);
+		padding-top: 0.05rem;
+	}
+
+	.session-loop__legend-text {
+		font-size: 0.86rem;
+		line-height: var(--lh-prose);
+	}
+
+	.session-loop__legend-text strong {
+		color: var(--loop-fg-strong);
+		font-family: var(--font-mono);
+		font-weight: 500;
+	}
+
+	/* ===== Responsive ===== */
+
+	@media (max-width: 52rem) {
+		.session-loop__stage {
+			min-height: 22rem;
+			padding: 1rem 0.75rem;
+		}
+
+		.session-loop__baseline {
+			display: none;
+		}
+
+		.session-loop__station {
+			position: static;
+			transform: none;
+			width: 100%;
+			text-align: left;
+		}
+
+		.session-loop__station--b {
+			text-align: left;
+			margin-top: 1rem;
+		}
+
+		.session-loop__station--b .session-loop__station-body {
+			justify-content: flex-start;
+		}
+
+		.session-loop__wire {
+			position: relative;
+			top: auto;
+			left: auto;
+			right: auto;
+			height: 80px;
+			width: 100%;
+			transform: none;
+			margin: 0.5rem 0;
+		}
+
+		.session-loop__wire svg {
+			display: none;
+		}
+
+		.session-loop__packet {
+			position: relative;
+			left: 50%;
+			top: 50%;
+			animation: session-loop-fly-vertical 6.5s cubic-bezier(0.6, 0, 0.4, 1)
+				infinite;
+		}
+
+		@keyframes session-loop-fly-vertical {
+			0% {
+				top: 0%;
+				opacity: 0;
+			}
+			8% {
+				opacity: 1;
+			}
+			92% {
+				top: 100%;
+				opacity: 1;
+			}
+			100% {
+				top: 100%;
+				opacity: 0;
+			}
+		}
+
+		.session-loop__legend {
+			grid-template-columns: 1fr;
+			gap: 0.75rem;
+		}
+	}
+</style>

@@ -1,0 +1,320 @@
+---
+/**
+ * Hero — composable hero block for landing-style pages.
+ *
+ * Layout: asymmetric two-column on desktop. Left column is text
+ * (eyebrow / title / sub / CTAs / status strip). Right column is a
+ * named slot ("aside") — typically the SessionLoop diagram.
+ *
+ * On narrow viewports collapses to single column with the aside
+ * appearing below the copy. The eyebrow + status strip carry the
+ * "operator-grade" identity (mono numerals, registration tick).
+ */
+interface Action {
+	text: string;
+	href: string;
+	variant?: "primary" | "secondary";
+	hint?: string;
+}
+
+interface Props {
+	eyebrow?: string;
+	titleHtml: string; // allows <em>…</em> emphasis spans
+	tagline: string;
+	actions: Action[];
+	statusItems?: Array<{ label: string; value: string }>;
+}
+
+const {
+	eyebrow = "Pigeon // v5",
+	titleHtml,
+	tagline,
+	actions,
+	statusItems = [],
+} = Astro.props;
+---
+
+<section class="hero" aria-labelledby="hero-title">
+	<div class="hero__copy">
+		<p class="hero__eyebrow">
+			<span class="hero__tick" aria-hidden="true"></span>
+			{eyebrow}
+		</p>
+
+		<h1 id="hero-title" class="hero__title" set:html={titleHtml} />
+
+		<p class="hero__tagline">{tagline}</p>
+
+		<ul class="hero__actions" role="list">
+			{
+				actions.map((a) => (
+					<li>
+						<a
+							href={a.href}
+							class:list={[
+								"hero__cta",
+								`hero__cta--${a.variant ?? "secondary"}`,
+							]}
+						>
+							<span class="hero__cta-text">{a.text}</span>
+							{a.hint && (
+								<span class="hero__cta-hint" aria-hidden="true">
+									{a.hint}
+								</span>
+							)}
+							<svg
+								class="hero__cta-arrow"
+								viewBox="0 0 16 16"
+								aria-hidden="true"
+							>
+								<path
+									d="M3 8 H 13 M 9 4 L 13 8 L 9 12"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									stroke-linecap="square"
+								/>
+							</svg>
+						</a>
+					</li>
+				))
+			}
+		</ul>
+
+		{
+			statusItems.length > 0 && (
+				<dl class="hero__status" aria-label="Project facts">
+					{statusItems.map((s) => (
+						<div class="hero__status-item">
+							<dt>{s.label}</dt>
+							<dd>{s.value}</dd>
+						</div>
+					))}
+				</dl>
+			)
+		}
+	</div>
+
+	<div class="hero__aside">
+		<slot name="aside" />
+	</div>
+</section>
+
+<style>
+	.hero {
+		--hero-rule: var(--sl-color-gray-5);
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--space-7);
+		align-items: start;
+		padding-block: var(--space-7) var(--space-7);
+		container-type: inline-size;
+	}
+
+	@media (min-width: 64rem) {
+		.hero {
+			grid-template-columns: minmax(0, 6fr) minmax(0, 7fr);
+			gap: var(--space-7);
+			align-items: center;
+		}
+	}
+
+	@media (min-width: 80rem) {
+		.hero {
+			grid-template-columns: minmax(0, 7fr) minmax(0, 8fr);
+			gap: var(--space-8);
+		}
+	}
+
+	/* ===== Copy column ===== */
+
+	.hero__copy {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-5);
+		max-width: 44rem;
+	}
+
+	.hero__eyebrow {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		font-weight: 500;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		color: var(--sl-color-text-accent);
+	}
+
+	.hero__tick {
+		display: inline-block;
+		width: 0.5rem;
+		height: 0.5rem;
+		background:
+			linear-gradient(currentColor, currentColor) center/100% 1px no-repeat,
+			linear-gradient(currentColor, currentColor) center/1px 100% no-repeat;
+		opacity: 0.85;
+	}
+
+	.hero__title {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: var(--text-hero);
+		line-height: var(--lh-display);
+		font-weight: 600;
+		letter-spacing: -0.025em;
+		color: var(--sl-color-white);
+		text-wrap: balance;
+	}
+
+	.hero__title :global(em) {
+		font-style: normal;
+		color: var(--sl-color-text-accent);
+		/* underline drawn by gradient — works light + dark */
+		background-image: linear-gradient(
+			to top,
+			color-mix(in oklab, var(--sl-color-text-accent) 22%, transparent) 0,
+			color-mix(in oklab, var(--sl-color-text-accent) 22%, transparent) 0.18em,
+			transparent 0.18em
+		);
+		background-repeat: no-repeat;
+		background-position: 0 100%;
+	}
+
+	.hero__title :global(.hero__nbsp) {
+		white-space: nowrap;
+	}
+
+	.hero__tagline {
+		margin: 0;
+		font-size: var(--text-lead);
+		line-height: var(--lh-lead);
+		color: var(--sl-color-gray-2);
+		text-wrap: pretty;
+		max-width: 36ch;
+	}
+
+	/* ===== CTAs ===== */
+
+	.hero__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.hero__cta {
+		--cta-fg: var(--sl-color-white);
+		--cta-bg: transparent;
+		--cta-border: var(--sl-color-gray-5);
+
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.6rem 0.9rem 0.6rem 1rem;
+		font-family: var(--font-sans);
+		font-size: 0.92rem;
+		font-weight: 500;
+		line-height: 1;
+		color: var(--cta-fg);
+		background: var(--cta-bg);
+		border: 1px solid var(--cta-border);
+		border-radius: 4px;
+		text-decoration: none;
+		transition:
+			transform 120ms ease,
+			background 160ms ease,
+			border-color 160ms ease,
+			color 160ms ease;
+	}
+
+	.hero__cta--primary {
+		--cta-fg: var(--cta-on-accent);
+		--cta-bg: var(--sl-color-text-accent);
+		--cta-border: var(--sl-color-text-accent);
+	}
+
+	.hero__cta--primary:hover,
+	.hero__cta--primary:focus-visible {
+		transform: translateY(-1px);
+		background: color-mix(in oklab, var(--sl-color-text-accent) 88%, white);
+	}
+
+	.hero__cta--secondary:hover,
+	.hero__cta--secondary:focus-visible {
+		--cta-border: var(--sl-color-text-accent);
+		color: var(--sl-color-text-accent);
+	}
+
+	.hero__cta:focus-visible {
+		outline: 2px solid var(--sl-color-text-accent);
+		outline-offset: 3px;
+	}
+
+	.hero__cta-hint {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.04em;
+		opacity: 0.85;
+		padding-left: 0.5rem;
+		margin-left: 0.25rem;
+		border-left: 1px solid color-mix(in oklab, currentColor 50%, transparent);
+	}
+
+	.hero__cta-arrow {
+		width: 14px;
+		height: 14px;
+		flex-shrink: 0;
+		transition: transform 160ms ease;
+	}
+
+	.hero__cta:hover .hero__cta-arrow,
+	.hero__cta:focus-visible .hero__cta-arrow {
+		transform: translateX(2px);
+	}
+
+	/* ===== Status strip ===== */
+
+	.hero__status {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+		gap: 0;
+		margin: var(--space-3) 0 0;
+		padding-top: var(--space-4);
+		border-top: 1px solid var(--hero-rule);
+	}
+
+	.hero__status-item {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding-right: 1rem;
+	}
+
+	.hero__status dt {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		font-weight: 500;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+	}
+
+	.hero__status dd {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+
+	/* ===== Aside column ===== */
+
+	.hero__aside {
+		min-width: 0; /* prevent overflow in grid */
+	}
+</style>

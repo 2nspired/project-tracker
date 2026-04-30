@@ -5,31 +5,12 @@ description: The core workflow — briefMe → work → endSession → fresh cha
 
 import { Aside, Steps } from "@astrojs/starlight/components";
 import { Image } from "astro:assets";
+import SessionFlow from "../../components/SessionFlow.astro";
 import cardDetail from "../../assets/screenshots/card-detail.png";
 
-The tracker is built around one loop. If you get the loop right, everything else falls out of it.
+Pigeon is built around one loop. If you get the loop right, everything else falls out of it.
 
-```mermaid
-sequenceDiagram
-	actor You
-	participant Agent
-	participant Tracker as Tracker (MCP + SQLite)
-	participant Next as Next chat
-
-	You->>Agent: Start conversation
-	Agent->>Tracker: briefMe()
-	Tracker-->>Agent: handoff + diff + top work + blockers + pulse
-	loop Working on cards
-		Agent->>Tracker: moveCard / updateCard / addComment (with intent)
-		Tracker-->>You: Board updates live via SSE
-	end
-	You->>Agent: We're wrapping up
-	Agent->>Tracker: endSession({ summary, nextSteps, ... })
-	Tracker->>Tracker: save handoff, link commits, report touched cards
-	Tracker-->>Agent: resume prompt for next chat
-	You->>Next: Paste resume prompt → new conversation
-	Next->>Tracker: briefMe()
-```
+<SessionFlow />
 
 ## Why a loop?
 

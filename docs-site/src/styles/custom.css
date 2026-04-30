@@ -1,12 +1,82 @@
-/* Palette mirrors the main app (shadcn new-york, OKLCH).
- * Accent: indigo oklch(0.488 0.243 264.376).
- * Only overrides a few Starlight tokens so light/dark remain consistent.
- */
+/* =====================================================================
+ * Pigeon docs — visual identity.
+ *
+ * Aesthetic: operator-grade engineering manual. Drafting paper grid,
+ * mono numerals on metadata, asymmetric type pairing (Geist sans for
+ * voice, Geist mono for instruments). Indigo accent does the lifting;
+ * everything else is grayscale on a tinted-paper substrate.
+ *
+ * Both themes are first-class:
+ *   light = warm-tinted technical paper
+ *   dark  = oscilloscope/CRT — near-black with phosphor indigo
+ *
+ * Token layers:
+ *   1. Typography scale (4-pt grid, clamp-fluid)
+ *   2. Spacing scale (4-pt grid)
+ *   3. Color tokens (extends Starlight; overrides on per-theme blocks)
+ *   4. Background substrate (grid + grain)
+ *   5. Element overrides (headings, code, links, hr, sidebar header)
+ *
+ * No new dependencies. CSS / SVG only.
+ * ===================================================================== */
+
+/* =====================================================================
+ * 0. Type stack — Geist already loads via Starlight defaults; we only
+ *    declare the family lookup here so our components have a single token.
+ * ===================================================================== */
+
 :root {
+	/* Geist sans + Geist mono ship with Starlight; rely on system stack
+	   as the resilient fallback so the page still looks good without webfonts. */
+	--font-sans:
+		"Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+		"Helvetica Neue", Arial, sans-serif;
+	--font-mono:
+		"Geist Mono", ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo,
+		Consolas, "Liberation Mono", monospace;
+
+	/* ---------- Typography scale (4-pt grid, fluid) ---------------------
+	   Tightened against Starlight defaults. Hero is dramatic but capped.
+	   Section/lead/body all sit on the same vertical rhythm via line-heights. */
+	--text-hero: clamp(2.125rem, 1.2rem + 3vw, 3.25rem); /* 34 → 52 */
+	--text-section: clamp(1.5rem, 1.15rem + 1.5vw, 2.125rem); /* 24 → 34 */
+	--text-lead: clamp(1.0625rem, 1rem + 0.4vw, 1.1875rem); /* 17 → 19 */
+	--text-body: 1rem; /* 16 */
+	--text-small: 0.875rem; /* 14 */
+	--text-micro: 0.75rem; /* 12 */
+
+	/* Per-element line-heights — display tight, prose loose.
+	   Keep these as variables so components stay consistent. */
+	--lh-display: 1.04;
+	--lh-tight: 1.18;
+	--lh-lead: 1.42;
+	--lh-prose: 1.6;
+	--lh-mono: 1.5;
+
+	/* ---------- Spacing scale (4-pt grid) -------------------------------
+	   Use these instead of arbitrary rem values in new components. */
+	--space-1: 0.25rem;
+	--space-2: 0.5rem;
+	--space-3: 0.75rem;
+	--space-4: 1rem;
+	--space-5: 1.5rem;
+	--space-6: 2rem;
+	--space-7: 3rem;
+	--space-8: 4.5rem;
+	--space-9: 6rem;
+
+	/* ---------- Accent (indigo) -- preserved from previous palette ----- */
 	--sl-color-accent-low: oklch(0.92 0.05 264);
 	--sl-color-accent: oklch(0.488 0.243 264.376);
 	--sl-color-accent-high: oklch(0.35 0.2 264);
 	--sl-color-text-accent: oklch(0.488 0.243 264.376);
+
+	/* color of foreground when sitting on the accent bg */
+	--cta-on-accent: oklch(0.99 0.01 264);
+
+	/* ---------- Substrate tokens (theme-aware) -------------------------- */
+	--paper-grid: oklch(0.488 0.243 264.376 / 0.045);
+	--paper-grain: oklch(0.2 0 0 / 0.025);
 }
 
 :root[data-theme="dark"] {
@@ -14,13 +84,326 @@
 	--sl-color-accent: oklch(0.62 0.2 264);
 	--sl-color-accent-high: oklch(0.82 0.08 264);
 	--sl-color-text-accent: oklch(0.72 0.16 264);
+
+	--cta-on-accent: oklch(0.16 0.04 264);
+
+	--paper-grid: oklch(0.72 0.16 264 / 0.06);
+	--paper-grain: oklch(1 0 0 / 0.02);
 }
 
-/* Tighten Mermaid diagram spacing and make them respect theme backgrounds. */
+/* =====================================================================
+ * 1. Substrate — drafting paper grid + faint grain.
+ *
+ * The grid is a pure CSS background-image (two perpendicular line
+ * gradients). The grain is a tiny inline SVG noise blob, ~1.5% opacity.
+ * Both ride on the existing Starlight background color so we don't
+ * fight the framework.
+ * ===================================================================== */
+
+body {
+	background-image:
+		/* major rule every 80px */
+		linear-gradient(to right, var(--paper-grid) 1px, transparent 1px),
+		linear-gradient(to bottom, var(--paper-grid) 1px, transparent 1px),
+		/* minor rule every 16px (lighter) */
+		linear-gradient(
+			to right,
+			color-mix(in oklab, var(--paper-grid) 35%, transparent) 1px,
+			transparent 1px
+		),
+		linear-gradient(
+			to bottom,
+			color-mix(in oklab, var(--paper-grid) 35%, transparent) 1px,
+			transparent 1px
+		);
+	background-size:
+		80px 80px,
+		80px 80px,
+		16px 16px,
+		16px 16px;
+	background-position:
+		-1px -1px,
+		-1px -1px,
+		-1px -1px,
+		-1px -1px;
+	background-attachment: fixed;
+}
+
+/* Grain overlay — 1 inline SVG, applied via a fixed pseudo-element on
+   <html> so it stays everywhere without affecting layout. */
+html::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 0;
+	opacity: 0.55;
+	mix-blend-mode: overlay;
+	background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+	background-size: 200px 200px;
+}
+
+/* Make sure Starlight's main content sits above the grain. */
+.main-frame,
+.sl-container {
+	position: relative;
+	z-index: 1;
+}
+
+/* =====================================================================
+ * 2. Typography — set the rhythm globally so non-component prose still
+ *    follows the system. Touches body, headings, and inline code only.
+ * ===================================================================== */
+
+body {
+	font-family: var(--font-sans);
+	font-feature-settings: "ss01", "cv01"; /* Geist's stylistic alts (no-op fallback) */
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.sl-markdown-content {
+	font-size: var(--text-body);
+	line-height: var(--lh-prose);
+	color: var(--sl-color-gray-2);
+}
+
+.sl-markdown-content :is(h2, h3, h4) {
+	font-family: var(--font-sans);
+	letter-spacing: -0.012em;
+	color: var(--sl-color-white);
+	text-wrap: balance;
+}
+
+.sl-markdown-content h2 {
+	font-size: var(--text-section);
+	line-height: var(--lh-tight);
+	margin-top: var(--space-7);
+}
+
+.sl-markdown-content h3 {
+	font-size: 1.15rem;
+	line-height: var(--lh-tight);
+	margin-top: var(--space-6);
+}
+
+.sl-markdown-content :is(p, li) {
+	max-width: 72ch;
+}
+
+.sl-markdown-content code:not(pre code) {
+	font-family: var(--font-mono);
+	font-size: 0.92em;
+	padding: 0.05em 0.32em;
+	background: var(--sl-color-bg-inline-code);
+	border-radius: 3px;
+}
+
+/* Tighten the mono line-height inside code blocks for a denser feel. */
+pre code {
+	line-height: var(--lh-mono);
+	font-family: var(--font-mono);
+}
+
+/* Links in prose get a thin accent underline that survives wrap. */
+.sl-markdown-content a:not(.next-read__link, .hero__cta) {
+	color: var(--sl-color-text-accent);
+	text-decoration-color: color-mix(
+		in oklab,
+		var(--sl-color-text-accent) 50%,
+		transparent
+	);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+	transition: text-decoration-color 140ms ease;
+}
+
+.sl-markdown-content a:not(.next-read__link, .hero__cta):hover {
+	text-decoration-color: var(--sl-color-text-accent);
+}
+
+/* =====================================================================
+ * 3. Splash overrides — when the landing page uses template:splash, our
+ *    custom <Hero> component owns the page heading. We hide the framework's
+ *    default page-title H1 ONLY when the landing wrapper is present, so
+ *    we don't strip h1s from other splash pages.
+ * ===================================================================== */
+
+main:has(.landing) [data-page-title],
+main:has(.landing) > .content-panel:first-of-type :is(h1#_top, h1) {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* On the landing page only: widen the content container so the hero has
+   room to breathe (Starlight default is 67.5rem; we want ~80rem) and trim
+   the splash template's top padding so the hero starts higher. */
+main:has(.landing) {
+	--sl-content-width: 82rem;
+}
+
+main:has(.landing) > .content-panel:first-of-type {
+	padding-block: 0.25rem 0;
+}
+
+.sl-markdown-content:has(.landing),
+.sl-markdown-content .landing {
+	max-width: none;
+}
+
+/* the splash template wraps content in a centered box — undo that for landing */
+.sl-markdown-content .landing :is(p, ul, ol, h2) {
+	max-width: none;
+}
+
+/* =====================================================================
+ * 4. Section dividers — the recurring "registration tick + rule" mark.
+ *    Use this anywhere we want the signature scribed-line look.
+ * ===================================================================== */
+
+.sl-markdown-content hr,
+hr {
+	position: relative;
+	border: 0;
+	height: 1px;
+	background: var(--sl-color-gray-5);
+	margin: var(--space-7) 0;
+	overflow: visible;
+}
+
+.sl-markdown-content hr::before,
+.sl-markdown-content hr::after,
+hr::before,
+hr::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	width: 0.5rem;
+	height: 0.5rem;
+	transform: translateY(-50%);
+	color: var(--sl-color-gray-3);
+	background:
+		linear-gradient(currentColor, currentColor) center/100% 1px no-repeat,
+		linear-gradient(currentColor, currentColor) center/1px 100% no-repeat;
+	opacity: 0.7;
+}
+
+.sl-markdown-content hr::before,
+hr::before {
+	left: -0.25rem;
+}
+
+.sl-markdown-content hr::after,
+hr::after {
+	right: -0.25rem;
+}
+
+/* =====================================================================
+ * 5. Sidebar header — give the sidebar its own quiet identity moment.
+ *    Adds a registration tick next to the site title and tightens the
+ *    sidebar nav list typography.
+ * ===================================================================== */
+
+/* Site title — tracked-out, faintly mono-flavored */
+.site-title {
+	font-family: var(--font-sans);
+	letter-spacing: -0.01em;
+}
+
+/* Section group labels become uppercase mono micro-type */
+starlight-menu-button + nav summary span,
+.sidebar-content .group-label .large {
+	font-family: var(--font-mono) !important;
+	font-size: 0.7rem !important;
+	font-weight: 500 !important;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--sl-color-gray-3) !important;
+}
+
+/* Active nav link gets an accent left bar — not a full background. */
+.sidebar-content a[aria-current="page"] {
+	color: var(--sl-color-text-accent) !important;
+	background: color-mix(
+		in oklab,
+		var(--sl-color-text-accent) 8%,
+		transparent
+	) !important;
+	border-left: 2px solid var(--sl-color-text-accent);
+	padding-left: calc(var(--sl-sidebar-item-padding-inline, 0.5rem) - 2px);
+}
+
+/* Hover state on inactive links */
+.sidebar-content a:not([aria-current="page"]):hover {
+	color: var(--sl-color-text-accent) !important;
+	background: color-mix(
+		in oklab,
+		var(--sl-color-text-accent) 5%,
+		transparent
+	) !important;
+}
+
+/* =====================================================================
+ * 5b. Blockquotes inside .landing — turn the default Markdown blockquote
+ *     into an "operator note" callout: thin accent left rail + tight type.
+ * ===================================================================== */
+
+.landing blockquote {
+	margin: var(--space-5) 0;
+	padding: var(--space-4) var(--space-5);
+	border: 0;
+	border-left: 2px solid var(--sl-color-text-accent);
+	background: color-mix(
+		in oklab,
+		var(--sl-color-text-accent) 5%,
+		transparent
+	);
+	border-radius: 0 4px 4px 0;
+}
+
+.landing blockquote p {
+	margin: 0;
+	font-size: 0.98rem;
+	line-height: var(--lh-prose);
+	color: var(--sl-color-white);
+	max-width: 70ch;
+}
+
+.landing blockquote strong {
+	display: inline-block;
+	margin-right: 0.4em;
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	font-weight: 500;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--sl-color-text-accent);
+	padding: 0.15em 0.45em;
+	border: 1px solid color-mix(in oklab, var(--sl-color-text-accent) 50%, transparent);
+	border-radius: 2px;
+	vertical-align: middle;
+}
+
+/* =====================================================================
+ * 6. Mermaid + figure styling — keep diagrams legible on both themes
+ *    with a subtle frame that matches our screenshot frames.
+ * ===================================================================== */
+
 .mermaid {
 	display: flex;
 	justify-content: center;
-	margin-block: 1.5rem;
+	margin-block: var(--space-5);
+	padding: var(--space-4);
+	border: 1px solid var(--sl-color-gray-5);
+	border-radius: 6px;
+	background: var(--sl-color-bg-nav);
 }
 
 .mermaid svg {
@@ -28,10 +411,36 @@
 	height: auto;
 }
 
-/* Card list on the landing page. */
+/* Replace the default Starlight card-grid with our spec-sheet vibe;
+   this still works for any markdown that uses <CardGrid>. */
 .sl-markdown-content .card-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
 	gap: 1rem;
 	margin-block: 1.5rem;
+}
+
+/* =====================================================================
+ * 7. Focus rings — consistent, accent-driven, visible on both themes.
+ * ===================================================================== */
+
+:focus-visible {
+	outline: 2px solid var(--sl-color-text-accent);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+/* =====================================================================
+ * 8. Reduced motion — global guarantee. Components also opt-in but this
+ *    is the safety net.
+ * ===================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
 }

@@ -1,0 +1,89 @@
+---
+/**
+ * SectionHeader — drafting-style section delimiter.
+ *
+ * Renders an eyebrow (e.g. "§02 — How it works"), a title, and an
+ * optional sub-line. A horizontal rule beneath, with corner ticks,
+ * gives every section the same recognizable cadence.
+ */
+interface Props {
+	num: string; // "02"
+	eyebrow: string; // "How it works"
+	title: string;
+	sub?: string;
+	id?: string;
+}
+
+const { num, eyebrow, title, sub, id } = Astro.props;
+---
+
+<header class="section-header" id={id}>
+	<p class="section-header__eyebrow">
+		<span class="section-header__num">§{num}</span>
+		<span class="section-header__rule" aria-hidden="true"></span>
+		<span class="section-header__label">{eyebrow}</span>
+	</p>
+
+	<h2 class="section-header__title">{title}</h2>
+
+	{sub && <p class="section-header__sub">{sub}</p>}
+</header>
+
+<style>
+	.section-header {
+		display: flex;
+		flex-direction: column;
+		gap: 0.65rem;
+		margin: 0 0 var(--space-5);
+		padding-top: var(--space-3);
+	}
+
+	.section-header__eyebrow {
+		display: flex;
+		align-items: center;
+		gap: 0.65rem;
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		font-weight: 500;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+	}
+
+	.section-header__num {
+		color: var(--sl-color-text-accent);
+		flex-shrink: 0;
+	}
+
+	.section-header__rule {
+		flex: 1 0 1.5rem;
+		max-width: 3rem;
+		height: 1px;
+		background: var(--sl-color-gray-5);
+	}
+
+	.section-header__label {
+		flex-shrink: 0;
+	}
+
+	.section-header__title {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: var(--text-section);
+		line-height: var(--lh-tight);
+		font-weight: 600;
+		letter-spacing: -0.015em;
+		color: var(--sl-color-white);
+		text-wrap: balance;
+	}
+
+	.section-header__sub {
+		margin: 0;
+		max-width: 60ch;
+		font-size: var(--text-lead);
+		line-height: var(--lh-lead);
+		color: var(--sl-color-gray-2);
+		text-wrap: pretty;
+	}
+</style>
