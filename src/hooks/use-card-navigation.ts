@@ -15,7 +15,7 @@ import { useCallback } from "react";
 export function useCardNavigation(
 	orderedIds: string[],
 	selectedId: string | null,
-	onSelect: (id: string) => void,
+	onSelect: (id: string) => void
 ): (direction: "prev" | "next") => void {
 	return useCallback(
 		(direction) => {
@@ -27,6 +27,6 @@ export function useCardNavigation(
 				onSelect(orderedIds[nextIdx]);
 			}
 		},
-		[orderedIds, selectedId, onSelect],
+		[orderedIds, selectedId, onSelect]
 	);
 }

@@ -11,6 +11,7 @@ export type ToolCategory =
 	| "checklist"
 	| "comments"
 	| "milestones"
+	| "tags"
 	| "notes"
 	| "activity"
 	| "setup"

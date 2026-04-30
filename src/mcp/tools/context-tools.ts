@@ -5,6 +5,7 @@ import {
 	loadTrackerPolicy,
 	type TrackerPolicy,
 } from "../../lib/services/tracker-policy.js";
+import { slugify } from "../../lib/slugify.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import {
@@ -355,10 +356,11 @@ registerExtendedTool("getMilestoneContext", {
 
 registerExtendedTool("getTagContext", {
 	category: "context",
-	description: "All cards with a given tag, grouped by column.",
+	description:
+		"All cards with a given tag, grouped by column. Input is normalized to a slug — 'Bug', 'bug', and 'BUG' all match the same tag.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
-		tag: z.string().describe("Tag to filter by"),
+		tag: z.string().describe("Tag label or slug — slugified for the lookup"),
 		format: z.enum(["json", "toon"]).default("json").describe("Response format"),
 	}),
 	annotations: { readOnlyHint: true },
@@ -377,18 +379,21 @@ registerExtendedTool("getTagContext", {
 			if (!board)
 				return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
 
-			const allCards = await db.card.findMany({
-				where: { column: { boardId } },
+			const tagSlug = slugify(tag);
+			if (!tagSlug) {
+				return err(`"${tag}" produces an empty slug — pass a tag with alphanumeric characters.`);
+			}
+
+			const tagged = await db.card.findMany({
+				where: {
+					column: { boardId },
+					cardTags: { some: { tag: { slug: tagSlug } } },
+				},
 				include: {
 					column: { select: { name: true, role: true } },
 					checklists: { select: { completed: true } },
 				},
 				orderBy: { position: "asc" },
-			});
-
-			const tagged = allCards.filter((c) => {
-				const tags: string[] = JSON.parse(c.tags);
-				return tags.includes(tag);
 			});
 
 			const byColumn: Record<
@@ -412,6 +417,7 @@ registerExtendedTool("getTagContext", {
 				{
 					scope: "tag",
 					tag,
+					slug: tagSlug,
 					total: tagged.length,
 					byColumn,
 				},

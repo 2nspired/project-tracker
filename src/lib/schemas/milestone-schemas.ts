@@ -13,6 +13,7 @@ export const updateMilestoneSchema = z.object({
 	description: z.string().max(2000).nullable().optional(),
 	targetDate: z.string().datetime().nullable().optional(),
 	position: z.number().int().min(0).optional(),
+	state: z.enum(["active", "archived"]).optional(),
 });
 
 export const reorderMilestonesSchema = z.object({

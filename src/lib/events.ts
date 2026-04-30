@@ -11,8 +11,13 @@ import { db } from "@/server/db";
 
 export interface BoardEvent {
 	boardId: string;
-	type: "board:changed" | "card:changed" | "activity:new";
+	type: "board:changed" | "card:changed" | "activity:new" | "tag:changed" | "milestone:changed";
 	entityId?: string;
+	// Project-scoped events (tag, milestone) carry projectId so listeners
+	// can scope their invalidations correctly. Tags/milestones are
+	// project-scoped, not board-scoped, so a single project mutation fans
+	// out as one BoardEvent per board in that project.
+	projectId?: string;
 }
 
 // ── Event Bus Singleton (survives HMR) ──────────────────────────────
@@ -75,4 +80,37 @@ export function emitColumnChanged(columnId: string) {
 	void boardIdForColumn(columnId).then((bid) => {
 		if (bid) emitBoardEvent(bid, "board:changed", columnId);
 	});
+}
+
+async function boardsForProject(projectId: string): Promise<string[]> {
+	try {
+		const boards = await db.board.findMany({ where: { projectId }, select: { id: true } });
+		return boards.map((b) => b.id);
+	} catch {
+		return [];
+	}
+}
+
+// Project-scoped fan-out: tags and milestones live on Project, not Board, so
+// a single mutation needs to notify every board in the project. Emits one
+// BoardEvent per board with the projectId attached so listeners can
+// invalidate `tag.list({ projectId })` / `milestone.list({ projectId })`.
+function emitProjectEvent(
+	projectId: string,
+	type: "tag:changed" | "milestone:changed",
+	entityId?: string
+) {
+	void boardsForProject(projectId).then((boardIds) => {
+		for (const boardId of boardIds) {
+			eventBus.emit("board-event", { boardId, type, entityId, projectId } satisfies BoardEvent);
+		}
+	});
+}
+
+export function emitTagChanged(projectId: string, tagId?: string) {
+	emitProjectEvent(projectId, "tag:changed", tagId);
+}
+
+export function emitMilestoneChanged(projectId: string, milestoneId?: string) {
+	emitProjectEvent(projectId, "milestone:changed", milestoneId);
 }

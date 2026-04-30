@@ -224,7 +224,7 @@ export function BoardListView({
 	const groupedByColumn: ColumnGroupData[] = useMemo(() => {
 		const horizonOrder = { now: 0, later: 1, done: 2 };
 		const groups = board.columns
-			.filter((col) => !col.isParking && !hiddenRoles.some((role) => hasRole(col, role)))
+			.filter((col) => !hiddenRoles.some((role) => hasRole(col, role)))
 			.map((col) => ({
 				id: col.id,
 				name: col.name,

@@ -1,6 +1,14 @@
 import { z } from "zod";
+import { editDistance as nameDistance, slugify as slugifyName } from "@/lib/slugify";
+import { milestoneService } from "@/server/services/milestone-service";
 import { db } from "./db.js";
 import { registerExtendedTool } from "./tool-registry.js";
+import {
+	buildTaxonomyMeta,
+	resolveMilestoneForWrite,
+	resolveTagsForWrite,
+	syncCardTags,
+} from "./taxonomy-utils.js";
 import { toToon } from "./toon.js";
 import {
 	AGENT_NAME,
@@ -9,7 +17,6 @@ import {
 	getProjectIdForBoard,
 	ok,
 	resolveCardRef,
-	resolveOrCreateMilestone,
 	safeExecute,
 } from "./utils.js";
 
@@ -313,7 +320,8 @@ registerExtendedTool("deleteCard", {
 
 registerExtendedTool("bulkCreateCards", {
 	category: "cards",
-	description: "Create multiple cards in one call.",
+	description:
+		"Create multiple cards in one call. v4.2: prefer `tagSlugs` and `milestoneId`; legacy `tags` and `milestoneName` still work with `_deprecated` warnings.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		cards: z.array(
@@ -322,8 +330,24 @@ registerExtendedTool("bulkCreateCards", {
 				title: z.string().describe("Card title"),
 				description: z.string().optional().describe("Markdown"),
 				priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).default("NONE"),
-				tags: z.array(z.string()).default([]),
-				milestoneName: z.string().optional().describe("Auto-creates if new"),
+				tagSlugs: z
+					.array(z.string())
+					.optional()
+					.describe("Strict — slugs must already exist in the project."),
+				tags: z
+					.array(z.string())
+					.optional()
+					.describe("Deprecated (removed v5.0.0) — use tagSlugs."),
+				milestoneId: z
+					.string()
+					.uuid()
+					.nullable()
+					.optional()
+					.describe("Strict — milestone UUID; null to leave unassigned."),
+				milestoneName: z
+					.string()
+					.optional()
+					.describe("Deprecated (removed v5.0.0) — use milestoneId."),
 				metadata: z
 					.record(z.string(), z.unknown())
 					.optional()
@@ -343,8 +367,9 @@ registerExtendedTool("bulkCreateCards", {
 			const columns = await db.column.findMany({ where: { boardId: boardId as string } });
 			const columnMap = new Map(columns.map((c) => [c.name.toLowerCase(), c]));
 
-			const created: Array<{ ref: string; title: string; column: string }> = [];
+			const created: Array<Record<string, unknown>> = [];
 			const errors: string[] = [];
+			const deprecatedSeen = new Set<string>();
 
 			for (const input of cards as Array<Record<string, unknown>>) {
 				const col = columnMap.get((input.columnName as string).toLowerCase());
@@ -352,6 +377,26 @@ registerExtendedTool("bulkCreateCards", {
 					errors.push(
 						`Column "${input.columnName}" not found for "${input.title}". Available: ${columns.map((c) => c.name).join(", ")}`
 					);
+					continue;
+				}
+
+				const tagResolution = await resolveTagsForWrite(db, board.projectId, {
+					tagSlugs: input.tagSlugs as string[] | undefined,
+					tags: input.tags as string[] | undefined,
+				});
+				if (!tagResolution.ok) {
+					errors.push(
+						`Tags for "${input.title}": ${tagResolution.errors.map((e) => e.slug).join(", ")} not found.`
+					);
+					continue;
+				}
+
+				const milestoneResolution = await resolveMilestoneForWrite(db, board.projectId, {
+					milestoneId: input.milestoneId as string | null | undefined,
+					milestoneName: input.milestoneName as string | null | undefined,
+				});
+				if (!milestoneResolution.ok) {
+					errors.push(`Milestone for "${input.title}": ${milestoneResolution.error}`);
 					continue;
 				}
 
@@ -365,14 +410,6 @@ registerExtendedTool("bulkCreateCards", {
 				});
 				const cardNumber = project.nextCardNumber - 1;
 
-				let milestoneId: string | undefined;
-				if (input.milestoneName) {
-					milestoneId = await resolveOrCreateMilestone(
-						board.projectId,
-						input.milestoneName as string
-					);
-				}
-
 				const card = await db.card.create({
 					data: {
 						columnId: col.id,
@@ -381,13 +418,20 @@ registerExtendedTool("bulkCreateCards", {
 						title: input.title as string,
 						description: input.description as string | undefined,
 						priority: (input.priority as string) ?? "NONE",
-						tags: JSON.stringify(input.tags ?? []),
-						milestoneId,
+						tags: JSON.stringify(tagResolution.applied ? tagResolution.labels : []),
+						milestoneId:
+							milestoneResolution.applied && milestoneResolution.milestoneId !== null
+								? milestoneResolution.milestoneId
+								: undefined,
 						metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
 						createdBy: "AGENT",
 						position: (maxPos._max.position ?? -1) + 1,
 					},
 				});
+
+				if (tagResolution.applied) {
+					await syncCardTags(db, card.id, tagResolution.tagIds);
+				}
 
 				await db.activity.create({
 					data: {
@@ -399,10 +443,23 @@ registerExtendedTool("bulkCreateCards", {
 					},
 				});
 
-				created.push({ ref: `#${cardNumber}`, title: card.title, column: col.name });
+				const meta = buildTaxonomyMeta(tagResolution, milestoneResolution);
+				if (meta?._deprecated) {
+					for (const m of meta._deprecated) deprecatedSeen.add(m);
+				}
+				created.push({
+					ref: `#${cardNumber}`,
+					title: card.title,
+					column: col.name,
+					...(meta?._didYouMean ? { _didYouMean: meta._didYouMean } : {}),
+				});
 			}
 
-			return ok({ created, errors: errors.length > 0 ? errors : undefined });
+			return ok({
+				created,
+				errors: errors.length > 0 ? errors : undefined,
+				...(deprecatedSeen.size > 0 ? { _deprecated: [...deprecatedSeen] } : {}),
+			});
 		}),
 });
 
@@ -633,19 +690,29 @@ registerExtendedTool("bulkMoveCards", {
 registerExtendedTool("bulkUpdateCards", {
 	category: "cards",
 	description:
-		"Update multiple cards in one call. Each entry can set priority, tags, and/or milestone. Omitted fields are unchanged.",
+		"Update multiple cards in one call. Each entry can set priority, tags, and/or milestone. Omitted fields are unchanged. v4.2: prefer `tagSlugs` and `milestoneId`; legacy params still accepted with `_deprecated` warnings.",
 	parameters: z.object({
 		cards: z.array(
 			z
 				.object({
 					cardId: z.string().describe("Card UUID or #number"),
 					priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
-					tags: z.array(z.string()).optional().describe("Replaces all tags"),
+					tagSlugs: z.array(z.string()).optional().describe("Strict — replaces all tags."),
+					tags: z
+						.array(z.string())
+						.optional()
+						.describe("Deprecated (removed v5.0.0) — use tagSlugs."),
+					milestoneId: z
+						.string()
+						.uuid()
+						.nullable()
+						.optional()
+						.describe("Strict — milestone UUID; null to unassign."),
 					milestoneName: z
 						.string()
 						.nullable()
 						.optional()
-						.describe("null to unassign; auto-creates if new"),
+						.describe("Deprecated (removed v5.0.0) — use milestoneId."),
 					metadata: z
 						.record(z.string(), z.unknown())
 						.optional()
@@ -660,6 +727,7 @@ registerExtendedTool("bulkUpdateCards", {
 		safeExecute(async () => {
 			const updated: Array<Record<string, unknown>> = [];
 			const errors: string[] = [];
+			const deprecatedSeen = new Set<string>();
 
 			for (const input of cards as Array<Record<string, unknown>>) {
 				const resolved = await resolveCardRef(input.cardId as string);
@@ -675,14 +743,26 @@ registerExtendedTool("bulkUpdateCards", {
 					continue;
 				}
 
-				let milestoneId: string | null | undefined;
-				if (input.milestoneName !== undefined) {
-					milestoneId = input.milestoneName
-						? await resolveOrCreateMilestone(existing.projectId, input.milestoneName as string)
-						: null;
+				const tagResolution = await resolveTagsForWrite(db, existing.projectId, {
+					tagSlugs: input.tagSlugs as string[] | undefined,
+					tags: input.tags as string[] | undefined,
+				});
+				if (!tagResolution.ok) {
+					errors.push(
+						`Tags for "${input.cardId}": ${tagResolution.errors.map((e) => e.slug).join(", ")} not found.`
+					);
+					continue;
 				}
 
-				// Merge metadata if provided
+				const milestoneResolution = await resolveMilestoneForWrite(db, existing.projectId, {
+					milestoneId: input.milestoneId as string | null | undefined,
+					milestoneName: input.milestoneName as string | null | undefined,
+				});
+				if (!milestoneResolution.ok) {
+					errors.push(`Milestone for "${input.cardId}": ${milestoneResolution.error}`);
+					continue;
+				}
+
 				let mergedMetadata: string | undefined;
 				if (input.metadata) {
 					const existingMeta = JSON.parse(existing.metadata || "{}");
@@ -697,14 +777,22 @@ registerExtendedTool("bulkUpdateCards", {
 					where: { id },
 					data: {
 						priority: input.priority as string | undefined,
-						tags: input.tags ? JSON.stringify(input.tags) : undefined,
-						milestoneId: milestoneId !== undefined ? milestoneId : undefined,
+						tags: tagResolution.applied ? JSON.stringify(tagResolution.labels) : undefined,
+						milestoneId: milestoneResolution.applied ? milestoneResolution.milestoneId : undefined,
 						metadata: mergedMetadata,
 						lastEditedBy: AGENT_NAME,
 					},
 					include: { milestone: { select: { name: true } } },
 				});
 
+				if (tagResolution.applied) {
+					await syncCardTags(db, card.id, tagResolution.tagIds);
+				}
+
+				const meta = buildTaxonomyMeta(tagResolution, milestoneResolution);
+				if (meta?._deprecated) {
+					for (const m of meta._deprecated) deprecatedSeen.add(m);
+				}
 				updated.push({
 					ref: `#${card.number}`,
 					title: card.title,
@@ -712,10 +800,15 @@ registerExtendedTool("bulkUpdateCards", {
 					tags: JSON.parse(card.tags),
 					milestone: card.milestone?.name ?? null,
 					...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
+					...(meta?._didYouMean ? { _didYouMean: meta._didYouMean } : {}),
 				});
 			}
 
-			return ok({ updated, errors: errors.length > 0 ? errors : undefined });
+			return ok({
+				updated,
+				errors: errors.length > 0 ? errors : undefined,
+				...(deprecatedSeen.size > 0 ? { _deprecated: [...deprecatedSeen] } : {}),
+			});
 		}),
 });
 
@@ -902,15 +995,20 @@ registerExtendedTool("createMilestone", {
 
 registerExtendedTool("updateMilestone", {
 	category: "milestones",
-	description: "Update a milestone's name, description, or target date.",
+	description:
+		'Update a milestone\'s name, description, target date, or state. Pass `state: "archived"` to hide the milestone from the picker without deleting it.',
 	parameters: z.object({
 		milestoneId: z.string().describe("UUID from getRoadmap or listMilestones"),
 		name: z.string().optional(),
 		description: z.string().nullable().optional().describe("null to clear"),
 		targetDate: z.string().datetime().nullable().optional().describe("ISO 8601, null to clear"),
+		state: z
+			.enum(["active", "archived"])
+			.optional()
+			.describe("v4.2: 'archived' hides from picker (cards keep their assignment)."),
 	}),
 	annotations: { idempotentHint: true },
-	handler: ({ milestoneId, name, description, targetDate }) =>
+	handler: ({ milestoneId, name, description, targetDate, state }) =>
 		safeExecute(async () => {
 			const existing = await db.milestone.findUnique({ where: { id: milestoneId as string } });
 			if (!existing)
@@ -929,16 +1027,44 @@ registerExtendedTool("updateMilestone", {
 								? new Date(targetDate as string)
 								: null
 							: undefined,
+					state: state as "active" | "archived" | undefined,
 				},
 			});
-			return ok({ id: milestone.id, name: milestone.name, updated: true });
+			return ok({
+				id: milestone.id,
+				name: milestone.name,
+				state: milestone.state,
+				updated: true,
+			});
+		}),
+});
+
+registerExtendedTool("mergeMilestones", {
+	category: "milestones",
+	description:
+		"Merge one milestone into another within the same project. Rewrites every card's milestoneId from `from` to `into`, then deletes the source milestone. Use this when an agent or human created a duplicate (e.g. 'Getting Started' vs 'getting started' on a pre-v4.2 schema).",
+	parameters: z.object({
+		fromMilestoneId: z.string().uuid().describe("Source milestone UUID — deleted after merge"),
+		intoMilestoneId: z.string().uuid().describe("Destination milestone UUID — kept"),
+	}),
+	handler: ({ fromMilestoneId, intoMilestoneId }) =>
+		safeExecute(async () => {
+			const result = await milestoneService.merge({
+				fromMilestoneId: fromMilestoneId as string,
+				intoMilestoneId: intoMilestoneId as string,
+			});
+			if (!result.success) return err(result.error.message);
+			return ok({
+				merged: true,
+				rewroteCount: result.data.rewroteCount,
+			});
 		}),
 });
 
 registerExtendedTool("listMilestones", {
 	category: "milestones",
 	description:
-		"List milestones for a project with card counts, done/total breakdown, and completion percentage.",
+		"List milestones for a project with card counts, done/total breakdown, completion percentage, state, and v4.2 governance hints (singleton-after-days, possible-merge near-miss neighbours). Use the hints to drive a one-time triage pass with mergeMilestones / updateMilestone({ state: 'archived' }).",
 	parameters: z.object({
 		projectId: z.string().describe("Project UUID"),
 	}),
@@ -955,20 +1081,62 @@ registerExtendedTool("listMilestones", {
 					},
 				},
 			});
+
+			// Pre-compute slugs for all milestones in the project so we can
+			// build the possibleMerge neighbour list in O(n²) without a DB
+			// round-trip per milestone. n is bounded by the per-project count
+			// (current high-water mark across the whole codebase: ~10).
+			const slugged = milestones.map((m) => ({
+				id: m.id,
+				name: m.name,
+				slug: slugifyName(m.name),
+				createdAt: m.createdAt,
+			}));
+			const SINGLETON_DAYS = 60;
+			const NOW = Date.now();
+
 			return ok(
-				milestones.map((m) => {
+				milestones.map((m, i) => {
 					const total = m._count.cards;
 					const done = m.cards.filter((c) => c.column.role === "done").length;
-					const { cards: _, ...rest } = m;
+					const ageDays = Math.floor((NOW - m.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+
+					const possibleMerge: Array<{ id: string; name: string; distance: number }> = [];
+					const mineSlug = slugged[i].slug;
+					if (mineSlug) {
+						for (let j = 0; j < slugged.length; j++) {
+							if (j === i) continue;
+							const other = slugged[j];
+							if (!other.slug) continue;
+							const distance = nameDistance(mineSlug, other.slug, 2);
+							if (distance <= 2) {
+								possibleMerge.push({ id: other.id, name: other.name, distance });
+							}
+						}
+						possibleMerge.sort((a, b) => a.distance - b.distance);
+					}
+
+					const governanceHints: Record<string, unknown> = {};
+					if (total === 1 && ageDays > SINGLETON_DAYS) {
+						governanceHints.singletonAfterDays = ageDays;
+					}
+					if (possibleMerge.length > 0) {
+						governanceHints.possibleMerge = possibleMerge;
+					}
+
 					return {
-						id: rest.id,
-						name: rest.name,
-						description: rest.description,
-						targetDate: rest.targetDate,
+						id: m.id,
+						name: m.name,
+						description: m.description,
+						targetDate: m.targetDate,
+						state: m.state,
 						cardCount: total,
 						done,
 						progress: total > 0 ? `${Math.round((done / total) * 100)}%` : "0%",
-						position: rest.position,
+						position: m.position,
+						...(Object.keys(governanceHints).length > 0 && {
+							_governanceHints: governanceHints,
+						}),
 					};
 				})
 			);

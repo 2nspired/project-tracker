@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { emitMilestoneChanged } from "@/lib/events";
 import {
 	createMilestoneSchema,
 	reorderMilestonesSchema,
@@ -32,6 +33,7 @@ export const milestoneRouter = createTRPCRouter({
 		if (!result.success) {
 			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
 		}
+		emitMilestoneChanged(input.projectId, result.data.id);
 		return result.data;
 	}),
 
@@ -42,6 +44,7 @@ export const milestoneRouter = createTRPCRouter({
 			if (!result.success) {
 				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
 			}
+			emitMilestoneChanged(result.data.projectId, result.data.id);
 			return result.data;
 		}),
 
@@ -50,6 +53,7 @@ export const milestoneRouter = createTRPCRouter({
 		if (!result.success) {
 			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
 		}
+		emitMilestoneChanged(input.projectId);
 		return result.data;
 	}),
 
@@ -58,6 +62,7 @@ export const milestoneRouter = createTRPCRouter({
 		if (!result.success) {
 			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
 		}
+		emitMilestoneChanged(result.data.projectId, result.data.id);
 		return result.data;
 	}),
 });

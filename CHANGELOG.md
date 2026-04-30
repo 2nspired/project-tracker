@@ -53,6 +53,52 @@ Then it prints a final checklist for steps it deliberately doesn't auto-execute:
 - Renaming the GitHub repo / URL slugs in docs — coordinate with `gh repo rename` separately.
 - Internal `TrackerPolicy` type names and similar internal symbols — internal-only.
 
+## [4.2.0] — 2026-04-29
+
+Taxonomy primitives rework lands as the headliner: tags promote from a JSON-string array to a project-scoped `Tag` entity joined via `CardTag`, and milestones gain governance hints + a `mergeMilestones` admin tool. MCP write paths accept new strict params (`tagSlugs`, `milestoneId`) **alongside** the legacy ones (`tags`, `milestoneName`), with deprecation warnings and `_didYouMean` near-miss hints — v5.0.0 will drop the legacy params and the `Card.tags` JSON column. (#89, #134)
+
+This release is purely additive on top of v4.1.0 — no destructive migration is required. `SCHEMA_VERSION` bumps from 9 → 10 to add the new `Tag`, `CardTag`, `AppSettings`, and `TokenUsageEvent` tables (plus `Milestone.state`), so **run `npm run db:push` after pulling** before restarting the service. The optional `migrateTags` MCP tool backfills the new tag junction from existing JSON tags when you're ready.
+
+### Added
+
+- **Taxonomy primitives** (#89, #134, PR #62)
+  - New `Tag` (slug-immutable / label-mutable, project-scoped) and `CardTag` composite-PK junction.
+  - New `Milestone.state` column (`active` | `archived`); case-insensitive `resolveOrCreate` normalization.
+  - `mergeMilestones` MCP admin tool; `_governanceHints` (singletons + near-name neighbours) on `listMilestones`.
+  - `migrateTags` MCP tool — idempotent JSON-to-junction backfill, preserves canonical label casing.
+  - MCP write paths (`createCard`, `updateCard`, `bulkCreateCards`, `bulkUpdateCards`) accept `tagSlugs` + `milestoneId` alongside legacy `tags` + `milestoneName`. Legacy params emit a `_deprecated` warning with `_didYouMean` near-miss hints.
+  - SSE event invalidation for tag + milestone events; project-scoped event channels.
+  - `TagCombobox` and `MilestoneCombobox` UI components (Popover + Command) replace the raw text input + Select-with-sentinel pattern in the card detail sheet.
+  - AGENTS.md documents the canonical milestone definition ("a milestone is a release horizon") and the dual-track param contract.
+- **Token tracking** (#96, PR #64)
+  - `AppSettings` singleton (JSON pricing) + `TokenUsageEvent` schema with the 5-column token split (input, output, cacheRead, cacheCreation1h, cacheCreation5m). Indexed on `sessionId`, `projectId`, `(projectId, recordedAt)`, `cardId`.
+  - Verified Anthropic + OpenAI default pricing (last verified 2026-04). Unknown models fall back to `__default__` (zero rates) — surfaces as $0 instead of NaN.
+  - Token-usage service (ServiceResult pattern) with `recordManual`, `recordFromTranscript` (idempotent on `sessionId`, streams parent + sub-agent JSONL), and 5 summary queries (project, session, card full-attribution, milestone, pricing).
+  - `recordTokenUsage` and `recordTokenUsageFromTranscript` MCP tools (extended, behind `getTools` browse — zero system-prompt cost when not in use).
+  - Stop-hook config in AGENTS.md uses `type: "mcp_tool"` with `${transcript_path}` / `${session_id}` / `${cwd}` substitution.
+  - `briefMe` returns a `tokenPulse` field (parallelized in the existing Promise.all; omitted when empty).
+  - Per-session cost surfaces on cards.
+- **Sessions sheet** (#135, PR #66)
+  - Replaces the inline `SessionHistoryPanel` with a right-slide `SessionsSheet` mirroring the `ActivitySheet` pattern.
+  - Markdown-rendered summaries with collapsible Working on / Findings / Next steps / Blockers sections; Blockers always open with a red tint, Next steps open when no blockers.
+  - `#N` card-ref linkification across all fields (host-supplied `resolveCardRef` callback — sheet has zero API knowledge of card lookup).
+  - Filter chips: All / Has blockers / per-agent (only when >1 agent has authored).
+  - Project-wide total cost chip in the sheet header when token usage exists.
+
+### Fixed
+
+- **Parking Lot visible in list view** (#131, PR #63) — removes the hard-coded `!col.isParking` filter in `board-list-view.tsx`. View visibility now flows entirely through `hiddenRoles`: Sprint and Review still hide parking; Planning and Default surface it.
+
+### Migration
+
+No required migration. To opt in to the new tag junction:
+
+```
+mcp call migrateTags { projectId: "<id>" }
+```
+
+Idempotent — re-running is a no-op once the junction is populated. Legacy `Card.tags` JSON column still reads through during v4.x and is dropped in v5.0.0.
+
 ## [4.1.0] — 2026-04-29
 
 `briefMe` now emits a deprecation warning whenever a project still has content in the legacy `projectPrompt` DB column. The column will be removed in v5.0.0; this release is the migration window.

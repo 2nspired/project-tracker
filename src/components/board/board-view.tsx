@@ -245,19 +245,16 @@ export function BoardView({
 
 	const flatCardIds = useMemo(
 		() => sortedColumns.flatMap((col) => col.cards.map((c) => c.id)),
-		[sortedColumns],
+		[sortedColumns]
 	);
 	const handleNavigate = useCardNavigation(flatCardIds, selectedCardId, onCardSelect);
 
-	const findColumnForCard = useCallback(
-		(cardId: string, columns: BoardColumnType[]) => {
-			for (const col of columns) {
-				if (col.cards.some((c) => c.id === cardId)) return col;
-			}
-			return null;
-		},
-		[]
-	);
+	const findColumnForCard = useCallback((cardId: string, columns: BoardColumnType[]) => {
+		for (const col of columns) {
+			if (col.cards.some((c) => c.id === cardId)) return col;
+		}
+		return null;
+	}, []);
 
 	const handleDragStart = (event: DragStartEvent) => {
 		const { active } = event;
@@ -422,10 +419,7 @@ export function BoardView({
 								onCardClick={onCardSelect}
 							/>
 						))}
-						<SortableContext
-							items={sortableColumnIds}
-							strategy={horizontalListSortingStrategy}
-						>
+						<SortableContext items={sortableColumnIds} strategy={horizontalListSortingStrategy}>
 							{sortableRenderColumns.map((column) => (
 								<BoardColumn
 									key={column.id}

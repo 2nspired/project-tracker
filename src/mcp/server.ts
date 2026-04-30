@@ -6,6 +6,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { initFts5 } from "@/server/fts";
 import { findStaleInProgress } from "@/server/services/stale-cards";
+import { tokenUsageService } from "@/server/services/token-usage-service";
 import { getHorizon, hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
@@ -29,6 +30,13 @@ import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
 import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js";
 import { toToon } from "./toon.js";
 import {
+	buildTaxonomyMeta,
+	resolveMilestoneForWrite,
+	resolveTagsForWrite,
+	syncCardTags,
+	type TagSuggestion,
+} from "./taxonomy-utils.js";
+import {
 	AGENT_NAME,
 	detectFeatures,
 	err,
@@ -37,10 +45,35 @@ import {
 	ok,
 	resolveAgentNameFromClient,
 	resolveCardRef,
-	resolveOrCreateMilestone,
 	SCHEMA_VERSION,
 	safeExecute,
 } from "./utils.js";
+
+// Format a strict-mode tag-resolution failure into a structured error
+// payload. The agent gets _didYouMean suggestions in the response so it
+// can recover with createTag or a corrected slug without round-tripping.
+function strictTagError(
+	errors: Array<{ slug: string; message: string; suggestions: TagSuggestion[] }>
+) {
+	return {
+		content: [
+			{
+				type: "text" as const,
+				text: JSON.stringify(
+					{
+						error: "TAG_NOT_FOUND",
+						message: `${errors.length} tag slug(s) not found in this project.`,
+						hint: "Pass an existing slug, call createTag first, or use the legacy `tags: string[]` parameter (auto-creates with normalization in v4.2).",
+						_didYouMean: { tags: errors },
+					},
+					null,
+					2
+				),
+			},
+		],
+		isError: true,
+	};
+}
 
 function humanizeAge(date: Date): string {
 	const ms = Date.now() - date.getTime();
@@ -180,6 +213,8 @@ import "./tools/fact-tools.js";
 import "./tools/claim-tools.js";
 import "./tools/knowledge-tools.js";
 import "./tools/instrumentation-tools.js";
+import "./tools/tag-tools.js";
+import "./tools/token-tools.js";
 
 import { LEGACY_BRAND_DEPRECATION, resolveServerBrand } from "./brand.js";
 
@@ -195,15 +230,38 @@ server.registerTool(
 	"createCard",
 	{
 		title: "Create Card",
-		description: "Create a card. Uses column name (not ID); auto-creates milestone if name is new.",
+		description:
+			"Create a card. Uses column name (not ID). v4.2: pass `tagSlugs` (strict) and `milestoneId` (strict); legacy `tags` and `milestoneName` still work with auto-create + normalization, and surface a `_deprecated` warning. Both removed in v5.0.0.",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
 			columnName: z.string().describe("Column name (e.g. 'Backlog', 'In Progress')"),
 			title: z.string().describe("Card title"),
 			description: z.string().optional().describe("Markdown description"),
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).default("NONE"),
-			tags: z.array(z.string()).default([]).describe("e.g. ['bug', 'feature:auth']"),
-			milestoneName: z.string().optional().describe("Auto-creates if new"),
+			tagSlugs: z
+				.array(z.string())
+				.optional()
+				.describe(
+					"Strict — slugs must already exist in the project. Use createTag first for new tags. Returns _didYouMean on miss."
+				),
+			tags: z
+				.array(z.string())
+				.optional()
+				.describe(
+					"Deprecated (removed in v5.0.0) — use tagSlugs. Legacy free-form labels; auto-creates Tag rows via slugify normalization."
+				),
+			milestoneId: z
+				.string()
+				.uuid()
+				.nullable()
+				.optional()
+				.describe("Strict — milestone UUID; null to leave unassigned."),
+			milestoneName: z
+				.string()
+				.optional()
+				.describe(
+					"Deprecated (removed in v5.0.0) — use milestoneId. Legacy: auto-creates if new, with case-insensitive normalization."
+				),
 			metadata: z
 				.record(z.string(), z.unknown())
 				.optional()
@@ -218,7 +276,9 @@ server.registerTool(
 			title,
 			description,
 			priority,
+			tagSlugs,
 			tags,
+			milestoneId: inputMilestoneId,
 			milestoneName,
 			metadata,
 		}) => {
@@ -240,6 +300,15 @@ server.registerTool(
 				});
 				if (!board) return err("Board not found.");
 
+				const tagResolution = await resolveTagsForWrite(db, board.projectId, { tagSlugs, tags });
+				if (!tagResolution.ok) return strictTagError(tagResolution.errors);
+
+				const milestoneResolution = await resolveMilestoneForWrite(db, board.projectId, {
+					milestoneId: inputMilestoneId,
+					milestoneName,
+				});
+				if (!milestoneResolution.ok) return err(milestoneResolution.error);
+
 				const maxPosition = await db.card.aggregate({
 					where: { columnId: column.id },
 					_max: { position: true },
@@ -250,11 +319,6 @@ server.registerTool(
 				});
 				const cardNumber = project.nextCardNumber - 1;
 
-				let milestoneId: string | undefined;
-				if (milestoneName) {
-					milestoneId = await resolveOrCreateMilestone(board.projectId, milestoneName);
-				}
-
 				const card = await db.card.create({
 					data: {
 						columnId: column.id,
@@ -263,14 +327,23 @@ server.registerTool(
 						title,
 						description,
 						priority,
-						tags: JSON.stringify(tags),
-						milestoneId,
+						// Card.tags JSON column stays synced through v4.2 with the
+						// canonical labels from the resolved Tag rows; dropped in v5.
+						tags: JSON.stringify(tagResolution.applied ? tagResolution.labels : []),
+						milestoneId:
+							milestoneResolution.applied && milestoneResolution.milestoneId !== null
+								? milestoneResolution.milestoneId
+								: undefined,
 						metadata: metadata ? JSON.stringify(metadata) : undefined,
 						createdBy: "AGENT",
 						lastEditedBy: AGENT_NAME,
 						position: (maxPosition._max.position ?? -1) + 1,
 					},
 				});
+
+				if (tagResolution.applied) {
+					await syncCardTags(db, card.id, tagResolution.tagIds);
+				}
 
 				await db.activity.create({
 					data: {
@@ -282,12 +355,14 @@ server.registerTool(
 					},
 				});
 
+				const meta = buildTaxonomyMeta(tagResolution, milestoneResolution);
 				return ok({
 					id: card.id,
 					number: cardNumber,
 					ref: `#${cardNumber}`,
 					title: card.title,
 					column: columnName,
+					...(meta ?? {}),
 				});
 			});
 		}
@@ -298,7 +373,8 @@ server.registerTool(
 	"updateCard",
 	{
 		title: "Update Card",
-		description: "Update card fields. Omitted fields unchanged.",
+		description:
+			"Update card fields. Omitted fields unchanged. v4.2: prefer `tagSlugs` (strict) and `milestoneId` (strict); legacy `tags` and `milestoneName` still work with `_deprecated` warnings.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
 			boardId: z
@@ -308,12 +384,31 @@ server.registerTool(
 			title: z.string().optional(),
 			description: z.string().optional().describe("Markdown"),
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
-			tags: z.array(z.string()).optional().describe("Replaces all tags"),
+			tagSlugs: z
+				.array(z.string())
+				.optional()
+				.describe(
+					"Strict — replaces all tags. Slugs must already exist in the project. Use createTag for new vocabulary."
+				),
+			tags: z
+				.array(z.string())
+				.optional()
+				.describe(
+					"Deprecated (removed in v5.0.0) — use tagSlugs. Legacy free-form replace-all; auto-creates via slugify."
+				),
+			milestoneId: z
+				.string()
+				.uuid()
+				.nullable()
+				.optional()
+				.describe("Strict — milestone UUID; null to unassign."),
 			milestoneName: z
 				.string()
 				.nullable()
 				.optional()
-				.describe("null to unassign; auto-creates if new"),
+				.describe(
+					"Deprecated (removed in v5.0.0) — use milestoneId. Legacy: null to unassign; auto-creates with case-insensitive normalization."
+				),
 			metadata: z
 				.record(z.string(), z.unknown())
 				.optional()
@@ -334,7 +429,9 @@ server.registerTool(
 			title,
 			description,
 			priority,
+			tagSlugs,
 			tags,
+			milestoneId: inputMilestoneId,
 			milestoneName,
 			metadata,
 			intent,
@@ -348,12 +445,17 @@ server.registerTool(
 				const existing = await db.card.findUnique({ where: { id: cardId } });
 				if (!existing) return err("Card not found.");
 
-				let milestoneId: string | null | undefined;
-				if (milestoneName !== undefined) {
-					milestoneId = milestoneName
-						? await resolveOrCreateMilestone(existing.projectId, milestoneName)
-						: null;
-				}
+				const tagResolution = await resolveTagsForWrite(db, existing.projectId, {
+					tagSlugs,
+					tags,
+				});
+				if (!tagResolution.ok) return strictTagError(tagResolution.errors);
+
+				const milestoneResolution = await resolveMilestoneForWrite(db, existing.projectId, {
+					milestoneId: inputMilestoneId,
+					milestoneName,
+				});
+				if (!milestoneResolution.ok) return err(milestoneResolution.error);
 
 				// Merge metadata: combine with existing, remove keys set to null
 				let mergedMetadata: string | undefined;
@@ -372,13 +474,18 @@ server.registerTool(
 						title,
 						description,
 						priority,
-						tags: tags ? JSON.stringify(tags) : undefined,
-						milestoneId: milestoneId !== undefined ? milestoneId : undefined,
+						// Sync the legacy JSON column when tags were touched; leave alone otherwise.
+						tags: tagResolution.applied ? JSON.stringify(tagResolution.labels) : undefined,
+						milestoneId: milestoneResolution.applied ? milestoneResolution.milestoneId : undefined,
 						metadata: mergedMetadata,
 						lastEditedBy: AGENT_NAME,
 					},
 					include: { milestone: { select: { name: true } } },
 				});
+
+				if (tagResolution.applied) {
+					await syncCardTags(db, card.id, tagResolution.tagIds);
+				}
 
 				await db.activity.create({
 					data: {
@@ -390,6 +497,7 @@ server.registerTool(
 					},
 				});
 
+				const meta = buildTaxonomyMeta(tagResolution, milestoneResolution);
 				return ok({
 					id: card.id,
 					ref: `#${card.number}`,
@@ -403,6 +511,7 @@ server.registerTool(
 						metadata: JSON.parse(card.metadata),
 					},
 					...(resolved.warning && { _warning: resolved.warning }),
+					...(meta ?? {}),
 				});
 			});
 		}
@@ -733,6 +842,7 @@ server.registerTool(
 				recentAgentActivity,
 				staleInProgressMap,
 				policyResult,
+				tokenSummary,
 			] = await Promise.all([
 				getLatestHandoff(db, boardId),
 				db.claim.findMany({
@@ -766,6 +876,7 @@ server.registerTool(
 					repoPath: board.project.repoPath,
 					projectPrompt: board.project.projectPrompt,
 				}),
+				tokenUsageService.getProjectSummary(board.project.id),
 			]);
 
 			const allCards = board.columns.flatMap((col) =>
@@ -867,6 +978,17 @@ server.registerTool(
 				.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
 				.sort((a, b) => b.days - a.days);
 
+			// Token usage pulse — omitted when no events recorded so projects
+			// without the Stop hook configured don't see noise. (#96)
+			const tokenPulse =
+				tokenSummary.success && tokenSummary.data.trackingSince
+					? {
+							totalCostUsd: Number(tokenSummary.data.totalCostUsd.toFixed(6)),
+							sessionCount: tokenSummary.data.sessionCount,
+							trackingSince: tokenSummary.data.trackingSince.toISOString(),
+						}
+					: null;
+
 			const briefPayload = {
 				_serverVersion: MCP_SERVER_VERSION,
 				...(IS_LEGACY_BRAND ? { _brandDeprecation: LEGACY_BRAND_DEPRECATION } : {}),
@@ -881,6 +1003,7 @@ server.registerTool(
 				topWork,
 				blockers,
 				recentDecisions,
+				...(tokenPulse ? { tokenPulse } : {}),
 				stale: formatStalenessWarnings(stalenessWarnings),
 				...(staleInProgress.length > 0 ? { staleInProgress } : {}),
 				...(intentReminder ? { intentReminder } : {}),
