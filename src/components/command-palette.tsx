@@ -4,6 +4,7 @@ import { FolderKanban, Hash, LayoutDashboard, Plus, StickyNote } from "lucide-re
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { McpToolRow } from "@/components/header/mcp-tool-row";
+import { SlashCommandRow } from "@/components/header/slash-command-row";
 import {
 	CommandDialog,
 	CommandEmpty,
@@ -13,7 +14,7 @@ import {
 	CommandList,
 	CommandSeparator,
 } from "@/components/ui/command";
-import { docUrl } from "@/lib/doc-url";
+import { docUrl, slashCommandDocUrl } from "@/lib/doc-url";
 import { PRIORITY_DOT } from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";
 import { api } from "@/trpc/react";
@@ -92,6 +93,33 @@ export function CommandPalette() {
 			/>
 			<CommandList>
 				<CommandEmpty>{cardsLoading ? "Searching..." : "No results found."}</CommandEmpty>
+
+				{/* Slash Commands — Claude Code slash commands users actually
+				    type at session boundaries. Surfaced above MCP tools
+				    because they're the real entry points; the underlying
+				    MCP tools are an implementation detail. Common-only
+				    here; the full list lives in the header catalog. */}
+				{mcpCatalog?.slashCommands?.some((c) => c.common) && (
+					<CommandGroup heading="Slash Commands">
+						{mcpCatalog.slashCommands
+							.filter((cmd) => cmd.common)
+							.map((cmd) => (
+								<SlashCommandRow
+									key={cmd.name}
+									name={cmd.name}
+									description={cmd.description}
+									tools={cmd.tools}
+									href={slashCommandDocUrl(cmd.name)}
+									filterValue={`slash-${cmd.name}-${cmd.description}-${cmd.tools.join(" ")}`}
+									onSelect={() =>
+										runCommand(() => {
+											window.open(slashCommandDocUrl(cmd.name), "_blank", "noopener,noreferrer");
+										})
+									}
+								/>
+							))}
+					</CommandGroup>
+				)}
 
 				{/* MCP Essentials — pinned shortlist of the 10 core MCP tools.
 				    Reuses the same row component as the dedicated catalog

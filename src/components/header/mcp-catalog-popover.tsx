@@ -3,6 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { McpToolRow } from "@/components/header/mcp-tool-row";
+import { SlashCommandRow } from "@/components/header/slash-command-row";
 import {
 	Command,
 	CommandEmpty,
@@ -11,6 +12,7 @@ import {
 	CommandList,
 	CommandSeparator,
 } from "@/components/ui/command";
+import { slashCommandDocUrl } from "@/lib/doc-url";
 import type { ToolParamInfo } from "@/lib/mcp-types";
 import { cn } from "@/lib/utils";
 import { api } from "@/trpc/react";
@@ -154,6 +156,46 @@ export function McpCatalogPopover({
 						<CommandEmpty>
 							No tools match "{search.trim()}". Try a category name like cards or sessions.
 						</CommandEmpty>
+
+						{/* Slash commands — the user-facing entry points. Common
+						    ones appear first, divided from the rest by a thin
+						    separator. Shown above MCP essentials because users
+						    type slash commands; MCP tools are downstream. */}
+						{data.slashCommands && data.slashCommands.length > 0 && (
+							<>
+								<CommandGroup heading="Slash Commands" className="py-1">
+									{data.slashCommands
+										.filter((cmd) => cmd.common)
+										.map((cmd) => (
+											<SlashCommandRow
+												key={cmd.name}
+												name={cmd.name}
+												description={cmd.description}
+												tools={cmd.tools}
+												href={slashCommandDocUrl(cmd.name)}
+												variant="essential"
+											/>
+										))}
+									{data.slashCommands.some((cmd) => !cmd.common) && (
+										<>
+											<div className="mx-3 my-1 border-t border-border/60" aria-hidden />
+											{data.slashCommands
+												.filter((cmd) => !cmd.common)
+												.map((cmd) => (
+													<SlashCommandRow
+														key={cmd.name}
+														name={cmd.name}
+														description={cmd.description}
+														tools={cmd.tools}
+														href={slashCommandDocUrl(cmd.name)}
+													/>
+												))}
+										</>
+									)}
+								</CommandGroup>
+								<CommandSeparator />
+							</>
+						)}
 
 						<CommandGroup className="py-1">
 							{data.essentials.map((tool) => {

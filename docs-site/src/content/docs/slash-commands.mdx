@@ -1,0 +1,71 @@
+---
+title: Slash commands
+description: Claude Code slash commands that ship with Pigeon — what they call, when to use them, what they return.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Slash commands are Pigeon's **front door** in Claude Code. They wrap one or more MCP tools in a single keystroke so you don't have to remember which tool to call when. The MCP catalog (`?` in the web UI) shows the full list — this page is the operator-grade reference.
+
+The three most-used commands run at session boundaries. Everything else you do (move a card, add a comment, plan a card) is one of those three plus normal MCP calls.
+
+## /brief-me
+
+**What it does.** Loads the latest session handoff, the diff since, top work, blockers, recent decisions, and a project pulse. One round-trip, one primer.
+
+**Calls.** `briefMe` (essential), then `getCardContext` if you pick a card from `topWork` or `handoff.nextSteps`.
+
+**When to use.** First message of every session in a bound repo. If `briefMe` returns `needsRegistration`, run the `firstSession` workflow instead — `checkOnboarding` → `registerRepo` → `briefMe`.
+
+**Output shape.** Last handoff (`workingOn`, `findings`, `nextSteps`, `blockers`), commits-since, top 3–5 active cards, blocker list, recent decisions, a one-line pulse.
+
+## /handoff
+
+**What it does.** Wraps the session. Saves a structured handoff, runs `syncGitActivity` so commits referencing `#N` link back to cards, reports which cards you touched, and emits a resume prompt the next agent (or you tomorrow) can paste into a fresh chat.
+
+**Calls.** `moveCard` and `addComment` if state changed, then `saveHandoff`.
+
+**When to use.** Before context runs out, before you log off, before you context-switch to a different repo. Don't skip — the next session's `/brief-me` is only as good as this session's `/handoff`.
+
+<Aside type="caution" title="Move cards yourself">
+	`/handoff` does **not** auto-move cards. If a card finished, run `moveCard` (or just drag it on the board) before `/handoff`. The tool reports column transitions; it doesn't infer them.
+</Aside>
+
+## /plan-card
+
+**What it does.** Loads full card context (description, comments, relations, decisions, commits), pulls the project's `tracker.md` policy, extracts investigation hints (file paths, URLs, related card refs), and hands back a structured protocol the agent walks to draft the four locked plan sections: **Why now / Plan / Out of scope / Acceptance.**
+
+**Calls.** `planCard`.
+
+**When to use.** Right before you start work on a card that needs more than a one-liner. The card description is your published plan — chat is the draft, `updateCard` is the publish.
+
+**Workflow.**
+
+1. `planCard({ cardId: "#N" })` — get context + protocol.
+2. Investigate. Read files in `investigation_hints`, `WebFetch` URLs, `getCardContext` for related cards.
+3. Draft the four sections in chat.
+4. On user confirmation: `updateCard({ cardId: "#N", description: "<plan markdown>" })` and (if starting work) `moveCard({ columnName: "In Progress", intent: "..." })`.
+
+If `_warnings` includes `PLAN_EXISTS`, the card already has the locked headers. Surface the warning — don't overwrite without consent.
+
+## Other workflows
+
+These aren't slash commands yet — run them as named MCP procedures via `listWorkflows` if you want the recipe shape.
+
+### firstSession
+
+First conversation in a new repo. `checkOnboarding` → `registerRepo` → `briefMe`. Run when `briefMe` returns `needsRegistration` or no project owns the cwd.
+
+### recordDecision
+
+Architectural decisions get their own table. `recordDecision` for the canonical record, then `addComment` on the card the decision shaped so reviewers see it inline.
+
+### searchKnowledge
+
+Full-text search across cards, comments, decisions, notes, handoffs, code facts, and indexed repo markdown. `queryKnowledge` first, `getCardContext` to pull deep context on hits.
+
+## Where they live
+
+Slash command files are under `.claude/commands/` in the Pigeon repo. They're plain Markdown with a YAML frontmatter description. Claude Code loads them when you launch from a project that has them — they aren't user-global.
+
+If you're adding a new slash command, mirror the pattern: a brief description in frontmatter, the MCP tool call, and a one-paragraph usage note. Then add a workflow entry in `src/mcp/workflows.ts` so it shows up in `listWorkflows`, the MCP catalog popover, and Cmd-K palette.
