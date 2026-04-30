@@ -639,7 +639,7 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 							<DecisionsSection cardId={card.id} projectId={card.projectId} />
 
 							{/* Token cost (#96) */}
-							<CardCostSection cardId={card.id} />
+							<CardCostSection cardId={card.id} projectId={card.projectId} />
 
 							{/* Commit Summary */}
 							{card.gitLinks && card.gitLinks.length > 0 && (
@@ -891,28 +891,64 @@ function DecisionsSection({ cardId, projectId }: { cardId: string; projectId: st
 
 // ─── Card cost section (#96) ──────────────────────────────────────
 
-// Pulls token cost across every session that touched this card. Renders
-// nothing when there's no recorded usage — projects without the Stop hook
-// configured shouldn't see a $0 row.
-function CardCostSection({ cardId }: { cardId: string }) {
-	const { data: summary } = api.tokenUsage.getCardSummary.useQuery(
+// Three states (#147):
+//   1. card has usage  → render chip + session count
+//   2. project has usage but this card doesn't → render nothing (silence
+//      stays correct for the "tracked elsewhere" case)
+//   3. project has no usage at all → render a one-line "Not tracked yet"
+//      hint pointing at the Stop hook setup docs in AGENTS.md, since the
+//      feature is otherwise undiscoverable
+const SETUP_DOCS_URL = "https://github.com/2nspired/pigeon/blob/main/AGENTS.md#token-tracking-96";
+
+function CardCostSection({ cardId, projectId }: { cardId: string; projectId: string }) {
+	const { data: cardSummary } = api.tokenUsage.getCardSummary.useQuery(
 		{ cardId },
 		{ enabled: !!cardId, retry: false }
 	);
-
-	if (!summary || summary.totalCostUsd === 0) return null;
-
-	return (
-		<div className="space-y-1">
-			<div className="flex items-center gap-2">
-				<SectionHeader>Token cost</SectionHeader>
-				<TokenCostChip costUsd={summary.totalCostUsd} sessionCount={summary.sessionCount} />
-				<span className="text-xs text-muted-foreground">
-					across {summary.sessionCount} session{summary.sessionCount === 1 ? "" : "s"}
-				</span>
-			</div>
-		</div>
+	const { data: projectSummary } = api.tokenUsage.getProjectSummary.useQuery(
+		{ projectId },
+		{ enabled: !!projectId, retry: false }
 	);
+
+	if (cardSummary && cardSummary.totalCostUsd > 0) {
+		return (
+			<div className="space-y-1">
+				<div className="flex items-center gap-2">
+					<SectionHeader>Token cost</SectionHeader>
+					<TokenCostChip
+						costUsd={cardSummary.totalCostUsd}
+						sessionCount={cardSummary.sessionCount}
+					/>
+					<span className="text-xs text-muted-foreground">
+						across {cardSummary.sessionCount} session{cardSummary.sessionCount === 1 ? "" : "s"}
+					</span>
+				</div>
+			</div>
+		);
+	}
+
+	if (projectSummary && projectSummary.totalCostUsd === 0) {
+		return (
+			<div className="space-y-1">
+				<div className="flex items-center gap-2">
+					<SectionHeader>Token cost</SectionHeader>
+					<span className="text-xs text-muted-foreground">
+						Not tracked yet ·{" "}
+						<a
+							href={SETUP_DOCS_URL}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="underline underline-offset-2 hover:text-foreground"
+						>
+							Set up →
+						</a>
+					</span>
+				</div>
+			</div>
+		);
+	}
+
+	return null;
 }
 
 // ─── Commit Summary Section ───────────────────────────────────────
