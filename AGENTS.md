@@ -269,6 +269,8 @@ The index auto-initializes on first query. It covers repo `*.md` files up to 100
 
 > **Note (#97):** The legacy "Up Next" column was removed. Its function (human-priority queue) is now expressed by **position in Backlog** — top 3 = pinned. This keeps columns as pure workflow stages and avoids duplicating the `priority` field.
 
+> **Note (#174):** The **Done** column is sorted by ship-date (most recent first), backed by `Card.completedAt` — set when the card enters Done and cleared when it leaves. Manual reorder within Done is intentionally a no-op; cards may still be dragged in or out. The `position` field is irrelevant for any card sitting in Done.
+
 ## When to Use the Board
 
 **Start of conversation** — Call `briefMe` for a session primer (handoff, top work, pulse). For deeper exploration, use `getBoard` with `summary: true` or `excludeDone: true` to reduce payload. You can also filter to specific columns with `columns: ["Backlog", "In Progress"]`. The first three Backlog cards are the agent's recommended next-up — `briefMe.topWork` flags them with `source: "pinned"`.

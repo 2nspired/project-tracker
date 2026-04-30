@@ -152,6 +152,10 @@ model Card {
   lastEditedBy String?  @map("last_edited_by") // Agent/actor who last modified this card
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+  // Stable ship-date stamp set when the card enters a Done-role column and
+  // cleared when it leaves. Backs the Done-column sort so it isn't reshuffled
+  // by transactional position rewrites that bump updatedAt.
+  completedAt  DateTime? @map("completed_at")
 
   column        Column          @relation(fields: [columnId], references: [id], onDelete: Cascade)
   project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -174,6 +178,7 @@ model Card {
   @@index([milestoneId])
   @@index([priority])
   @@index([updatedAt])
+  @@index([completedAt])
   @@index([createdBy, projectId])
   @@map("card")
 }

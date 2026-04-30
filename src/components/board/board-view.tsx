@@ -202,8 +202,9 @@ export function BoardView({
 	}, [board.columns]);
 
 	// Apply filters to get filtered columns
-	// Done column sorts by most recently completed (updatedAt desc) instead of position
-	// Smart sort mode: sort by work-next score (descending) instead of position
+	// Done column sorts by ship-date (completedAt desc, updatedAt fallback for
+	// pre-backfill cards). Manual position is not respected — see #174 and the
+	// "Done sort" note in AGENTS.md. Smart sort mode: by work-next score desc.
 	const filteredColumns = useMemo(
 		() =>
 			board.columns
@@ -211,9 +212,11 @@ export function BoardView({
 				.map((col) => {
 					let cards = filterCards(col.cards, filters);
 					if (hasRole(col, "done")) {
-						cards = [...cards].sort(
-							(a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-						);
+						cards = [...cards].sort((a, b) => {
+							const aTime = new Date(a.completedAt ?? a.updatedAt).getTime();
+							const bTime = new Date(b.completedAt ?? b.updatedAt).getTime();
+							return bTime - aTime;
+						});
 					} else if (sortMode === "smart") {
 						cards = [...cards]
 							.map((card) => ({
@@ -283,6 +286,9 @@ export function BoardView({
 			if (!overColumn) return prev;
 
 			if (activeColumn.id === overColumn.id) {
+				// Done column is sorted by completedAt desc — manual reorder is a no-op
+				// (#174). Don't shadow-rearrange or fire a mutation.
+				if (hasRole(activeColumn, "done")) return prev;
 				const oldIndex = activeColumn.cards.findIndex((c) => c.id === activeId);
 				const newIndex = activeColumn.cards.findIndex((c) => c.id === overId);
 				if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;

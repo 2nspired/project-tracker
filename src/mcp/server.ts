@@ -75,6 +75,11 @@ function strictTagError(
 	};
 }
 
+function isDoneColumnRow(column: { role?: string | null; name: string }): boolean {
+	if (column.role) return column.role === "done";
+	return column.name.toLowerCase() === "done";
+}
+
 function humanizeAge(date: Date): string {
 	const ms = Date.now() - date.getTime();
 	const minutes = Math.floor(ms / 60000);
@@ -564,13 +569,22 @@ server.registerTool(
 					position !== undefined ? Math.min(position, filtered.length) : filtered.length;
 				filtered.splice(insertAt, 0, card);
 
+				const sourceIsDone = isDoneColumnRow(card.column);
+				const targetIsDone = isDoneColumnRow(targetColumn);
+				const completedAtPatch =
+					targetIsDone && !sourceIsDone
+						? { completedAt: new Date() }
+						: sourceIsDone && !targetIsDone
+							? { completedAt: null }
+							: {};
+
 				const updates = filtered.map((c, i) =>
 					db.card.update({
 						where: { id: c.id },
 						data: {
 							columnId: targetColumn.id,
 							position: i,
-							...(c.id === cardId && { lastEditedBy: AGENT_NAME }),
+							...(c.id === cardId && { lastEditedBy: AGENT_NAME, ...completedAtPatch }),
 						},
 					})
 				);

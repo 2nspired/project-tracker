@@ -286,6 +286,19 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 			return { success: false, error: { code: "NOT_FOUND", message: "Card not found." } };
 		}
 
+		const targetColumnRow = await db.column.findUnique({ where: { id: data.columnId } });
+		if (!targetColumnRow) {
+			return {
+				success: false,
+				error: { code: "NOT_FOUND", message: "Target column not found." },
+			};
+		}
+
+		const sourceIsDone = isDoneColumn(existing.column);
+		const targetIsDone = isDoneColumn(targetColumnRow);
+		const enteringDone = targetIsDone && !sourceIsDone;
+		const leavingDone = sourceIsDone && !targetIsDone;
+
 		const targetColumn = await db.card.findMany({
 			where: { columnId: data.columnId },
 			orderBy: { position: "asc" },
@@ -299,13 +312,20 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 		filtered.splice(newPosition, 0, existing);
 
 		// Update all positions in batch; stamp lastEditedBy only on the moved card.
+		// completedAt is only touched on Done entry/exit so siblings don't have
+		// their ship-date clobbered when an unrelated card lands in Done.
+		const completedAtPatch = enteringDone
+			? { completedAt: new Date() }
+			: leavingDone
+				? { completedAt: null }
+				: {};
 		const updates = filtered.map((c, i) =>
 			db.card.update({
 				where: { id: c.id },
 				data: {
 					columnId: data.columnId,
 					position: i,
-					...(c.id === cardId && { lastEditedBy: "HUMAN" }),
+					...(c.id === cardId && { lastEditedBy: "HUMAN", ...completedAtPatch }),
 				},
 			})
 		);
@@ -313,17 +333,14 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 		await db.$transaction(updates);
 
 		if (existing.columnId !== data.columnId) {
-			const movedColumn = await db.column.findUnique({ where: { id: data.columnId } });
-			if (movedColumn) {
-				await db.activity.create({
-					data: {
-						cardId,
-						action: "moved",
-						details: `Moved from "${existing.column.name}" to "${movedColumn.name}"`,
-						actorType: "HUMAN",
-					},
-				});
-			}
+			await db.activity.create({
+				data: {
+					cardId,
+					action: "moved",
+					details: `Moved from "${existing.column.name}" to "${targetColumnRow.name}"`,
+					actorType: "HUMAN",
+				},
+			});
 		}
 
 		// Return the card with updated position/column without an extra query
@@ -334,12 +351,18 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 				...existing,
 				columnId: data.columnId,
 				position: finalPosition >= 0 ? finalPosition : data.position,
+				completedAt: enteringDone ? new Date() : leavingDone ? null : existing.completedAt,
 			},
 		};
 	} catch (error) {
 		console.error("[CARD_SERVICE] move error:", error);
 		return { success: false, error: { code: "MOVE_FAILED", message: "Failed to move card." } };
 	}
+}
+
+function isDoneColumn(column: { role?: string | null; name: string }): boolean {
+	if (column.role) return column.role === "done";
+	return column.name.toLowerCase() === "done";
 }
 
 async function deleteCard(cardId: string): Promise<ServiceResult<Card>> {

@@ -19,6 +19,11 @@ import {
 	safeExecute,
 } from "./utils.js";
 
+function isDoneColumnLike(column: { role?: string | null; name: string }): boolean {
+	if (column.role) return column.role === "done";
+	return column.name.toLowerCase() === "done";
+}
+
 // ─── Discovery ──────────────────────────────────────────────────────
 
 registerExtendedTool("listProjects", {
@@ -635,9 +640,18 @@ registerExtendedTool("bulkMoveCards", {
 					continue;
 				}
 
+				const sourceIsDone = isDoneColumnLike(card.column);
+				const targetIsDone = isDoneColumnLike(column);
+				const completedAtPatch =
+					targetIsDone && !sourceIsDone
+						? { completedAt: new Date() }
+						: sourceIsDone && !targetIsDone
+							? { completedAt: null }
+							: {};
+
 				await db.card.update({
 					where: { id },
-					data: { columnId: column.id, position: nextPos++ },
+					data: { columnId: column.id, position: nextPos++, ...completedAtPatch },
 				});
 
 				await db.activity.create({

@@ -20,6 +20,7 @@
 		"mcp:dev": "MCP_SERVER_BRAND=pigeon tsx src/mcp/server.ts",
 		"doctor": "tsx scripts/doctor.ts",
 		"migrate-rebrand": "tsx scripts/migrate-rebrand.ts",
+		"backfill-completed-at": "tsx scripts/backfill-completed-at.ts",
 		"docs:sync": "tsx scripts/sync-tool-docs.ts",
 		"docs:check": "tsx scripts/sync-tool-docs.ts --check",
 		"catalog:sync": "tsx scripts/sync-tool-catalog.ts",
