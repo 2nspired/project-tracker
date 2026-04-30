@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useCardNavigation } from "@/hooks/use-card-navigation";
 import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { getHorizon, hasRole } from "@/lib/column-roles";
 import { PRIORITY_BORDER, PRIORITY_DOT, STATUS_TEXT } from "@/lib/priority-colors";
@@ -246,6 +247,12 @@ export function BoardListView({
 		return null;
 	}, []);
 
+	const flatCardIds = useMemo(
+		() => groupedByColumn.flatMap((g) => g.cards.map((c) => c.id)),
+		[groupedByColumn]
+	);
+	const handleNavigate = useCardNavigation(flatCardIds, selectedCardId, onCardSelect);
+
 	const handleDragStart = (event: DragStartEvent) => {
 		const card = allCards.find((c) => c.id === event.active.id);
 		if (card) setActiveCard(card);
@@ -372,6 +379,7 @@ export function BoardListView({
 					cardId={selectedCardId}
 					boardId={board.id}
 					onClose={() => onCardSelect(null)}
+					onNavigate={handleNavigate}
 				/>
 			</div>
 

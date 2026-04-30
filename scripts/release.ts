@@ -1,5 +1,5 @@
 /**
- * Release script for project-tracker.
+ * Release script for Pigeon.
  *
  * Verifies that the three version carriers (package.json, MCP_SERVER_VERSION,
  * git tag) are about to agree, runs the same checks CI would run, confirms

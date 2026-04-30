@@ -1,5 +1,5 @@
 ---
-description: Wrap up the current Project Tracker session — save a handoff, link commits, report touched cards, and emit a resume prompt for the next chat.
+description: Wrap up the current Pigeon session — save a handoff, link commits, report touched cards, and emit a resume prompt for the next chat.
 ---
 
 Call the `endSession` MCP tool to close out this conversation cleanly.

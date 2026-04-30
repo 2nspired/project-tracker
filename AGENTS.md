@@ -1,10 +1,10 @@
-# Agent Guidelines for Project Tracker
+# Agent Guidelines for Pigeon
 
 > **Runtime board policy lives in [`tracker.md`](tracker.md)** at the project's repo root — that file is the source of truth for `intent_required_on`, per-column prompts, and the project's general agent prompt. This document is contributor docs: tool migration history, conventions, and reference material that hasn't been moved (and may not need to be). When this file and `tracker.md` overlap, `tracker.md` wins. See [docs/SURFACES.md](docs/SURFACES.md) for the full surface map.
 
 > If the human can't see it and correct it in the surface where they'd naturally encounter it, the agent shouldn't trust it.
 
-Shared guidelines for any AI agent (Claude, Codex, etc.) using the Project Tracker MCP.
+Shared guidelines for any AI agent (Claude, Codex, etc.) using the Pigeon MCP.
 
 When this MCP is connected to a project, use the board as your shared workspace with the user. These guidelines keep it useful without burning tokens.
 
@@ -101,9 +101,9 @@ The knowledge tools were consolidated in v2.2. If your prompts or learned workfl
 
 **Key concept:** The `content` field replaces `claim` (context), `fact` (code), and `description` (measurement). All three fact types share CRUD through `saveFact`/`listFacts` with a `type` discriminator. The underlying data is unchanged.
 
-## Project Prompt — deprecated, see `tracker.md`
+## Project orientation — `tracker.md`
 
-The `projectPrompt` DB column has been superseded by [`tracker.md`](tracker.md) at repo root (RFC #111). New projects should write `tracker.md` directly; existing projects can run `migrateProjectPrompt({ projectId })` to copy the DB value into a fresh `tracker.md`, then clear the column. The field will be removed in v5.0.0.
+A project's runtime orientation lives in [`tracker.md`](tracker.md) at repo root (RFC #111). The legacy `projectPrompt` DB column was removed in v5.0.0 (#129); the body of `tracker.md` is now the only place to set the agent-orientation prompt for a project.
 
 **When to use `tracker.md` vs. repo-side CLAUDE.md:**
 - `tracker.md` is the project's runtime board policy — agent prompt body + machine-parsed front matter (`intent_required_on`, per-column prompts). Read by `briefMe` and `getCardContext`.
@@ -251,6 +251,31 @@ The index auto-initializes on first query. It covers repo `*.md` files up to 100
 
 **End of conversation** — Update card states to reflect where things landed. Future conversations pick up from here.
 
+## Planning a Card
+
+When the user wants you to plan a card (vague backlog item, parking-lot idea, etc.), call `planCard`:
+
+```
+runTool("planCard", { boardId, cardId: "#N" })
+```
+
+Or, in Claude Code, the `/plan-card N` slash command does the same thing.
+
+**What it does.** Returns the full card context (description, comments, relations, decisions, commits), the project's `tracker.md` policy (body prompt + per-column prompts), an `investigation_hints` object (URLs, file paths, `#nnn` card refs, code symbols extracted from the description), and a fixed `protocol` string that walks you through synthesizing the plan.
+
+**The four locked sections.** Every planned card ends up with these level-2 headings, in this order:
+
+1. `## Why now` — trigger or motivation
+2. `## Plan` — concrete steps (numbered when order matters)
+3. `## Out of scope` — what you considered and deferred
+4. `## Acceptance` — testable verification criteria
+
+Consistency is the point. Future agents (and humans) skim any card and find the plan in the same place.
+
+**Workflow.** Investigate using the hints → draft the plan in chat (chat is draft, card is publish) → on explicit user confirmation, `updateCard` writes it to the description and `moveCard` promotes it to In Progress.
+
+**`PLAN_EXISTS` warning.** If the description already contains the locked headers, `planCard` refuses to return a `protocol` — surface the warning to the user. Don't silently overwrite a published plan; ask whether to revise it or remove the headers and start fresh.
+
 ## When NOT to Use the Board
 
 - Don't update after every small code change — git tracks that
@@ -334,7 +359,7 @@ Then add to the project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc
 ```
 ## Project Tracking
 
-This project uses a Project Tracker board via MCP.
+This project uses Pigeon (a kanban board with MCP integration) for context continuity across AI sessions.
 
 **Session lifecycle:** Call `briefMe()` at the start of each conversation for
 a one-shot session primer (handoff, top work, blockers, pulse). Call

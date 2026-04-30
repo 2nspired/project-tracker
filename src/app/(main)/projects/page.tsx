@@ -184,7 +184,7 @@ export default function ProjectsPage() {
 				) : projects?.length === 0 ? (
 					<EmptyState
 						icon={FolderOpen}
-						title="Welcome to Project Tracker"
+						title="Welcome to Pigeon"
 						description="Create your first project, or explore the tutorial project to learn how everything works."
 						className="col-span-full py-16"
 					>

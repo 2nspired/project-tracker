@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 #
-# Connect a project to the Project Tracker MCP server.
+# Connect a project to the Pigeon MCP server.
 #
 # Usage:
 #   From any project directory:
-#     /path/to/project-tracker/scripts/connect.sh
+#     /path/to/pigeon/scripts/connect.sh
 #
 #   Or with an explicit target:
-#     /path/to/project-tracker/scripts/connect.sh /path/to/my-project
+#     /path/to/pigeon/scripts/connect.sh /path/to/my-project
 #
 
 set -euo pipefail
 
-# Resolve the project-tracker root (parent of scripts/)
+# Resolve the Pigeon root (parent of scripts/)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TRACKER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -22,9 +22,9 @@ TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
 
 MCP_FILE="$TARGET_DIR/.mcp.json"
 
-# Sanity check: don't connect project-tracker to itself
+# Sanity check: don't connect Pigeon to itself
 if [ "$TARGET_DIR" = "$TRACKER_ROOT" ]; then
-  echo "Error: You're inside project-tracker itself. Run this from a different project."
+  echo "Error: You're inside the Pigeon directory itself. Run this from a different project."
   exit 1
 fi
 
@@ -38,7 +38,7 @@ else
   echo "  Auto-detect for briefMe needs a git root — skipping registration."
 fi
 
-# Register the repo with Project Tracker so briefMe can auto-detect it.
+# Register the repo with Pigeon so briefMe can auto-detect it.
 if [ -n "$REPO_ROOT" ]; then
   DEFAULT_NAME="$(basename "$REPO_ROOT")"
   read -r -p "Project name for this repo [$DEFAULT_NAME]: " PROJECT_NAME </dev/tty || PROJECT_NAME=""
@@ -50,19 +50,19 @@ fi
 
 # Check if .mcp.json already exists
 if [ -f "$MCP_FILE" ]; then
-  # Check if project-tracker is already configured
-  if grep -q "project-tracker" "$MCP_FILE" 2>/dev/null; then
-    echo "project-tracker is already configured in $MCP_FILE"
+  # Check if Pigeon is already configured (under either the new or legacy key)
+  if grep -qE '"(pigeon|project-tracker)"' "$MCP_FILE" 2>/dev/null; then
+    echo "Pigeon is already configured in $MCP_FILE"
     exit 0
   fi
 
   echo "Warning: $MCP_FILE already exists with other MCP servers."
-  echo "You'll need to manually add the project-tracker entry."
+  echo "You'll need to manually add the Pigeon entry."
   echo ""
   echo "Add this to the \"mcpServers\" object in $MCP_FILE:"
   echo ""
-  echo "  \"project-tracker\": {"
-  echo "    \"command\": \"$TRACKER_ROOT/scripts/mcp-start.sh\","
+  echo "  \"pigeon\": {"
+  echo "    \"command\": \"$TRACKER_ROOT/scripts/pigeon-start.sh\","
   echo "    \"args\": []"
   echo "  }"
   exit 0
@@ -83,8 +83,8 @@ esac
 cat > "$MCP_FILE" <<EOF
 {
   "mcpServers": {
-    "project-tracker": {
-      "command": "$TRACKER_ROOT/scripts/mcp-start.sh",
+    "pigeon": {
+      "command": "$TRACKER_ROOT/scripts/pigeon-start.sh",
       "args": [],
       "env": {
         "AGENT_NAME": "$AGENT_NAME"
@@ -95,7 +95,7 @@ cat > "$MCP_FILE" <<EOF
 EOF
 
 echo "Created $MCP_FILE"
-echo "Project Tracker MCP is now available in this project."
+echo "Pigeon MCP is now available in this project."
 echo "Agent name: $AGENT_NAME (set AGENT_NAME env var to change)"
 echo ""
 echo "Tip: Add this to your project's CLAUDE.md:"
@@ -103,7 +103,8 @@ echo ""
 cat <<'SNIPPET'
   ## Project Tracking
 
-  This project uses a Project Tracker board via MCP.
+  This project uses Pigeon (a kanban board with MCP integration) for context
+  continuity across AI sessions.
 
   **Session lifecycle:** Call `briefMe()` at the start of each conversation
   for a one-shot session primer (handoff, top work, blockers, pulse). Call

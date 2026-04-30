@@ -2,7 +2,7 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import mermaid from "astro-mermaid";
 
-// GitHub Pages deploys under /project-tracker/ (workflow sets DOCS_BASE).
+// GitHub Pages deploys under /pigeon/ (workflow sets DOCS_BASE).
 // Local dev serves at root so `localhost:4321/` just works.
 const SITE = process.env.DOCS_SITE ?? "https://2nspired.github.io";
 const BASE = process.env.DOCS_BASE ?? "/";
@@ -26,7 +26,7 @@ export default defineConfig({
 				{
 					icon: "github",
 					label: "GitHub",
-					href: "https://github.com/2nspired/project-tracker",
+					href: "https://github.com/2nspired/pigeon",
 				},
 			],
 			customCss: ["./src/styles/custom.css"],
@@ -56,7 +56,7 @@ export default defineConfig({
 			],
 			editLink: {
 				baseUrl:
-					"https://github.com/2nspired/project-tracker/edit/main/docs-site/",
+					"https://github.com/2nspired/pigeon/edit/main/docs-site/",
 			},
 			lastUpdated: true,
 		}),

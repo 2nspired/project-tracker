@@ -184,7 +184,7 @@ async function unregisteredRepoResponse(repoRoot: string) {
 	return ok({
 		needsRegistration: true,
 		repoRoot,
-		message: `This git repo isn't bound to a Project Tracker project yet. Ask the human which project to attach it to, then call registerRepo({ projectId, repoPath: "${repoRoot}" }).`,
+		message: `This git repo isn't bound to a Pigeon project yet. Ask the human which project to attach it to, then call registerRepo({ projectId, repoPath: "${repoRoot}" }).`,
 		projects: projects.map((p) => ({
 			id: p.id,
 			name: p.name,
@@ -202,11 +202,11 @@ import "./tools/relation-tools.js";
 import "./tools/session-tools.js";
 import "./tools/decision-tools.js";
 import "./tools/context-tools.js";
+import "./tools/plan-card.js";
 import "./tools/query-tools.js";
 import "./tools/git-tools.js";
 import "./tools/summary-tools.js";
 import "./tools/onboarding-tools.js";
-import "./tools/migration-tools.js";
 import "./tools/status-tools.js";
 import "./tools/fact-tools.js";
 import "./tools/claim-tools.js";
@@ -215,8 +215,13 @@ import "./tools/instrumentation-tools.js";
 import "./tools/tag-tools.js";
 import "./tools/token-tools.js";
 
+import { LEGACY_BRAND_DEPRECATION, resolveServerBrand } from "./brand.js";
+
+const SERVER_BRAND = resolveServerBrand();
+const IS_LEGACY_BRAND = SERVER_BRAND === "project-tracker";
+
 const server = new McpServer({
-	name: "project-tracker",
+	name: SERVER_BRAND,
 	version: MCP_SERVER_VERSION,
 });
 
@@ -732,6 +737,7 @@ server.registerTool(
 				cards: cardCount,
 				handoffs: handoffCount,
 			},
+			...(IS_LEGACY_BRAND ? { _brandDeprecation: LEGACY_BRAND_DEPRECATION } : {}),
 			toolArchitecture: {
 				essential: `${ESSENTIAL_TOOLS.length} tools are always visible: ${ESSENTIAL_TOOLS.map((t) => t.name).join(", ")}. briefMe is the session-start primer; getBoard, searchCards, and getRoadmap live in extended — call via runTool.`,
 				extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
@@ -746,7 +752,6 @@ server.registerTool(
 			projects: projects.map((p) => ({
 				id: p.id,
 				name: p.name,
-				...(p.projectPrompt ? { projectPrompt: p.projectPrompt } : {}),
 				boards: p.boards.map((b) => ({
 					id: b.id,
 					name: b.name,
@@ -799,7 +804,7 @@ server.registerTool(
 				where: { id: boardId },
 				include: {
 					project: {
-						select: { id: true, name: true, repoPath: true, projectPrompt: true },
+						select: { id: true, name: true, repoPath: true },
 					},
 					columns: {
 						orderBy: { position: "asc" },
@@ -867,7 +872,6 @@ server.registerTool(
 				findStaleInProgress(db, boardId),
 				loadTrackerPolicy({
 					repoPath: board.project.repoPath,
-					projectPrompt: board.project.projectPrompt,
 				}),
 				tokenUsageService.getProjectSummary(board.project.id),
 			]);
@@ -984,6 +988,7 @@ server.registerTool(
 
 			const briefPayload = {
 				_serverVersion: MCP_SERVER_VERSION,
+				...(IS_LEGACY_BRAND ? { _brandDeprecation: LEGACY_BRAND_DEPRECATION } : {}),
 				...(versionMismatch ? { _versionMismatch: versionMismatch } : {}),
 				...(policyResult.warnings.length > 0 ? { _warnings: policyResult.warnings } : {}),
 				pulse,
@@ -1812,7 +1817,7 @@ server.registerPrompt(
 			"",
 			"```",
 			"## Project Tracking",
-			"This project uses the `project-tracker` MCP tools.",
+			"This project uses the `pigeon` MCP tools.",
 			"Use the `resume-session` prompt with the board ID at the start of each conversation.",
 			"Use `end-session` before wrapping up to save handoff for the next session.",
 			'Reference cards by #number (e.g. "working on #7").',
@@ -1950,13 +1955,13 @@ server.registerPrompt(
 			const result = await seedTutorialProject(db);
 			if (result) {
 				const text = [
-					"# Welcome to Project Tracker! 🎓",
+					"# Welcome to Pigeon! 🎓",
 					"",
 					`I've created a tutorial project for you to explore. Use the **resume-session** prompt with boardId \`${result.boardId}\` to see the board.`,
 					"",
 					"## What's inside",
 					"",
-					'The "Learn Project Tracker" project has **17 cards** across all 6 columns, each teaching a different feature:',
+					'The "Learn Pigeon" project has **17 cards** across all 6 columns, each teaching a different feature:',
 					"",
 					"- **Cards & columns** — how tasks flow from Backlog → Done",
 					"- **Checklists** — break cards into subtasks (card #6 has a partial checklist)",
@@ -2054,7 +2059,7 @@ async function main() {
 	const sha = await getCommitSha();
 	const shaShort = sha ? sha.slice(0, 7) : "unknown";
 	console.error(
-		`Project Tracker MCP v${MCP_SERVER_VERSION} — ${ESSENTIAL_TOOLS.length} essentials + ${getRegistrySize()} extended, schema v${SCHEMA_VERSION}, commit ${shaShort}`
+		`Pigeon MCP v${MCP_SERVER_VERSION} (brand=${SERVER_BRAND}) — ${ESSENTIAL_TOOLS.length} essentials + ${getRegistrySize()} extended, schema v${SCHEMA_VERSION}, commit ${shaShort}`
 	);
 }
 

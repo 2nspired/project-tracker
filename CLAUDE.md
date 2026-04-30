@@ -1,6 +1,6 @@
-# Project Tracker
+# Pigeon
 
-Local-first kanban board with MCP integration for AI-assisted development.
+Local-first kanban board with MCP integration for AI-assisted development. Pigeon carries context between AI sessions — `briefMe` at session start, `endSession` at session end.
 
 ## Tech Stack
 
@@ -45,3 +45,5 @@ The web UI can run as a persistent background service via macOS launchd on port 
 ## Agent Guidelines
 
 See [AGENTS.md](AGENTS.md) for board usage guidelines, column definitions, workflow conventions, and connection instructions. Those guidelines apply to all agents (Claude, Codex, etc.).
+
+If the user asks you to plan a card, call `planCard({ boardId, cardId: "#N" })` (or use the `/plan-card` slash command). It returns the card context, tracker.md policy, investigation hints, and a fixed protocol that produces the four locked plan sections.

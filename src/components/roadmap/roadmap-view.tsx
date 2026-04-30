@@ -17,6 +17,7 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CardDetailSheet } from "@/components/board/card-detail-sheet";
 import { Button } from "@/components/ui/button";
+import { useCardNavigation } from "@/hooks/use-card-navigation";
 import { getHorizon, type Horizon } from "@/lib/column-roles";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
@@ -238,6 +239,17 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 		setSelectedCardId(cardId);
 	}, []);
 
+	const flatCardIds = useMemo(() => {
+		const ids: string[] = [];
+		for (const h of ["now", "next", "later", "done"] as Horizon[]) {
+			for (const group of horizonGroups[h]) {
+				for (const card of group.cards) ids.push(card.id);
+			}
+		}
+		return ids;
+	}, [horizonGroups]);
+	const handleNavigate = useCardNavigation(flatCardIds, selectedCardId, setSelectedCardId);
+
 	// Find the active milestone for drag overlay
 	const activeMilestone = activeDragId
 		? [...horizonGroups.now, ...horizonGroups.later, ...horizonGroups.done].find(
@@ -351,6 +363,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 				cardId={selectedCardId}
 				boardId={board.id}
 				onClose={() => setSelectedCardId(null)}
+				onNavigate={handleNavigate}
 			/>
 		</>
 	);

@@ -1,5 +1,5 @@
 /**
- * Service management for project-tracker via macOS launchd.
+ * Service management for Pigeon via macOS launchd.
  *
  * Runs the production Next.js build as a persistent background service
  * so the board is always available at http://localhost:3100 without
@@ -29,14 +29,14 @@ import { fileURLToPath } from "node:url";
 // Constants
 // ---------------------------------------------------------------------------
 
-const SERVICE_LABEL = "com.2nspired.project-tracker";
+const SERVICE_LABEL = "com.2nspired.pigeon";
 const PORT = 3100;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_DIR = resolve(__dirname, "..");
 const HOME = homedir();
 const PLIST_PATH = resolve(HOME, "Library/LaunchAgents", `${SERVICE_LABEL}.plist`);
-const LOG_DIR = resolve(HOME, "Library/Logs/project-tracker");
+const LOG_DIR = resolve(HOME, "Library/Logs/pigeon");
 const NODE_PATH = process.execPath;
 const NODE_BIN_DIR = dirname(NODE_PATH);
 const NEXT_BIN = resolve(PROJECT_DIR, "node_modules/next/dist/bin/next");
@@ -149,8 +149,9 @@ function bootstrap() {
 			if (attempt < 2) execSync("sleep 1");
 		}
 	}
-	// Final attempt — let error propagate
-	bootstrap();
+	// All three attempts failed — make one final call without stdio:"pipe" so
+	// launchctl's error surfaces, then let it throw rather than recursing forever.
+	execSync(`launchctl bootstrap ${GUI_TARGET} ${PLIST_PATH}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -327,7 +328,7 @@ if (command && command in commands) {
 	commands[command]();
 } else {
 	console.log(`
-project-tracker service manager
+Pigeon service manager
 
 Usage: npm run service:<command>
 

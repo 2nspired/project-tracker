@@ -60,12 +60,11 @@ export async function loadPolicyForBoard(
 	try {
 		const board = await db.board.findUnique({
 			where: { id: boardId },
-			select: { project: { select: { repoPath: true, projectPrompt: true } } },
+			select: { project: { select: { repoPath: true } } },
 		});
 		if (!board) return null;
 		const result = await loadTrackerPolicy({
 			repoPath: board.project.repoPath,
-			projectPrompt: board.project.projectPrompt,
 		});
 		return result.policy;
 	} catch {
@@ -77,7 +76,7 @@ export async function loadPolicyForBoard(
  * Fallback resolver: when a tool doesn't take `boardId` directly (or it's
  * omitted), try to resolve the project from the caller's git repo root.
  * Mirrors the logic in `resolveBoardFromCwd` but stops at the project
- * (we only need `repoPath` + `projectPrompt`).
+ * (we only need `repoPath`).
  */
 export async function loadPolicyForCwd(): Promise<TrackerPolicy | null> {
 	const callerCwd = process.env.MCP_CALLER_CWD || process.cwd();
@@ -95,12 +94,11 @@ export async function loadPolicyForCwd(): Promise<TrackerPolicy | null> {
 	try {
 		const project = await db.project.findUnique({
 			where: { repoPath: repoRoot },
-			select: { repoPath: true, projectPrompt: true },
+			select: { repoPath: true },
 		});
 		if (!project) return null;
 		const result = await loadTrackerPolicy({
 			repoPath: project.repoPath,
-			projectPrompt: project.projectPrompt,
 		});
 		return result.policy;
 	} catch {

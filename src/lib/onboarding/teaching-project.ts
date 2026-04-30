@@ -1,5 +1,5 @@
 /**
- * Pure data definition for the "Learn Project Tracker" tutorial project.
+ * Pure data definition for the "Learn Pigeon" tutorial project.
  *
  * Dual-audience: every content card teaches both a human (UI action) and a
  * connected agent (MCP call), so the tutorial board works as a live demo
@@ -13,12 +13,15 @@
  *   **Outcome:** observable change
  *
  * No Prisma or runtime imports — just plain objects.
+ *
+ * Note: TUTORIAL_SLUG stays as "learn-project-tracker" — it's the DB
+ * idempotency guard. Existing installs migrate via `npm run migrate-rebrand`.
  */
 
 export const TUTORIAL_SLUG = "learn-project-tracker";
 
 export const teachingProject = {
-	name: "Learn Project Tracker",
+	name: "Learn Pigeon",
 	slug: TUTORIAL_SLUG,
 	description:
 		"A hands-on tutorial that teaches humans the UI and agents the MCP surface. Every card has a Try it (UI) and a Try it (agent) step — walk the board solo, or watch your connected agent walk it for you.",
@@ -32,7 +35,7 @@ export const teachingProject = {
 
 	milestone: {
 		name: "Getting Started",
-		description: "Complete these cards to learn the basics of Project Tracker",
+		description: "Complete these cards to learn the basics of Pigeon",
 	},
 
 	/** Card numbers attached to the "Getting Started" milestone */
@@ -41,9 +44,9 @@ export const teachingProject = {
 	cards: [
 		// ── Done (3) — concepts demonstrated by their existence ──────────
 		{
-			title: "Welcome to Project Tracker",
+			title: "Welcome to Pigeon",
 			description: [
-				"**What:** Cards are the building blocks of Project Tracker. Each one represents a task, feature, bug, or idea.",
+				"**What:** Cards are the building blocks of Pigeon — the homing-pigeon metaphor: each card is a piece of context that travels with you between AI sessions. Each one represents a task, feature, bug, or idea.",
 				"**Why it matters:** Everything downstream — priorities, relations, handoffs, commits — hangs off a card. Agents and humans share the same cards as the single source of truth.",
 				"**Try it (UI):** You're reading one now! Click any card on the board to open its details.",
 				"**Try it (agent):** `briefMe()` — run this first in any session. It returns the last handoff, recent diff, top work, and the current pulse in ~300 tokens instead of a full board dump.",
@@ -322,7 +325,7 @@ export const teachingProject = {
 		{
 			title: "Explore More Features",
 			description: [
-				"**What:** The tutorial is a starting point — Project Tracker has more to discover once you're comfortable.",
+				"**What:** The tutorial is a starting point — Pigeon has more to discover once you're comfortable.",
 				"**Why it matters:** The MCP surface is broader than the essentials. Extended tools handle facts, measurements, staleness checks, roadmap views, and more — the docs site and `getTools` are the canonical index.",
 				"**Try it (UI):** Explore the Dashboard, Roadmap view, Notes, and the Decisions tab on the project page.",
 				'**Try it (agent):** `getTools()` with no filter returns the full list grouped by category. Pick one that looks useful and fetch its schema with `getTools({ tool: "name" })`.',
@@ -334,14 +337,29 @@ export const teachingProject = {
 			createdBy: "AGENT",
 		},
 
-		// ── Backlog (advanced) — tracker.md policy ──────────────────────
+		// ── Backlog (advanced) — tracker.md policy + planning ────────────
+		{
+			title: "Plan a Card with planCard",
+			description: [
+				"**What:** `planCard` is a first-class MCP tool that turns a vague backlog item into a structured plan. It returns the card context, the project's `tracker.md` policy, an `investigation_hints` object (URLs / file paths / `#nnn` refs / code symbols extracted from the description), and a fixed `protocol` string instructing the agent to draft a plan with four locked headings.",
+				"**Why it matters:** Without it, every session re-derives the same recipe (load card → read policy → investigate → draft → confirm → write). With it, every planned card emerges with the same shape — `## Why now` / `## Plan` / `## Out of scope` / `## Acceptance` — so future humans and agents always find the plan in the same place.",
+				"**Try it (UI):** This card is intentionally light on detail. Drop a vague intent into a card description, then let your agent run `/plan-card N` (or call `planCard`) to flesh it out.",
+				'**Try it (agent):** `runTool({ tool: "planCard", params: { boardId, cardId: "#22" } })`. Read the `protocol`, walk the four steps (investigate → synthesize → propose in chat → publish on confirm). Watch the activity strip — a `planning` event is stamped while planning is in flight.',
+				'**Refuse-on-exists:** If the card description already contains all three required headers (`## Why now`, `## Plan`, `## Acceptance`), `planCard` returns `_warnings[].code === "PLAN_EXISTS"` and omits the protocol. Don\'t silently overwrite a published plan — surface the warning to the human.',
+				"**Outcome:** The card description becomes the canonical plan. Anyone (human or agent) opening the card later sees the four locked sections and knows what's planned, why, what's out of scope, and how to verify it shipped.",
+			].join("\n\n"),
+			column: "Backlog",
+			priority: "LOW",
+			tags: ["tutorial", "advanced", "mcp", "planning"],
+			createdBy: "AGENT",
+		},
 		{
 			title: "Define Runtime Policy in tracker.md",
 			description: [
 				"**What:** `tracker.md` is a single Markdown file at your project's repo root. YAML front matter carries machine-parsed policy (`intent_required_on`, `columns.<name>.prompt`); the body is the project's general agent prompt. Tracker MCP tools parse it and surface it to agents at the right moment.",
-				"**Why it matters:** Unlike the legacy `projectPrompt` DB column, `tracker.md` is git-versioned — review, branch, roll back. `briefMe` exposes the body under `policy.prompt`. `getCardContext` surfaces `policy.columnPrompt` exactly when an agent picks up a card in that column. Tools listed in `intent_required_on` enforce the `intent` parameter at the MCP boundary.",
+				"**Why it matters:** `tracker.md` is git-versioned — review, branch, roll back. `briefMe` exposes the body under `policy.prompt`. `getCardContext` surfaces `policy.columnPrompt` exactly when an agent picks up a card in that column. Tools listed in `intent_required_on` enforce the `intent` parameter at the MCP boundary.",
 				"**Try it (UI):** Drop the example below into `tracker.md` at the root of any project you've connected, edit the prompts to match your policy, and commit it.",
-				'**Try it (agent):** Two paths:\n  1. Project has a legacy `projectPrompt`: `runTool({ tool: "migrateProjectPrompt", params: { projectId } })` writes a tracker.md from it.\n  2. Otherwise, write the file by hand using the example below.',
+				"**Try it (agent):** Write the file by hand at repo root using the example below as a starting point.",
 				"**Example tracker.md:**\n\n````markdown\n---\nschema_version: 1\nproject_slug: learn-project-tracker\nintent_required_on:\n  - moveCard\n  - deleteCard\ncolumns:\n  In Progress:\n    prompt: |\n      Limit to 2-3 cards. Move here when you start writing code, not when planning.\n  Review:\n    prompt: |\n      Code is written and needs human verification. Don't move to Done without\n      explicit approval in a comment.\n---\n\n# Project policy for learn-project-tracker\n\nStart every session with `briefMe` — it returns the last handoff, top work,\nblockers, and pulse. Prefer cards with `source: 'pinned'` over `source: 'scored'`.\n\nEnd every session with `endSession` — saves a handoff and links new commits.\n````",
 				"**Outcome:** `briefMe` includes the parsed policy in its response. Cards in `In Progress` or `Review` get the matching `columnPrompt` via `getCardContext`. `moveCard` and `deleteCard` reject calls without an `intent`.",
 			].join("\n\n"),
@@ -445,7 +463,7 @@ export const teachingProject = {
 			"Seeded the dual-audience tutorial board with 21 cards. Each content card has both a Try it (UI) and a Try it (agent) step.",
 		workingOn: ["Seeding the tutorial cards across all columns"],
 		findings: [
-			"Board has 5 columns: Backlog, Up Next, In Progress, Done, Parking Lot",
+			"Board has 4 columns: Backlog, In Progress, Done, Parking Lot",
 			"Card #9 blocks card #8 to demonstrate blocking relations",
 			"Sample decision, checklist, comments, and handoff are attached so briefMe and getCardContext return real data on first load",
 		],
@@ -461,7 +479,7 @@ export const teachingProject = {
 	note: {
 		title: "Best Practices",
 		content: [
-			"# Project Tracker Best Practices",
+			"# Pigeon Best Practices",
 			"",
 			"## Card Hygiene",
 			"- Keep card titles short and actionable",

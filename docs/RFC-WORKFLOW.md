@@ -4,7 +4,7 @@
 
 ## Problem
 
-Project Tracker has **three** places that try to give agents project-level guidance, and none of them are runnable contracts:
+Pigeon has **three** places that try to give agents project-level guidance, and none of them are runnable contracts:
 
 | Surface | Lives | Loaded when | Authoritative for |
 |---|---|---|---|
@@ -161,7 +161,7 @@ Symphony's `WORKFLOW.md` covers things we explicitly do not need:
 - **Polling/dispatch config** — we're not a runner; agents call our tools directly
 - **Codex command + sandbox config** — different layer; agents handle their own workspaces
 - **Workspace hooks** (`after_create`, `before_run`, etc.) — same reason
-- **Tracker selection** (`tracker.kind: linear`) — we *are* the tracker; selection is implicit
+- **Tracker selection** (`tracker.kind: linear`) — Pigeon *is* the tracker; selection is implicit
 
 ## Implementation Cards (to file after RFC accepts)
 
@@ -187,4 +187,4 @@ Cards 1–5 are independently shippable behind a "tracker.md exists" guard. The 
 ## Notes
 
 - The body of `tracker.md` is intentionally Markdown, not YAML. Front matter is for the parser; the body is for the human and for the agent's natural-language context. Forcing the prompt into a YAML string would make it brittle and unpleasant to write.
-- `tracker.md` is not the same as `CLAUDE.md`. `CLAUDE.md` is for Claude Code session bootstrap (build commands, code style); `tracker.md` is for project-tracker board behavior. They can coexist in a repo and answer different questions.
+- `tracker.md` is not the same as `CLAUDE.md`. `CLAUDE.md` is for Claude Code session bootstrap (build commands, code style); `tracker.md` is for Pigeon board behavior. They can coexist in a repo and answer different questions.

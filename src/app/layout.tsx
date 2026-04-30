@@ -4,6 +4,7 @@ import { Geist } from "next/font/google";
 import { BreakpointIndicator } from "@/components/dev/breakpoint-indicator";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { TRPCReactProvider } from "@/trpc/react";
 
 import "./globals.css";
@@ -15,10 +16,11 @@ const geist = Geist({
 
 export const metadata: Metadata = {
 	title: {
-		template: "%s - Project Tracker",
-		default: "Project Tracker",
+		template: "%s - Pigeon",
+		default: "Pigeon",
 	},
-	description: "Visual kanban board with MCP integration for AI-assisted development",
+	description:
+		"Pigeon carries context between your AI sessions. A local-first kanban board with MCP integration for AI-assisted development.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -32,8 +34,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 					disableTransitionOnChange
 				>
 					<TRPCReactProvider>
-						{children}
-						<Toaster />
+						<TooltipProvider>
+							{children}
+							<Toaster />
+						</TooltipProvider>
 					</TRPCReactProvider>
 				</ThemeProvider>
 				<BreakpointIndicator />

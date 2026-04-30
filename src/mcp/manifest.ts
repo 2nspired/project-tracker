@@ -5,7 +5,7 @@ import { SCHEMA_VERSION } from "./utils.js";
 
 const execFileAsync = promisify(execFile);
 
-export const MCP_SERVER_VERSION = "4.2.0";
+export const MCP_SERVER_VERSION = "5.0.0";
 
 /**
  * Source of truth for what counts as an essential tool.
