@@ -55,22 +55,23 @@ Both clients read and write the *same* SQLite file. The UI broadcasts changes ov
 
 A naive agent-facing API would either dump every tool into context (expensive) or force the agent to discover tools through trial and error (slow). The tracker splits the difference:
 
-- **9 essential tools** are always loaded. They cover the hot path: start a session, create a card, update it, move it, comment on it, end a session.
+- **10 essential tools** are always loaded. They cover the hot path: start a session, create a card, update it, move it, comment on it, save a handoff at the end.
 - **50+ extended tools** live behind two meta-tools: `getTools` browses them by category, `runTool` executes them by name.
 
 ```mermaid
 flowchart TB
-	subgraph Essential[Always loaded — 9 tools]
+	subgraph Essential[Always loaded — 10 tools]
 		direction LR
 		E1[briefMe]
-		E2[endSession]
+		E2[saveHandoff]
 		E3[createCard]
 		E4[updateCard]
 		E5[moveCard]
 		E6[addComment]
-		E7[checkOnboarding]
-		E8[getTools]
-		E9[runTool]
+		E7[registerRepo]
+		E8[checkOnboarding]
+		E9[getTools]
+		E10[runTool]
 	end
 	subgraph Extended[On demand via getTools / runTool]
 		direction LR
@@ -98,7 +99,7 @@ This is a subtle but important distinction. It means:
 
 - **You can see the handoff.** It's a row in the `session_handoff` table. You can read it, edit it, delete it.
 - **The format is stable.** `summary`, `workingOn`, `findings`, `nextSteps`, `blockers` — not free-form prose the next agent has to interpret.
-- **It's composable with git.** `endSession` runs `syncGitActivity`, so commits referencing `#N` get linked to cards automatically. Your git history is the other half of the handoff.
+- **It's composable with git.** `saveHandoff` runs `syncGitActivity` by default, so commits referencing `#N` get linked to cards automatically. Your git history is the other half of the handoff. (Pass `syncGit: false` for a mid-session checkpoint that skips the sync.)
 
 <Aside type="note" title="Why not just save the full chat transcript?">
 	Because the transcript is mostly noise and the signal is the *decisions*. A 10k-token transcript compressed into a 200-token handoff is the win. If you need the transcript, your agent already saves it somewhere — the tracker doesn't try to duplicate that.

@@ -9,7 +9,7 @@
  * Visually: aerospace-drafting station diagram. Two anchored "stations"
  * (Session N, Session N+1) on a baseline, with a packet glyph traveling
  * the wire between them. Tick marks on the baseline mark the protocol
- * checkpoints (endSession, in-flight, briefMe).
+ * checkpoints (saveHandoff, in-flight, briefMe).
  *
  * Accessible: the figure has a caption and ariadescribed-by; the animated
  * decoration is hidden from AT (aria-hidden). prefers-reduced-motion
@@ -29,7 +29,7 @@
 			The session loop
 		</span>
 		<span id="session-loop-desc" class="session-loop__desc">
-			Context released at <code>endSession</code>, carried in flight,
+			Context released at <code>saveHandoff</code>, carried in flight,
 			recovered at <code>briefMe</code>. The next agent starts in-context.
 		</span>
 	</figcaption>
@@ -112,9 +112,9 @@
 					stroke-width="1"></line>
 			</g>
 
-			{/* tick labels — endSession/briefMe sit just below the baseline; 'in flight' drops lower so the packet glyph never overlaps it */}
+			{/* tick labels — saveHandoff/briefMe sit just below the baseline; 'in flight' drops lower so the packet glyph never overlaps it */}
 			<g class="session-loop__ticks">
-				<text x="230" y="156" text-anchor="middle">endSession</text>
+				<text x="230" y="156" text-anchor="middle">saveHandoff</text>
 				<text x="400" y="194" text-anchor="middle">in flight</text>
 				<text x="570" y="156" text-anchor="middle">briefMe</text>
 			</g>
@@ -138,7 +138,7 @@
 				<span class="session-loop__role">agent</span>
 				<span class="session-loop__divider"></span>
 				<span class="session-loop__action">
-					<code>endSession</code>
+					<code>saveHandoff</code>
 				</span>
 			</div>
 		</div>
@@ -209,7 +209,7 @@
 		<li>
 			<span class="session-loop__num">01</span>
 			<span class="session-loop__legend-text">
-				<strong>endSession</strong> writes a handoff record from session N.
+				<strong>saveHandoff</strong> writes a handoff record from session N.
 			</span>
 		</li>
 		<li>
@@ -582,7 +582,7 @@
 
 		/* Tick labels on the right side of the vertical wire, evenly spaced. */
 		.session-loop__wire::before {
-			content: "endSession\Ain flight\AbriefMe";
+			content: "saveHandoff\Ain flight\AbriefMe";
 			grid-column: 3;
 			grid-row: 1;
 			align-self: stretch;

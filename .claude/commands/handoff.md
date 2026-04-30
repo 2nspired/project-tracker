@@ -2,7 +2,9 @@
 description: Wrap up the current Pigeon session — save a handoff, link commits, report touched cards, and emit a resume prompt for the next chat.
 ---
 
-Call the `endSession` MCP tool to close out this conversation cleanly.
+`/handoff` is the human-facing entry point. Under the hood it calls the `saveHandoff` MCP tool — that's the one to invoke now.
+
+(`saveHandoff` was named `endSession` before v5.2; the old name still resolves through v5.x with a `_deprecated` warning, and is removed in v6.0.0. Prefer `saveHandoff` in new agent prompts and scripts.)
 
 Before calling it:
 
@@ -12,7 +14,7 @@ Before calling it:
 Then call:
 
 ```
-endSession({
+saveHandoff({
   summary: "<one paragraph — what this session accomplished>",
   workingOn: ["<card refs or topics you touched>"],
   findings: ["<non-obvious discoveries worth carrying forward>"],
@@ -21,6 +23,6 @@ endSession({
 })
 ```
 
-`boardId` is auto-detected from the current git repo. `syncGit` defaults to true — new commits referencing `#N` get linked automatically.
+`boardId` is auto-detected from the current git repo. `syncGit` defaults to true — new commits referencing `#N` get linked automatically. For a mid-session checkpoint that skips git sync and the touched-cards report, pass `syncGit: false`.
 
 After the tool returns, hand the `resumePrompt` string to the user so they can paste it into their next chat.

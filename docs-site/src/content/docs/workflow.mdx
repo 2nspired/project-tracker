@@ -1,6 +1,6 @@
 ---
 title: The session loop
-description: The core workflow — briefMe → work → endSession → fresh chat. Everything else is detail.
+description: The core workflow — briefMe → work → saveHandoff → fresh chat. Everything else is detail.
 ---
 
 import { Aside, Steps } from "@astrojs/starlight/components";
@@ -45,7 +45,7 @@ The tracker's answer: a structured handoff written at the end of one session and
 		alt="Card detail panel showing a rich description with What / Why / Try it / Outcome sections, tags, checklist, and comments from both human and agent authors — the structured surface the agent reads and writes."
 	/>
 
-3. **`endSession` before wrapping up**
+3. **`saveHandoff` before wrapping up** *(or `/handoff` in Claude Code)*
 
 	One call that does four things:
 
@@ -54,7 +54,9 @@ The tracker's answer: a structured handoff written at the end of one session and
 	- Reports which cards the agent touched since the last handoff
 	- Returns a copy-pasteable **resume prompt** for the next chat
 
-	`endSession` does *not* auto-move cards. Transitions need an `intent` — a human-readable reason — and the agent should have moved cards to match reality as it worked.
+	`saveHandoff` does *not* auto-move cards. Transitions need an `intent` — a human-readable reason — and the agent should have moved cards to match reality as it worked.
+
+	For a mid-session checkpoint — when you want to save your place without running the git-sync + touched-cards report — pass `syncGit: false`. Same handoff row, lighter ceremony.
 
 4. **Paste the resume prompt into a fresh chat**
 
@@ -83,14 +85,14 @@ Open decisions: 0
 
 You didn't explain any of that. The board did.
 
-The `summary`, `nextSteps`, and `blockers` come straight from what the previous agent wrote into `endSession`. (The full `workingOn` and `findings` arrays are persisted too, and you can load them via `runTool({ tool: "loadHandoff" })` when you want the detail.)
+The `summary`, `nextSteps`, and `blockers` come straight from what the previous agent wrote into `saveHandoff`. (The full `workingOn` and `findings` arrays are persisted too, and you can load them via `runTool({ tool: "loadHandoff" })` when you want the detail.)
 
-## What goes into `endSession`
+## What goes into `saveHandoff`
 
 Think of it as a structured commit message for your mental state. Rough shape:
 
 ```ts
-endSession({
+saveHandoff({
 	summary: "Wired up JWT middleware end-to-end — tests green.",
 	workingOn: "#12 auth middleware",
 	findings: [
@@ -108,7 +110,7 @@ endSession({
 Terse is fine. Anything missing goes through as empty fields; the next `briefMe` will just be a bit thinner.
 
 <Aside type="tip" title="A slash command for this">
-	If your agent supports slash commands, most setups wire one up for `endSession` — e.g. `/handoff` in Claude Code — so you can trigger the wrap-up with a single keystroke.
+	In Claude Code, the `/handoff` slash command calls `saveHandoff` for you — same wrap-up, one keystroke. Other agents that support slash commands can wire up the equivalent.
 </Aside>
 
 ## What *not* to do
@@ -116,7 +118,7 @@ Terse is fine. Anything missing goes through as empty fields; the next `briefMe`
 - **Don't skip `briefMe` because "I remember what we were doing."** You probably don't, and the agent definitely doesn't. One tool call, every time.
 - **Don't move cards without `intent`.** You'll lose the signal in the activity feed, which is the whole point.
 - **Don't write a 2,000-word `summary`.** Short + specific > long + vague. `nextSteps` is where the leverage is.
-- **Don't let cards drift from reality.** If the work is done, move the card *while you're working*, not at `endSession`. The session-end tool won't fix a stale board.
+- **Don't let cards drift from reality.** If the work is done, move the card *while you're working*, not at `saveHandoff`. The session-end tool won't fix a stale board.
 
 More on those in [Anti-patterns](../anti-patterns/).
 

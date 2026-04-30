@@ -1,6 +1,6 @@
 # Pigeon
 
-Local-first kanban board with MCP integration for AI-assisted development. Pigeon carries context between AI sessions — `briefMe` at session start, `endSession` at session end.
+Local-first kanban board with MCP integration for AI-assisted development. Pigeon carries context between AI sessions — `briefMe` at session start, `saveHandoff` at session end. Humans trigger the wrap-up with the `/handoff` slash command (unchanged); under the hood it calls the `saveHandoff` MCP tool. (`endSession` is a deprecated alias for `saveHandoff` through v5.x; removed in v6.0.0.)
 
 ## Tech Stack
 

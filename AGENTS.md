@@ -33,15 +33,20 @@ Legacy paths still work in v4.2 but go through normalization (slugify for tags, 
 
 `listMilestones` now returns `_governanceHints` per milestone (singletons > 60 days, near-name neighbours within slug Levenshtein 2). Use these as signal for a one-time human triage pass with `mergeMilestones` / `updateMilestone({ state: "archived" })` — milestones are dedupe-by-judgment, not dedupe-by-rule.
 
+## Tool Migration (v5.2)
+
+The session wrap-up tool is renamed `endSession` → `saveHandoff`. The slash command `/handoff` is unchanged; it now invokes `saveHandoff` under the hood. `saveHandoff` is the canonical name across MCP, the slash command, and docs. The legacy `endSession` name is retained as a non-breaking alias through v5.x and is removed in **v6.0.0**. Essential tool count stays at 10.
+
+| Old path | New canonical |
+|---|---|
+| `endSession({ summary, workingOn?, findings?, nextSteps?, blockers? })` | `saveHandoff({ summary, workingOn?, findings?, nextSteps?, blockers?, syncGit? })` — same shape and semantics, plus an explicit `syncGit` toggle for mid-session checkpoints (`syncGit: false` skips commit linking and the touched-cards report) |
+| MCP prompt `end-session` (legacy v2.x) | `saveHandoff` directly, or the `/handoff` slash command |
+
+Calling `endSession` still works through v5.x — the call is forwarded to `saveHandoff` and the response carries a `_deprecated` warning pointing at the new name. Update agent prompts and any custom hooks before v6.0.0.
+
 ## Tool Migration (v2.3)
 
-New essential tool `endSession` supersedes the `end-session` MCP prompt. Essential tool count: 8 → 9.
-
-| Old path | New equivalent |
-|---|---|
-| MCP prompt `end-session` + manual `runTool('saveHandoff', ...)` | `endSession({ summary, workingOn?, findings?, nextSteps?, blockers? })` — auto-detects boardId, saves handoff, runs syncGitActivity, reports touched cards, returns a resume prompt |
-
-The `end-session` prompt still exists but now returns a one-shot pointer to the new tool. The `saveHandoff` extended tool remains for clients that need the raw insert (no commit linkage, no touched-cards report).
+The original session wrap-up shipped as `endSession`, superseding the `end-session` MCP prompt and bumping the essentials from 8 to 9. The tool was renamed to `saveHandoff` in v5.2 — see the v5.2 entry above. Pre-v5.2 history retained for context.
 
 ## Tool Migration (v2.4)
 
@@ -363,19 +368,25 @@ This project uses Pigeon (a kanban board with MCP integration) for context conti
 
 **Session lifecycle:** Call `briefMe()` at the start of each conversation for
 a one-shot session primer (handoff, top work, blockers, pulse). Call
-`endSession({ summary, ... })` before wrapping up — it saves the handoff,
+`saveHandoff({ summary, ... })` before wrapping up — it saves the handoff,
 links new commits, reports the cards you touched, and returns a resume prompt
-for the next chat. Both tools auto-detect the board from your git repo.
+for the next chat. In Claude Code the `/handoff` slash command calls
+`saveHandoff` for you. Both tools auto-detect the board from your git repo.
+(`endSession` is retained as a deprecated alias for `saveHandoff` through
+v5.x; removed in v6.0.0.)
 
-**Tool architecture:** 9 essential tools are always visible (briefMe,
-endSession, createCard, updateCard, moveCard, addComment, checkOnboarding,
-getTools, runTool). Extended tools — including getBoard, searchCards,
-getRoadmap — live behind `getTools`/`runTool`; briefMe composes the common
-session-start views. Call `getTools()` with no args to see all categories.
+**Tool architecture:** 10 essential tools are always visible (briefMe,
+saveHandoff, createCard, updateCard, moveCard, addComment, registerRepo,
+checkOnboarding, getTools, runTool). Extended tools — including getBoard,
+searchCards, getRoadmap — live behind `getTools`/`runTool`; briefMe composes
+the common session-start views. Call `getTools()` with no args to see all
+categories.
 
 **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
 reflect progress. Use `addComment` for decisions and blockers. Call
-`endSession` to save a handoff so the next conversation picks up in context.
+`saveHandoff` (or `/handoff`) to save a handoff so the next conversation
+picks up in context. For mid-session checkpoints — when you want a snapshot
+without re-running git sync — pass `syncGit: false`.
 
 ## Token Tracking (#96)
 

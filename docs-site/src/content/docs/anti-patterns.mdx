@@ -21,12 +21,12 @@ You usually don't remember as precisely as you think, and the agent definitely d
 
 Make it a reflex: new conversation → `briefMe`. No exceptions. If `briefMe` tells you nothing interesting, you're done in 2 seconds and no harm done. If it catches one thing, you just saved 5 minutes of re-work.
 
-## Writing prose, not structure, into `endSession`
+## Writing prose, not structure, into `saveHandoff`
 
 ### The pattern
 
 ```ts
-endSession({
+saveHandoff({
 	summary: "Today we worked on the auth middleware. It was a long session. We discussed several options including jsonwebtoken, jose, and writing our own. Eventually we landed on jose because..."
 })
 ```
@@ -40,7 +40,7 @@ endSession({
 Short summary. Put the substance in the structured fields.
 
 ```ts
-endSession({
+saveHandoff({
 	summary: "Wired up JWT middleware end-to-end.",
 	findings: ["jose chosen over jsonwebtoken — lighter, native ESM"],
 	nextSteps: ["Add rate-limit test for token rotation", "Write the ADR"],
@@ -66,11 +66,11 @@ Every move gets a one-sentence reason. `"tests green, ready for verify"`. `"bloc
 
 ### The pattern
 
-Agent writes the code for `#12`, commits, opens a PR — but leaves the card in `Backlog` the whole session. At `endSession`, the board is a lie.
+Agent writes the code for `#12`, commits, opens a PR — but leaves the card in `Backlog` the whole session. At `saveHandoff`, the board is a lie.
 
 ### Why it fails
 
-`endSession` deliberately does *not* auto-move cards. Moves carry `intent`, and intent is a judgment call the agent should make *when it makes sense*, not as a cleanup pass at the end. A stale board poisons the next session's `briefMe`.
+`saveHandoff` deliberately does *not* auto-move cards. Moves carry `intent`, and intent is a judgment call the agent should make *when it makes sense*, not as a cleanup pass at the end. A stale board poisons the next session's `briefMe`.
 
 ### Do this instead
 

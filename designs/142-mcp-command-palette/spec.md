@@ -66,7 +66,7 @@ On `< sm` breakpoint the button collapses to icon-only (`Boxes`). On tap, the ca
 │  ⌕  Search tools…                          ⌘K   │  ← cmdk CommandInput
 ├──────────────────────────────────────────────────┤
 │ ┃ briefMe          one-shot session primer    ↗ │  ← Essentials
-│ ┃ endSession       wrap up & save handoff     ↗ │     (left rule, no heading)
+│ ┃ saveHandoff      wrap up & save handoff     ↗ │     (left rule, no heading)
 │ ┃ createCard       create one card            ↗ │
 │ ┃ updateCard       update card fields         ↗ │
 │ ┃ moveCard         move to another column     ↗ │

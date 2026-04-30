@@ -8,6 +8,37 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [5.2.0] — 2026-04-30
+
+Renames the session wrap-up tool `endSession` → `saveHandoff`. The new name reads as a verb-on-the-artifact (you save a handoff), matches what the tool actually persists, and stops conflating "end of session" with "must be the last thing you call." It also clears the runway for the mid-session checkpoint pattern (`saveHandoff({ syncGit: false })`) — which never made sense under the old name.
+
+The slash command `/handoff` is unchanged. Humans keep typing `/handoff`; it now invokes `saveHandoff` under the hood instead of `endSession`. (#151, #152)
+
+### Why now
+
+Two adoption-friction reports landed in the same week — both traced to the same naming gap. The slash command and the underlying tool had different names, so users learning the loop kept tripping over which to invoke when. Renaming the tool to match the slash-command verb closes the gap before more docs ossify around the old name.
+
+### Changed
+
+- **Essential tool `endSession` → `saveHandoff`.** Same shape, same semantics. Essential tool count stays at 10. Tool description, MCP catalog row, and onboarding strings updated.
+- **`/handoff` slash command** now calls `saveHandoff`. No user-facing change to the keystroke.
+- **Mid-session checkpoint pattern documented.** `saveHandoff({ syncGit: false })` writes a handoff snapshot without running `syncGitActivity` or producing a touched-cards report — useful for "save my place" mid-session without the end-of-session ceremony. The flag existed pre-rename; the name change makes the pattern legible.
+- **Docs rewritten for the new name.** README, AGENTS.md, CLAUDE.md, every relevant page in `docs-site/`, the `/handoff` slash-command skill body, and the `142-mcp-command-palette` design spec.
+
+### Deprecated
+
+- **`endSession` as a callable tool.** Retained as a non-breaking alias through v5.x. Calling it forwards to `saveHandoff` and returns a `_deprecated` warning in the response payload pointing at the new name. **Removed in v6.0.0.** Migration: update agent prompts, custom hooks, and any wrapper scripts to call `saveHandoff` directly.
+
+### Migration
+
+No required action for end users. Pulling v5.2 leaves `/handoff` working as before. Custom integrations that call the MCP tool directly should switch from `endSession` → `saveHandoff` before v6.0; the deprecation warning surfaces in every call until they do.
+
+```bash
+npm install
+npm run service:update
+npm run doctor       # unchanged check set; verifies the install is healthy
+```
+
 ## [5.1.0] — 2026-04-29
 
 First post-rebrand release. Focus: install-health diagnostics (so the v5.0 migration's foot-guns are detectable in one command instead of one-at-a-time discovery in production), plus rebrand-drift cleanup the v5.0 PR missed.
@@ -366,7 +397,8 @@ Earlier history is captured in the git log. Highlights:
 
 Reconstructed entries below this point are best-effort; treat git log as authoritative.
 
-[Unreleased]: https://github.com/2nspired/pigeon/compare/v5.1.0...HEAD
+[Unreleased]: https://github.com/2nspired/pigeon/compare/v5.2.0...HEAD
+[5.2.0]: https://github.com/2nspired/pigeon/releases/tag/v5.2.0
 [5.1.0]: https://github.com/2nspired/pigeon/releases/tag/v5.1.0
 [5.0.0]: https://github.com/2nspired/pigeon/releases/tag/v5.0.0
 [4.2.0]: https://github.com/2nspired/pigeon/releases/tag/v4.2.0
