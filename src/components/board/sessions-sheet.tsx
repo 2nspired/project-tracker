@@ -1,7 +1,8 @@
 "use client";
 
-import { Bot, ChevronDown, ChevronRight } from "lucide-react";
+import { Bot } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CardRefText, CollapsibleSection, FilterChip } from "@/components/board/session-shell";
 import { Markdown } from "@/components/ui/markdown";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { TokenCostChip } from "@/components/ui/token-cost-chip";
@@ -214,21 +215,7 @@ function SessionRow({
 	);
 }
 
-// ─── Collapsible section ──────────────────────────────────────────
-
-const ACCENT_STYLES = {
-	muted: { border: "", text: "text-muted-foreground", bg: "" },
-	violet: {
-		border: "border-l-4 border-l-violet-500/40",
-		text: "text-violet-700 dark:text-violet-300",
-		bg: "",
-	},
-	red: {
-		border: "border-l-4 border-l-red-500/60",
-		text: "text-red-700 dark:text-red-400",
-		bg: "bg-red-500/5",
-	},
-} as const;
+// ─── Handoff section (string-list adapter over CollapsibleSection) ────
 
 function HandoffSection({
 	title,
@@ -240,94 +227,26 @@ function HandoffSection({
 }: {
 	title: string;
 	items: string[];
-	accent: keyof typeof ACCENT_STYLES;
+	accent: "muted" | "violet" | "red";
 	initiallyOpen: boolean;
 	resolveCardRef: (number: number) => string | null;
 	onCardClick: (cardId: string) => void;
 }) {
-	const [open, setOpen] = useState(initiallyOpen);
-	if (items.length === 0) return null;
-
-	const styles = ACCENT_STYLES[accent];
-
 	return (
-		<details
-			open={open}
-			onToggle={(e) => setOpen(e.currentTarget.open)}
-			className={`group ${styles.border} ${styles.bg}`}
+		<CollapsibleSection
+			title={title}
+			count={items.length}
+			accent={accent}
+			initiallyOpen={initiallyOpen}
 		>
-			<summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-1.5 text-2xs font-medium transition-colors hover:bg-muted/40">
-				{open ? (
-					<ChevronDown className="h-3 w-3 text-muted-foreground" />
-				) : (
-					<ChevronRight className="h-3 w-3 text-muted-foreground" />
-				)}
-				<span className={styles.text}>{title}</span>
-				<span className="font-mono text-2xs text-muted-foreground/50">{items.length}</span>
-			</summary>
-			<ul className="space-y-1 px-6 pb-2 pt-0.5 text-xs leading-snug">
+			<ul className="space-y-1 text-xs leading-snug">
 				{items.map((item, i) => (
-					// biome-ignore lint/suspicious/noArrayIndexKey: handoff arrays are immutable post-write
 					<li key={i} className="text-foreground/80">
-						<HandoffItemBody
-							text={item}
-							resolveCardRef={resolveCardRef}
-							onCardClick={onCardClick}
-						/>
+						<CardRefText text={item} resolveCardRef={resolveCardRef} onCardClick={onCardClick} />
 					</li>
 				))}
 			</ul>
-		</details>
-	);
-}
-
-// ─── Card-ref linkification ───────────────────────────────────────
-
-const CARD_REF_RE = /(#\d+)/g;
-
-function HandoffItemBody({
-	text,
-	resolveCardRef,
-	onCardClick,
-}: {
-	text: string;
-	resolveCardRef: (number: number) => string | null;
-	onCardClick: (cardId: string) => void;
-}) {
-	// Split on `#N` tokens. Refs that resolve to a card on this board become
-	// clickable; refs to other boards / typos stay as plain text so they're
-	// not deceptive.
-	const parts = text.split(CARD_REF_RE);
-	return (
-		<>
-			{parts.map((part, i) => {
-				if (!/^#\d+$/.test(part)) {
-					// biome-ignore lint/suspicious/noArrayIndexKey: positional split
-					return <span key={i}>{part}</span>;
-				}
-				const number = Number.parseInt(part.slice(1), 10);
-				const cardId = resolveCardRef(number);
-				if (!cardId) {
-					return (
-						// biome-ignore lint/suspicious/noArrayIndexKey: positional split
-						<span key={i} className="font-mono text-2xs text-muted-foreground">
-							{part}
-						</span>
-					);
-				}
-				return (
-					<button
-						// biome-ignore lint/suspicious/noArrayIndexKey: positional split
-						key={i}
-						type="button"
-						onClick={() => onCardClick(cardId)}
-						className="font-mono text-2xs font-medium text-primary underline-offset-2 hover:underline"
-					>
-						{part}
-					</button>
-				);
-			})}
-		</>
+		</CollapsibleSection>
 	);
 }
 
@@ -362,29 +281,5 @@ function SessionsSkeleton() {
 				</div>
 			))}
 		</div>
-	);
-}
-
-// ─── Filter chip (parallels ActivitySheet) ────────────────────────
-
-function FilterChip({
-	active,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={`rounded-full px-2 py-0.5 text-2xs transition-colors ${
-				active ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted/60"
-			}`}
-		>
-			{children}
-		</button>
 	);
 }
