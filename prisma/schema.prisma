@@ -84,6 +84,11 @@ model Tag {
   projectId String   @map("project_id")
   slug      String
   label     String
+  // "active" | "archived" — archived tags are hidden from list/picker by
+  // default but kept in the schema so historical card associations continue
+  // to resolve. Mirrors Milestone.state semantics; the visible archive
+  // toggle is a future card paired with the tag-archive companion to #171.
+  state     String   @default("active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
