@@ -44,3 +44,4 @@ Thumbs.db
 
 # Claude Code subagent runtime worktrees
 .claude/worktrees/
+.claude/scheduled_tasks.lock
