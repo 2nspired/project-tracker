@@ -3,7 +3,6 @@
 import {
 	Activity,
 	ArrowLeft,
-	Bot,
 	Check,
 	ChevronRight,
 	Clock,
@@ -23,6 +22,7 @@ import { toast } from "sonner";
 
 import { ActivitySheet } from "@/components/board/activity-sheet";
 import { BoardListView } from "@/components/board/board-list-view";
+import { SessionsSheet } from "@/components/board/sessions-sheet";
 import { type BoardFilters, emptyFilters, type SortMode } from "@/components/board/board-toolbar";
 import { BoardView } from "@/components/board/board-view";
 import { Badge } from "@/components/ui/badge";
@@ -203,7 +203,7 @@ export default function BoardPage({
 	const { projectId, boardId } = use(params);
 
 	const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
-	const [showHandoffs, setShowHandoffs] = useState(false);
+	const [sessionsOpen, setSessionsOpen] = useState(false);
 	const [showBriefings, setShowBriefings] = useState(false);
 	const [activityOpen, setActivityOpen] = useState(false);
 	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -369,10 +369,10 @@ export default function BoardPage({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
-								variant={showHandoffs ? "secondary" : "outline"}
+								variant={sessionsOpen ? "secondary" : "outline"}
 								size="sm"
 								className="h-8 gap-1.5 text-xs"
-								onClick={() => setShowHandoffs(!showHandoffs)}
+								onClick={() => setSessionsOpen((v) => !v)}
 							>
 								<Users className="h-3.5 w-3.5" />
 								Sessions
@@ -409,13 +409,29 @@ export default function BoardPage({
 						<TooltipContent>Board activity feed</TooltipContent>
 					</Tooltip>
 				</div>
-				{showHandoffs && <SessionHistoryPanel boardId={board.id} />}
 				{showBriefings && <BriefingsPanel boardId={board.id} />}
 				<ActivitySheet
 					boardId={board.id}
 					open={activityOpen}
 					onOpenChange={setActivityOpen}
 					onCardClick={setSelectedCardId}
+				/>
+				<SessionsSheet
+					boardId={board.id}
+					projectId={board.project.id}
+					open={sessionsOpen}
+					onOpenChange={setSessionsOpen}
+					resolveCardRef={(number) => {
+						for (const col of board.columns) {
+							const match = col.cards.find((c) => c.number === number);
+							if (match) return match.id;
+						}
+						return null;
+					}}
+					onCardClick={(cardId) => {
+						setSelectedCardId(cardId);
+						setSessionsOpen(false);
+					}}
 				/>
 				{viewMode === "kanban" ? (
 					<BoardView board={board} {...viewProps} />
@@ -424,77 +440,6 @@ export default function BoardPage({
 				)}
 			</div>
 		</TooltipProvider>
-	);
-}
-
-// ─── Session History Panel ────────────────────────────────────────
-
-function SessionHistoryPanel({ boardId }: { boardId: string }) {
-	const { data: handoffs } = api.handoff.list.useQuery({ boardId, limit: 10 });
-
-	if (!handoffs || handoffs.length === 0) {
-		return (
-			<div className="border-b bg-muted/30 px-4 py-3 text-center text-xs text-muted-foreground">
-				No agent sessions recorded yet.
-			</div>
-		);
-	}
-
-	return (
-		<div className="max-h-48 overflow-y-auto border-b bg-muted/30">
-			<div className="space-y-0 divide-y">
-				{handoffs.map(
-					(h: {
-						id: string;
-						agentName: string;
-						summary: string;
-						workingOn: string[];
-						findings: string[];
-						nextSteps: string[];
-						blockers: string[];
-						createdAt: Date;
-					}) => (
-						<div key={h.id} className="px-4 py-2">
-							<div className="flex items-center gap-2">
-								<Bot className="h-3.5 w-3.5 text-violet-500" />
-								<span className="text-xs font-medium">{h.agentName}</span>
-								<span className="text-2xs text-muted-foreground">
-									{new Date(h.createdAt).toLocaleString(undefined, {
-										month: "short",
-										day: "numeric",
-										hour: "2-digit",
-										minute: "2-digit",
-									})}
-								</span>
-							</div>
-							{h.summary && (
-								<p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{h.summary}</p>
-							)}
-							<div className="mt-1 flex flex-wrap gap-1">
-								{h.workingOn.length > 0 && (
-									<Badge variant="outline" className="text-2xs px-1 py-0">
-										{h.workingOn.length} worked on
-									</Badge>
-								)}
-								{h.nextSteps.length > 0 && (
-									<Badge variant="outline" className="text-2xs px-1 py-0">
-										{h.nextSteps.length} next steps
-									</Badge>
-								)}
-								{h.blockers.length > 0 && (
-									<Badge
-										variant="outline"
-										className="text-2xs px-1 py-0 text-red-500 border-red-500/20"
-									>
-										{h.blockers.length} blockers
-									</Badge>
-								)}
-							</div>
-						</div>
-					)
-				)}
-			</div>
-		</div>
 	);
 }
 
