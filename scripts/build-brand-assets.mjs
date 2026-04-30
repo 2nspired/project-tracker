@@ -8,29 +8,45 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const SOURCE = resolve(ROOT, "brand-source/source.png");
 
-const COLOR = {
-	dark: "#0a0a0a",
-	light: "#fafafa",
-	indigo: "#4338ca",
-	indigoBg: "#312e81",
-	indigoBgEnd: "#1e1b4b",
-};
+// Single threshold gates the silhouette: alpha >= STENCIL_THRESHOLD becomes
+// solid color, everything else becomes transparent. 240 cleanly removes the
+// anti-alias outline ring and keeps the sunglass lens + X cut-outs visible
+// as holes through the body. Verified by Read after generation.
+const STENCIL_THRESHOLD = 240;
 
 async function ensureDir(filePath) {
 	await mkdir(dirname(filePath), { recursive: true });
 }
 
-async function recolor(srcBuffer, hex) {
+// Convert the source PNG into a flat-color silhouette with the sunglass
+// lenses (and X marks) as transparent holes. The source is white-on-
+// transparent with the lens shapes drawn into the alpha channel; we threshold
+// alpha to drop the soft outline ring, then paint the resulting mask into
+// `hex`. Output is RGBA at the source's native size.
+async function makeStencil(srcBuffer, hex) {
 	const meta = await sharp(srcBuffer).metadata();
-	return sharp({
-		create: {
-			width: meta.width,
-			height: meta.height,
-			channels: 4,
-			background: hex,
-		},
-	})
-		.composite([{ input: srcBuffer, blend: "dest-in" }])
+	const W = meta.width;
+	const H = meta.height;
+
+	const { data: maskRaw } = await sharp(srcBuffer)
+		.extractChannel("alpha")
+		.threshold(STENCIL_THRESHOLD)
+		.raw()
+		.toBuffer({ resolveWithObject: true });
+
+	const r = parseInt(hex.slice(1, 3), 16);
+	const g = parseInt(hex.slice(3, 5), 16);
+	const b = parseInt(hex.slice(5, 7), 16);
+
+	const rgba = Buffer.alloc(W * H * 4);
+	for (let i = 0; i < W * H; i++) {
+		rgba[i * 4] = r;
+		rgba[i * 4 + 1] = g;
+		rgba[i * 4 + 2] = b;
+		rgba[i * 4 + 3] = maskRaw[i];
+	}
+
+	return sharp(rgba, { raw: { width: W, height: H, channels: 4 } })
 		.png()
 		.toBuffer();
 }
@@ -46,7 +62,6 @@ async function resizePng(buffer, size, opts = {}) {
 }
 
 async function writePng(outPath, buffer) {
-	// ROOT is the worktree root (parent of scripts/); resolve outPath inside it.
 	const abs = resolve(ROOT, outPath);
 	await ensureDir(abs);
 	await writeFile(abs, buffer);
@@ -55,77 +70,81 @@ async function writePng(outPath, buffer) {
 
 async function buildLogoVariants(srcBuffer) {
 	console.log("Logo variants:");
-	const dark = await recolor(srcBuffer, COLOR.dark);
-	const light = await recolor(srcBuffer, COLOR.light);
+	const blackStencil = await makeStencil(srcBuffer, "#000000");
+	const whiteStencil = await makeStencil(srcBuffer, "#ffffff");
 
-	// Starlight light/dark variants — 512px native, scales down crisply
-	await writePng("docs-site/src/assets/logo-dark.png", await resizePng(dark, 512));
-	await writePng("docs-site/src/assets/logo-light.png", await resizePng(light, 512));
-
-	// README hero — 256px is plenty (display width 84)
-	await writePng("docs-site/src/assets/logo-readme.png", await resizePng(dark, 256));
+	// Starlight: logo-dark renders on light theme, logo-light on dark theme.
+	await writePng(
+		"docs-site/src/assets/logo-dark.png",
+		await resizePng(blackStencil, 512),
+	);
+	await writePng(
+		"docs-site/src/assets/logo-light.png",
+		await resizePng(whiteStencil, 512),
+	);
+	// README hero — typically rendered on light backgrounds.
+	await writePng(
+		"docs-site/src/assets/logo-readme.png",
+		await resizePng(blackStencil, 256),
+	);
 }
 
 async function buildFavicons(srcBuffer) {
 	console.log("Favicons:");
-	const indigo = await recolor(srcBuffer, COLOR.indigo);
+	const blackStencil = await makeStencil(srcBuffer, "#000000");
 
-	// Browser tab + PWA sizes — indigo so it reads on both light + dark chrome
 	for (const size of [32, 192, 512]) {
-		const buf = await resizePng(indigo, size);
-		await writePng(`docs-site/public/favicon-${size}.png`, buf);
+		await writePng(
+			`docs-site/public/favicon-${size}.png`,
+			await resizePng(blackStencil, size),
+		);
 	}
-	// Primary favicon — 32px is the Starlight default
-	await writePng("docs-site/public/favicon.png", await resizePng(indigo, 32));
+	await writePng(
+		"docs-site/public/favicon.png",
+		await resizePng(blackStencil, 32),
+	);
 
-	// Apple touch icon — solid white bg (Apple convention; iOS clips to rounded square)
+	// Apple touch icon — solid white background, black stencil glyph.
 	const appleBg = sharp({
 		create: { width: 180, height: 180, channels: 4, background: "#ffffff" },
 	});
-	const appleGlyph = await resizePng(indigo, 140);
+	const appleGlyph = await resizePng(blackStencil, 140);
 	const appleComposite = await appleBg
 		.composite([{ input: appleGlyph, gravity: "center" }])
 		.png()
 		.toBuffer();
 	await writePng("docs-site/public/apple-touch-icon.png", appleComposite);
 
-	// Next.js App Router conventions — drop straight into src/app/
-	await writePng("src/app/icon.png", await resizePng(indigo, 32));
+	// Next.js App Router conventions.
+	await writePng("src/app/icon.png", await resizePng(blackStencil, 32));
 	await writePng("src/app/apple-icon.png", appleComposite);
 }
 
 function buildOgSvg() {
 	const W = 1200;
 	const H = 630;
-	const TEXT_X = 500;
+
+	// Pure flat. No grid, no frame, no rails, no rules, no annotations.
+	const BG = "#0a0a0a";
+	const INK = "#fafafa";
+	const INK_DIM = "rgba(250,250,250,0.6)";
+
+	const SANS =
+		"-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+
+	// Wordmark + tagline anchored to a single optical baseline.
+	const TEXT_X = 540;
+
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="${COLOR.indigoBg}"/>
-      <stop offset="100%" stop-color="${COLOR.indigoBgEnd}"/>
-    </linearGradient>
-    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
-    </pattern>
-  </defs>
-  <rect width="${W}" height="${H}" fill="url(#bg)"/>
-  <rect width="${W}" height="${H}" fill="url(#grid)"/>
-  <text x="${TEXT_X}" y="220" font-family="-apple-system, system-ui, 'Segoe UI', sans-serif"
-        font-size="26" font-weight="500" letter-spacing="3" fill="rgba(255,255,255,0.55)">
-    PIGEON · LOCAL-FIRST MCP KANBAN
-  </text>
-  <text x="${TEXT_X}" y="320" font-family="-apple-system, system-ui, 'Segoe UI', sans-serif"
-        font-size="62" font-weight="700" fill="#ffffff">
-    Carries context between
-  </text>
-  <text x="${TEXT_X}" y="395" font-family="-apple-system, system-ui, 'Segoe UI', sans-serif"
-        font-size="62" font-weight="700" fill="#ffffff">
-    AI coding sessions.
-  </text>
-  <text x="${TEXT_X}" y="475" font-family="-apple-system, system-ui, 'Segoe UI', sans-serif"
-        font-size="24" font-weight="400" fill="rgba(255,255,255,0.65)">
-    SQLite on disk · No accounts · No cloud sync
-  </text>
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+
+  <text x="${TEXT_X}" y="318" font-family="${SANS}"
+        font-size="156" font-weight="600"
+        letter-spacing="-3.5" fill="${INK}">Pigeon</text>
+
+  <text x="${TEXT_X}" y="380" font-family="${SANS}"
+        font-size="32" font-weight="400"
+        letter-spacing="-0.2" fill="${INK_DIM}">Carries context between AI coding sessions.</text>
 </svg>`;
 }
 
@@ -134,29 +153,19 @@ async function buildOgImage(srcBuffer) {
 	const W = 1200;
 	const H = 630;
 
-	// Backdrop SVG (gradient + grid + text)
 	const bgPng = await sharp(Buffer.from(buildOgSvg())).png().toBuffer();
 
-	// Pigeon glyph — white silhouette, sized to fit the left panel
-	const white = await recolor(srcBuffer, COLOR.light);
+	// White stencil silhouette on the dark backdrop.
+	const whiteStencil = await makeStencil(srcBuffer, "#ffffff");
 	const GLYPH = 380;
-	const glyph = await sharp(white)
-		.resize(GLYPH, GLYPH, {
-			fit: "contain",
-			background: { r: 0, g: 0, b: 0, alpha: 0 },
-		})
-		.png()
-		.toBuffer();
+	const glyph = await resizePng(whiteStencil, GLYPH);
 
 	const composite = await sharp(bgPng)
-		.composite([{ input: glyph, top: Math.round((H - GLYPH) / 2), left: 70 }])
+		.composite([{ input: glyph, top: Math.round((H - GLYPH) / 2), left: 110 }])
 		.png({ compressionLevel: 9 })
 		.toBuffer();
 
-	// Docs-site OG
 	await writePng("docs-site/public/og.png", composite);
-
-	// Next.js App Router OG — file convention auto-injects metadata
 	await writePng("src/app/opengraph-image.png", composite);
 	await writePng("src/app/twitter-image.png", composite);
 }
@@ -164,7 +173,9 @@ async function buildOgImage(srcBuffer) {
 async function main() {
 	const srcBuffer = await sharp(SOURCE).png().toBuffer();
 	const meta = await sharp(srcBuffer).metadata();
-	console.log(`Source: ${SOURCE} (${meta.width}×${meta.height}, alpha=${meta.hasAlpha})\n`);
+	console.log(
+		`Source: ${SOURCE} (${meta.width}×${meta.height}, alpha=${meta.hasAlpha})\n`,
+	);
 
 	await buildLogoVariants(srcBuffer);
 	await buildFavicons(srcBuffer);
