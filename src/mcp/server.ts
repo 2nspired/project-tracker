@@ -6,6 +6,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { initFts5 } from "@/server/fts";
 import { findStaleInProgress } from "@/server/services/stale-cards";
+import { tokenUsageService } from "@/server/services/token-usage-service";
 import { getHorizon, hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
@@ -212,6 +213,7 @@ import "./tools/claim-tools.js";
 import "./tools/knowledge-tools.js";
 import "./tools/instrumentation-tools.js";
 import "./tools/tag-tools.js";
+import "./tools/token-tools.js";
 
 const server = new McpServer({
 	name: "project-tracker",
@@ -835,6 +837,7 @@ server.registerTool(
 				recentAgentActivity,
 				staleInProgressMap,
 				policyResult,
+				tokenSummary,
 			] = await Promise.all([
 				getLatestHandoff(db, boardId),
 				db.claim.findMany({
@@ -868,6 +871,7 @@ server.registerTool(
 					repoPath: board.project.repoPath,
 					projectPrompt: board.project.projectPrompt,
 				}),
+				tokenUsageService.getProjectSummary(board.project.id),
 			]);
 
 			const allCards = board.columns.flatMap((col) =>
@@ -969,6 +973,17 @@ server.registerTool(
 				.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
 				.sort((a, b) => b.days - a.days);
 
+			// Token usage pulse — omitted when no events recorded so projects
+			// without the Stop hook configured don't see noise. (#96)
+			const tokenPulse =
+				tokenSummary.success && tokenSummary.data.trackingSince
+					? {
+							totalCostUsd: Number(tokenSummary.data.totalCostUsd.toFixed(6)),
+							sessionCount: tokenSummary.data.sessionCount,
+							trackingSince: tokenSummary.data.trackingSince.toISOString(),
+						}
+					: null;
+
 			const briefPayload = {
 				_serverVersion: MCP_SERVER_VERSION,
 				...(versionMismatch ? { _versionMismatch: versionMismatch } : {}),
@@ -982,6 +997,7 @@ server.registerTool(
 				topWork,
 				blockers,
 				recentDecisions,
+				...(tokenPulse ? { tokenPulse } : {}),
 				stale: formatStalenessWarnings(stalenessWarnings),
 				...(staleInProgress.length > 0 ? { staleInProgress } : {}),
 				...(intentReminder ? { intentReminder } : {}),

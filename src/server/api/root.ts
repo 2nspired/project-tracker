@@ -14,6 +14,7 @@ import { noteRouter } from "@/server/api/routers/note";
 import { projectRouter } from "@/server/api/routers/project";
 import { relationRouter } from "@/server/api/routers/relation";
 import { tagRouter } from "@/server/api/routers/tag";
+import { tokenUsageRouter } from "@/server/api/routers/token-usage";
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 
 export const appRouter = createTRPCRouter({
@@ -31,6 +32,7 @@ export const appRouter = createTRPCRouter({
 	handoff: handoffRouter,
 	decision: decisionRouter,
 	briefSnapshot: briefSnapshotRouter,
+	tokenUsage: tokenUsageRouter,
 });
 
 export type AppRouter = typeof appRouter;

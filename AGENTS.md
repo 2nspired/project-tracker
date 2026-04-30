@@ -351,4 +351,66 @@ session-start views. Call `getTools()` with no args to see all categories.
 **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
 reflect progress. Use `addComment` for decisions and blockers. Call
 `endSession` to save a handoff so the next conversation picks up in context.
+
+## Token Tracking (#96)
+
+Per-session token cost surfaces on cards (Token cost section in card detail),
+in `briefMe`'s pulse line, and on the Sessions sheet. Tracking is opt-in per
+agent — Project Tracker never reads your transcript on its own.
+
+### Claude Code (automatic)
+
+Add a Stop hook to `~/.claude-alt/.claude.json` (or wherever your Claude Code
+config lives). The MCP server must be reachable when the hook fires.
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "mcp_tool",
+            "server": "project-tracker",
+            "tool": "recordTokenUsageFromTranscript",
+            "input": {
+              "transcriptPath": "${transcript_path}",
+              "sessionId": "${session_id}",
+              "cwd": "${cwd}"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The hook reads the parent transcript and any sub-agent transcripts at
+`<dirname>/<sessionId>/subagents/agent-*.jsonl`, sums per-model usage, and
+writes one `TokenUsageEvent` row per (sessionId, model). Re-running the hook
+on the same transcript replaces rather than duplicates.
+
+### Other agents (manual)
+
+Codex, generic MCP clients, and anything without Claude Code's transcript
+format call `recordTokenUsage` directly at session end:
+
+```
+recordTokenUsage({
+  projectId, // or boardId
+  model: "gpt-4o",
+  inputTokens: 12345,
+  outputTokens: 6789
+})
+```
+
+Each call creates one new row — sum your counts before invoking, don't loop.
+
+### Pricing
+
+Default rates ship for Anthropic (Opus/Sonnet/Haiku) and OpenAI (GPT-4o,
+mini, turbo, o1). Override per-model rates via the settings UI or by calling
+`tokenUsage.updatePricing` from the web app. Defaults are last-verified
+2026-04 — sanity-check the provider's pricing page if it's been a while.
 ```

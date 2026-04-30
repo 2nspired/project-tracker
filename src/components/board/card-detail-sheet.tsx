@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TokenCostChip } from "@/components/ui/token-cost-chip";
 import { getAccentBorderStyle, getActorIdentity } from "@/lib/actor-colors";
 import { formatActivityDescription } from "@/lib/format-activity";
 import { formatDate, formatRelativeCompact } from "@/lib/format-date";
@@ -612,6 +613,9 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 							{/* Decisions */}
 							<DecisionsSection cardId={card.id} projectId={card.projectId} />
 
+							{/* Token cost (#96) */}
+							<CardCostSection cardId={card.id} />
+
 							{/* Commit Summary */}
 							{card.gitLinks && card.gitLinks.length > 0 && (
 								<>
@@ -855,6 +859,32 @@ function DecisionsSection({ cardId, projectId }: { cardId: string; projectId: st
 						<p className="mt-1 text-xs text-muted-foreground line-clamp-2">{d.decision}</p>
 					</div>
 				))}
+			</div>
+		</div>
+	);
+}
+
+// ─── Card cost section (#96) ──────────────────────────────────────
+
+// Pulls token cost across every session that touched this card. Renders
+// nothing when there's no recorded usage — projects without the Stop hook
+// configured shouldn't see a $0 row.
+function CardCostSection({ cardId }: { cardId: string }) {
+	const { data: summary } = api.tokenUsage.getCardSummary.useQuery(
+		{ cardId },
+		{ enabled: !!cardId, retry: false }
+	);
+
+	if (!summary || summary.totalCostUsd === 0) return null;
+
+	return (
+		<div className="space-y-1">
+			<div className="flex items-center gap-2">
+				<SectionHeader>Token cost</SectionHeader>
+				<TokenCostChip costUsd={summary.totalCostUsd} sessionCount={summary.sessionCount} />
+				<span className="text-xs text-muted-foreground">
+					across {summary.sessionCount} session{summary.sessionCount === 1 ? "" : "s"}
+				</span>
 			</div>
 		</div>
 	);

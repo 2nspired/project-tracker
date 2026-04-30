@@ -30,6 +30,7 @@ model Project {
   milestones     Milestone[]
   gitLinks       GitLink[]
   claims         Claim[]
+  tokenUsageEvents TokenUsageEvent[]
 
   @@map("project")
 }
@@ -166,6 +167,7 @@ model Card {
   gitLinks      GitLink[]
   claims        Claim[]
   notes         Note[]
+  tokenUsageEvents TokenUsageEvent[]
 
   @@unique([projectId, number])
   @@index([columnId])
@@ -373,4 +375,49 @@ model ToolCallLog {
   @@index([toolName, createdAt])
   @@index([agentName, createdAt])
   @@map("tool_call_log")
+}
+
+// ─── Token usage tracking (#96) ────────────────────────────────────
+
+// Singleton process-wide settings. Currently holds only token pricing
+// overrides; structured as JSON so future settings can land without
+// schema churn. Read via `resolvePricing()` which fail-softs to
+// `DEFAULT_PRICING` on parse error.
+model AppSettings {
+  id           String   @id @default("singleton")
+  tokenPricing String   @default("{}") @map("token_pricing")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
+// Per-session-per-model token usage. One row per (sessionId, model);
+// `recordFromTranscript` is delete-and-reinsert idempotent on
+// `sessionId`. The 5-column split (input + output + cacheRead +
+// cacheCreation1h + cacheCreation5m) preserves Anthropic's pricing
+// fidelity (1h ≈ 2× input, 5m ≈ 1.25× input); lumping would break
+// later when the user changes pricing. OpenAI sessions store 0 for
+// the cacheCreation columns (caching is automatic, no creation cost).
+model TokenUsageEvent {
+  id                    String   @id @default(uuid())
+  sessionId             String   @map("session_id")
+  projectId             String   @map("project_id")
+  cardId                String?  @map("card_id")
+  agentName             String   @map("agent_name")
+  model                 String
+  inputTokens           Int      @default(0) @map("input_tokens")
+  outputTokens          Int      @default(0) @map("output_tokens")
+  cacheReadTokens       Int      @default(0) @map("cache_read_tokens")
+  cacheCreation1hTokens Int      @default(0) @map("cache_creation_1h_tokens")
+  cacheCreation5mTokens Int      @default(0) @map("cache_creation_5m_tokens")
+  recordedAt            DateTime @default(now()) @map("recorded_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  card    Card?   @relation(fields: [cardId],    references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([projectId])
+  @@index([projectId, recordedAt])
+  @@index([cardId])
+  @@map("token_usage_event")
 }
