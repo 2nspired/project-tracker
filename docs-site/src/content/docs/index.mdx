@@ -1,6 +1,6 @@
 ---
 title: Pigeon
-description: A local-first kanban board with MCP integration. Pigeon carries context between AI coding sessions — endSession releases it, briefMe catches it.
+description: A local-first kanban board with MCP integration. Pigeon carries context between AI coding sessions — saveHandoff releases it, briefMe catches it.
 template: splash
 ---
 
@@ -65,7 +65,7 @@ import cardDetail from "../../assets/screenshots/card-detail.png";
 	{
 		tag: "03",
 		title: "Sessions hand off cleanly",
-		body: "endSession writes a handoff. The next chat calls briefMe and resumes exactly where the last one stopped.",
+		body: "saveHandoff writes a structured handoff at the end of one chat — type /handoff in Claude Code to trigger it. The next chat calls briefMe and resumes exactly where the last one stopped.",
 	},
 	{
 		tag: "04",
@@ -168,7 +168,7 @@ import cardDetail from "../../assets/screenshots/card-detail.png";
 	num="03"
 	eyebrow="The metaphor"
 	title="The pigeon carries the message."
-	sub="endSession releases a handoff. The wire is your local disk, not a network. briefMe catches the same payload at the next session — fully in-context, in seconds."
+	sub="saveHandoff releases a handoff at the end of one chat. The wire is your local disk, not a network. briefMe catches the same payload at the next session — fully in-context, in seconds."
 />
 
 A handoff is a SQLite row. A row knows the project, the active card, the
@@ -199,7 +199,7 @@ back is the handoff plus the current board pulse plus any open blockers.
 	{
 		href: "./workflow/",
 		label: "The session loop",
-		desc: "The centerpiece workflow: briefMe → work → endSession → fresh chat.",
+		desc: "The centerpiece workflow: briefMe → work → saveHandoff → fresh chat.",
 		time: "~5 min",
 	},
 	{

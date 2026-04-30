@@ -26,7 +26,7 @@ Coding-agent conversations have a natural expiration. Context windows fill, toke
 
 Today the answer is usually "you do" — you re-explain what was planned, what's done, what was decided, what's stuck. Pigeon's answer is a structured handoff written at the end of one session and read at the start of the next. No re-explaining. No lost decisions. No "wait, what were we doing?"
 
-The metaphor is in the name: agent A finishes a session and releases context at `endSession`; the homing pigeon flies it across the gap; agent B catches it at `briefMe` and starts in-context.
+The metaphor is in the name: agent A wraps a session with `saveHandoff`; the homing pigeon flies the message across the gap; agent B catches it at `briefMe` and starts in-context. Humans trigger the wrap-up with the `/handoff` slash command — that's the entry point. `saveHandoff` is the MCP tool it calls under the hood.
 
 ```mermaid
 sequenceDiagram
@@ -34,7 +34,7 @@ sequenceDiagram
     participant S1 as Session N
     participant T as Pigeon
     participant S2 as Session N+1
-    S1->>T: endSession({ summary, nextSteps, blockers })
+    S1->>T: saveHandoff({ summary, nextSteps, blockers })
     Note over T: handoff persisted to SQLite
     S2->>T: briefMe()
     T-->>S2: handoff + diff + top work + blockers + pulse
@@ -213,7 +213,7 @@ The full docs site lives at **[2nspired.github.io/pigeon](https://2nspired.githu
 - [Design rationale](https://2nspired.github.io/pigeon/why/) — why local-first, why MCP-native.
 
 **How-to**
-- [The session loop](https://2nspired.github.io/pigeon/workflow/) — the four moves: briefMe, work, endSession, resume.
+- [The session loop](https://2nspired.github.io/pigeon/workflow/) — the four moves: briefMe, work, saveHandoff (`/handoff`), resume.
 - [Plan a card](https://2nspired.github.io/pigeon/plan-card/) — structured planning with the `planCard` tool.
 - [Write a tracker.md](https://2nspired.github.io/pigeon/tracker-md/) — your project's policy contract.
 - [Avoid anti-patterns](https://2nspired.github.io/pigeon/anti-patterns/) — common pitfalls and the fixes.

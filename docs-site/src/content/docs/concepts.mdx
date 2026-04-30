@@ -1,6 +1,6 @@
 ---
 title: Concepts
-description: The mental model under Pigeon — sessions, handoffs, the briefMe loop, and the deprecation calendar. The why under the why.
+description: The mental model under Pigeon — sessions, handoffs, the briefMe loop, the saveHandoff wrap-up, and the deprecation calendar. The why under the why.
 ---
 
 import { Aside } from "@astrojs/starlight/components";
@@ -25,14 +25,14 @@ sequenceDiagram
 	S1->>T: briefMe()
 	Note over S1,T: Picks up wherever Session 0 left off
 	S1->>T: moveCard / updateCard / addComment
-	S1->>T: endSession({ summary, nextSteps, blockers })
+	S1->>T: saveHandoff({ summary, nextSteps, blockers })
 	T-->>S1: resume prompt for next chat
 	Note over T: Handoff persisted to DB
 	S2->>T: briefMe()
 	T-->>S2: latest handoff + diff since
 ```
 
-The arrows that matter are #1 and #5: `briefMe` at session start, `endSession` at end. Everything in between is your work.
+The arrows that matter are #1 and #5: `briefMe` at session start, `saveHandoff` at end (or `/handoff` if you're in Claude Code — same call, slash-command alias). Everything in between is your work.
 
 ## Handoffs
 
@@ -52,7 +52,7 @@ The shape:
 }
 ```
 
-Handoffs are written by `endSession` and read by `briefMe`. They live in the `note` table with `kind: "handoff"`, are scoped per board, and roll forward — every new handoff becomes the next session's primer.
+Handoffs are written by `saveHandoff` and read by `briefMe`. They live in the `note` table with `kind: "handoff"`, are scoped per board, and roll forward — every new handoff becomes the next session's primer.
 
 The blockers field is special: when a handoff has open blockers, `briefMe` opens that section first and surfaces it in the pulse line. If a session ended with a question, the next session sees the question.
 
@@ -78,7 +78,7 @@ The loop:
 
 1. **`briefMe`** — primes the agent with what's relevant.
 2. **Work** — agent calls `moveCard`, `updateCard`, `addComment`, `planCard`, etc., always with `intent` on writes that need it.
-3. **`endSession`** — writes the next handoff, links any new commits, returns a resume prompt.
+3. **`saveHandoff`** — writes the next handoff, links any new commits, returns a resume prompt. (Type `/handoff` in Claude Code to invoke it.)
 4. **Next session opens with `briefMe`.** Goto 1.
 
 If you only ever follow these four steps, you've got the loop right. Everything else in Pigeon is in service of making them cheap, structured, and useful.
@@ -113,9 +113,9 @@ Pigeon's versioning policy is conservative on purpose: every breaking change has
 
 | When | What's gone |
 |---|---|
-| **v5.x today** | Dual-bin: `mcpServers.project-tracker` + `scripts/mcp-start.sh` still work alongside the new `mcpServers.pigeon` + `scripts/pigeon-start.sh`. Legacy paths emit a `_brandDeprecation` field nudging migration. |
-| **v6.0** | Legacy alias removed. `mcpServers.project-tracker` stops working; `mcp-start.sh` is deleted. You must have completed the rename per [`MIGRATING-TO-PIGEON.md`](https://github.com/2nspired/pigeon/blob/main/docs/MIGRATING-TO-PIGEON.md). Run `npm run doctor` to verify before you upgrade. |
-| **Permanent** | `tracker.db` filename, `tracker.md` filename, all MCP tool names (`briefMe`, `endSession`, etc.), Prisma table names, the `tracker://` URI scheme. None of these change. |
+| **v5.x today** | Dual-bin: `mcpServers.project-tracker` + `scripts/mcp-start.sh` still work alongside the new `mcpServers.pigeon` + `scripts/pigeon-start.sh`. Legacy paths emit a `_brandDeprecation` field nudging migration. The renamed wrap-up tool `saveHandoff` (formerly `endSession`) ships in v5.2; the old name still resolves and emits a `_deprecated` warning. |
+| **v6.0** | Legacy aliases removed. `mcpServers.project-tracker` stops working; `mcp-start.sh` is deleted. The `endSession` alias is removed — only `saveHandoff` resolves. You must have completed the rename per [`MIGRATING-TO-PIGEON.md`](https://github.com/2nspired/pigeon/blob/main/docs/MIGRATING-TO-PIGEON.md). Run `npm run doctor` to verify before you upgrade. |
+| **Permanent** | `tracker.db` filename, `tracker.md` filename, the stable MCP tool names (`briefMe`, `saveHandoff`, `createCard`, `updateCard`, `moveCard`, `addComment`, `getTools`, `runTool`), Prisma table names, the `tracker://` URI scheme. None of these change. |
 
 The promise: any v5.x release is non-destructive. You can pull, deprecation warnings appear, your install keeps working. v6.0 is the cutover; everything before it gives you time.
 
@@ -127,13 +127,13 @@ Three deliberate calls baked in:
 
 - **SQLite on disk.** No accounts, no sync server, no tenancy. One file, owned by you. The agent reads and writes it via MCP over stdio.
 - **MCP-native.** Pigeon doesn't ship a custom UI for your agent to call. Any MCP-aware agent works — Claude Code, Codex, Cursor, Windsurf, and whatever ships next.
-- **Essential + catalog split.** The 10 always-on tools are tiny (`briefMe`, `endSession`, `createCard`, `updateCard`, `moveCard`, `addComment`, `registerRepo`, `checkOnboarding`, `getTools`, `runTool`). The other 50+ tools are discoverable via `getTools` and called via `runTool`. Your agent's system prompt stays small.
+- **Essential + catalog split.** The 10 always-on tools are tiny (`briefMe`, `saveHandoff`, `createCard`, `updateCard`, `moveCard`, `addComment`, `registerRepo`, `checkOnboarding`, `getTools`, `runTool`). The other 50+ tools are discoverable via `getTools` and called via `runTool`. Your agent's system prompt stays small.
 
 The trade is real: no cloud sync (you sync the file via Git, Syncthing, Dropbox), no team mode (one human + N agents, by design), no network access when the file's on a machine you're not on. Read [the design rationale](/why/) for the full picture.
 
 ## See also
 
-- [The session loop](/workflow/) — how the briefMe → work → endSession cycle runs in practice
+- [The session loop](/workflow/) — how the briefMe → work → saveHandoff cycle runs in practice
 - [`tracker.md`](/tracker-md/) — your project's policy file
 - [Plan a card](/plan-card/) — structured planning protocol
 - [Anti-patterns](/anti-patterns/) — the ways people trip themselves up

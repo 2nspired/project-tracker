@@ -66,7 +66,7 @@ flowchart LR
 	C -->|plan a sprint| E[runTool getRoadmap]
 	C -->|search| F[runTool searchCards]
 	C -->|work| G[moveCard / updateCard / addComment]
-	G --> H[endSession]
+	G --> H[saveHandoff]
 ```
 
 Most sessions never reach past `briefMe` + the essentials + one or two `runTool` calls.
@@ -78,7 +78,7 @@ MCP prompts are reusable session openers. Useful when you want to trigger a spec
 | Prompt | Purpose |
 | --- | --- |
 | `resume-session` | Loads board state + last handoff + diff. Alternative to `briefMe`. |
-| `end-session` | Superseded — returns a pointer to the `endSession` essential tool. |
+| `end-session` | Superseded — returns a pointer to the `saveHandoff` essential tool (was `endSession` pre-v5.2). |
 | `onboarding` | Guided setup — `tutorial` seeds a sample project, `quickstart` creates a real one. |
 | `deep-dive` | Loads focused context for deep work on a specific card. |
 | `sprint-review` | Velocity, milestone progress, stale cards, blockers. |
@@ -120,7 +120,7 @@ flowchart LR
 
 - **Cards** are the primary unit of work.
 - **Notes** + **Claims** are the two knowledge primitives — see `docs/RFC-NOTE-CLAIM-PRIMITIVES.md` for the shape.
-- Session handoffs are stored as `Note` rows with `kind=handoff`; `endSession` writes them and `briefMe` reads the latest.
+- Session handoffs are stored as `Note` rows with `kind=handoff`; `saveHandoff` writes them and `briefMe` reads the latest.
 - Architectural decisions are stored as `Claim` rows with `kind=decision`.
 - **GitLink** connects commits to cards via `#N` references.
 
