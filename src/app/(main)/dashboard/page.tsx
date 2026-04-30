@@ -107,7 +107,7 @@ export default function DashboardPage() {
 				const msMap = projectMilestones.get(pId)!;
 				if (!msMap.has(card.milestone.id))
 					msMap.set(card.milestone.id, { name: card.milestone.name, cells: [] });
-				msMap.get(card.milestone.id)!.cells.push(horizon);
+				msMap.get(card.milestone.id)?.cells.push(horizon);
 			}
 
 			// Group by project
@@ -118,7 +118,7 @@ export default function DashboardPage() {
 					boardId: card.column.board.id,
 					cards: [],
 				});
-			groups.get(pId)!.cards.push(card);
+			groups.get(pId)?.cards.push(card);
 		}
 
 		// Attach sorted milestones to each project

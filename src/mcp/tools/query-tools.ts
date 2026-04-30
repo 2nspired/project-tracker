@@ -330,9 +330,7 @@ registerExtendedTool("auditBoard", {
 			const staleActiveMilestones = activeMilestones
 				.filter((m) => {
 					if (m.cards.length === 0) return false;
-					return m.cards.every(
-						(c) => hasRole(c.column, "done") || hasRole(c.column, "parking")
-					);
+					return m.cards.every((c) => hasRole(c.column, "done") || hasRole(c.column, "parking"));
 				})
 				.map((m) => ({ name: m.name, cardCount: m.cards.length }));
 

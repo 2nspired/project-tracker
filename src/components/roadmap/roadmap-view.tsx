@@ -214,7 +214,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 
 					// Build new order: replace the reordered horizon's milestones in position
 					const reorderedIds = reordered.map((m) => m.id).filter((id): id is string => id !== null);
-					const otherIds = allMilestoneIds.filter((id) => !reorderedIds.includes(id));
+					const _otherIds = allMilestoneIds.filter((id) => !reorderedIds.includes(id));
 
 					// Reconstruct full order: iterate through horizons in order
 					const fullOrder: string[] = [];

@@ -9,7 +9,6 @@ import {
 	syncCardTags,
 } from "./taxonomy-utils.js";
 import { registerExtendedTool } from "./tool-registry.js";
-import { toToon } from "./toon.js";
 import {
 	AGENT_NAME,
 	err,

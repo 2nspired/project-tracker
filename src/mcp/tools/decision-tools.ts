@@ -229,7 +229,7 @@ registerExtendedTool("updateDecision", {
 				});
 			}
 
-			const existingPayload = JSON.parse(existing.payload) as { alternatives?: string[] };
+			const _existingPayload = JSON.parse(existing.payload) as { alternatives?: string[] };
 			const [oldDecisionText, ...oldRationale] = existing.body.split(/\n{2,}/);
 			const updates: Parameters<typeof claimService.update>[1] = {};
 			if (decision !== undefined || rationale !== undefined) {

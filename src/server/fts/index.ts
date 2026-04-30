@@ -133,7 +133,7 @@ export async function indexNote(client: FtsClient, noteId: string): Promise<void
 			createdAt: true,
 		},
 	});
-	if (!note || !note.projectId) return; // Notes without a project aren't indexed.
+	if (!note?.projectId) return; // Notes without a project aren't indexed.
 
 	if (note.kind === "handoff") {
 		const metadata = JSON.parse(note.metadata || "{}") as { findings?: string[] };

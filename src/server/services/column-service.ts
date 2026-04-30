@@ -51,7 +51,7 @@ async function update(columnId: string, data: UpdateColumnInput): Promise<Servic
 	}
 }
 
-async function reorder(boardId: string, columnIds: string[]): Promise<ServiceResult<Column[]>> {
+async function reorder(_boardId: string, columnIds: string[]): Promise<ServiceResult<Column[]>> {
 	try {
 		const updates = columnIds.map((id, i) =>
 			db.column.update({

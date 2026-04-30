@@ -21,7 +21,7 @@ let resolvedSource: AgentNameSource = envProvided ? "env" : "default";
  */
 export function resolveAgentNameFromClient(clientName: string | undefined): void {
 	if (envProvided) return;
-	if (clientName && clientName.trim()) {
+	if (clientName?.trim()) {
 		AGENT_NAME = clientName.trim();
 		resolvedSource = "client";
 	}

@@ -3,7 +3,6 @@
 import { Ban, CheckSquare, Clock, MessageSquare, MoonStar, Sparkles, X } from "lucide-react";
 
 import { ActorDot } from "@/components/ui/actor-dot";
-import { Badge } from "@/components/ui/badge";
 import { getAccentBorderStyle, getActorIdentity } from "@/lib/actor-colors";
 import { PRIORITY_BORDER, STATUS_TEXT } from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";

@@ -31,7 +31,7 @@ describe("slugify", () => {
 	});
 
 	it("caps at 50 chars and strips a trailing hyphen left by the cut", () => {
-		const long = "a".repeat(49) + "---bbb";
+		const long = `${"a".repeat(49)}---bbb`;
 		expect(slugify(long)).toBe("a".repeat(49));
 		expect(slugify("a".repeat(60)).length).toBe(50);
 	});

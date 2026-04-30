@@ -7,7 +7,7 @@ import { z } from "zod";
 import { initFts5 } from "@/server/fts";
 import { findStaleInProgress } from "@/server/services/stale-cards";
 import { tokenUsageService } from "@/server/services/token-usage-service";
-import { getHorizon, hasRole } from "../lib/column-roles.js";
+import { hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
 import { saveBriefSnapshot } from "../lib/services/brief-snapshot.js";
