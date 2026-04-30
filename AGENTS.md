@@ -156,13 +156,29 @@ The same output is available as an auto-loadable MCP resource at `status://proje
 
 Tags are project-scoped (since v4.2) — same string in two projects = two distinct Tag rows. Each tag has an immutable `slug` (kebab-case via `slugify()`: trim → NFKD → lowercase → collapse non-alphanumeric to `-` → cap at 50 chars) and a mutable `label` (display). Pre-v4.2 free-form strings were canonicalized into the new model by `migrateTags`; the audit JSON in `data/tag-migration-*.json` documents which variants were merged.
 
+### Convention: flat tags, type required, area optional
+
+A card's tags should answer two orthogonal questions: *what kind of work is this?* and *what part of the system does it touch?* Tags are flat — no `feature:foo` colon-prefixed namespacing. Use a milestone if you need to group cards by feature or release.
+
+| Slot | Required? | Vocabulary | Examples |
+|---|---|---|---|
+| **type** | required | closed list — exactly one of `bug`, `feature`, `chore`, `docs`, `epic`, `spike` | `bug`, `chore` |
+| **area** | optional | open list — name the surface or subsystem | `mcp`, `ui`, `cli`, `schema`, `roadmap`, `briefme`, `handoff` |
+| **reserved** | n/a | semantic slugs (see below) | `component`, `metric` |
+
+A typical card carries one type + one area (e.g. `feature` + `mcp`). Add more area tags only when the work genuinely spans surfaces. Don't tag for prose (`important`, `cleanup-needed`) — that's what description and priority are for.
+
+**`feature:foo` namespacing is deprecated.** v4.2 slugify rewrites `feature:auth` → `feature-auth`, but the convention since the Tag rework is: feature/release grouping lives on the milestone, not in tag prefixes. `mergeTags` is the cleanup primitive for surviving `feature-foo` slugs — fold them into the matching milestone and drop the tag.
+
+### Reserved slugs
+
 Two slugs have reserved semantic meaning across projects (declared here, not enforced by schema):
 
-### `component`
+#### `component`
 
 Marks a card whose description anchors a system-component bullet in the "What's Built" section of `renderStatus` output. Component cards can be never-closed description anchors (e.g., "Infrastructure: Mac Mini inference setup") that exist purely to hold description text — they are not work items.
 
-### `metric`
+#### `metric`
 
 Marks a card whose `metadata` JSON holds metrics read by `renderStatus`. Shape:
 
@@ -172,11 +188,20 @@ Marks a card whose `metadata` JSON holds metrics read by `renderStatus`. Shape:
 
 ## Milestones
 
-A milestone is a **release horizon** — a bounded set of cards intended to ship as a coherent unit. This is the v4.2 governance answer: it's the only definition that makes the existing `dueDate` field semantically coherent and makes singleton milestones obviously wrong (a release with one card is either a typo or premature).
+A milestone is a **bounded set of cards intended to ship as a coherent unit** — a release horizon, a cross-version initiative, or any other "I'll know it's done when X" container. The unifying rule: every milestone description must answer *what's the unit of completion?* If it can't, it's a tag, not a milestone.
 
-**Naming convention:** `vN.M.P — Theme` for software releases (e.g. `v4.2.0 — Taxonomy primitives`); free-form for non-release work, but every milestone description must answer "what's the unit of completion?"
+### Two valid shapes
+
+| Shape | Naming | Boundary | Example |
+|---|---|---|---|
+| **Release-shaped** | `vN.M.P — Theme` | a version cut | `v4.2.0 — Taxonomy primitives` |
+| **Theme-shaped** | free-form initiative name | "the initiative is done" | `Adoption Push`, `Token Tracking & Cost Surfacing`, `Rebrand → Pigeon` |
+
+Theme-shaped milestones span versions. They're the right home for cross-cutting work that doesn't map to a single release — adoption pushes, multi-version refactors, taxonomy initiatives. Don't leave them open indefinitely: archive once the initiative is done so the picker stays focused on active work.
 
 `updateMilestone({ ..., state: "archived" })` hides shipped/abandoned milestones from the picker without deleting their card assignments. `mergeMilestones` is the cleanup primitive for duplicate or near-duplicate names — `listMilestones` flags candidates via `_governanceHints` (singleton > 60 days, near-name neighbours within Levenshtein 2).
+
+Singleton milestones (a release or theme with one card) are almost always wrong — either the milestone is premature or the card belongs in an existing milestone. Treat the singleton hint as a prompt to merge or archive.
 
 ## Facts (Unified Knowledge Store)
 

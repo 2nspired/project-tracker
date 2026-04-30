@@ -99,7 +99,7 @@ async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetric
 			where: { column: { boardId } },
 			select: { id: true },
 		});
-		const boardCardIds = new Set(cardIds.map((c) => c.id));
+		const _boardCardIds = new Set(cardIds.map((c) => c.id));
 
 		// Throughput: count cards that arrived in "done" columns per day
 		const doneColumnNames = new Set(columns.filter((c) => c.role === "done").map((c) => c.name));
@@ -156,7 +156,7 @@ async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetric
 					if (lastArrival && lastArrival.column === fromCol) {
 						const dwell = activity.createdAt.getTime() - lastArrival.time;
 						if (!dwellTimes.has(fromCol)) dwellTimes.set(fromCol, []);
-						dwellTimes.get(fromCol)!.push(dwell);
+						dwellTimes.get(fromCol)?.push(dwell);
 					}
 
 					// Record arrival in the destination column

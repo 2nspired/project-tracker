@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { formatDate } from "@/lib/format-date";
 import { CardChip } from "./card-chip";
 import { ProgressRing } from "./progress-ring";
-import type { Horizon, MilestoneGroup, RoadmapCard } from "./roadmap-view";
+import type { Horizon, MilestoneGroup } from "./roadmap-view";
 
 type DensityMode = "expanded" | "compact" | "focus";
 
@@ -16,13 +16,11 @@ export function MilestoneCard({
 	milestone,
 	horizon,
 	density,
-	boardId,
 	onCardClick,
 }: {
 	milestone: MilestoneGroup;
 	horizon: Horizon;
 	density: DensityMode;
-	boardId: string;
 	onCardClick: (cardId: string) => void;
 }) {
 	const [expanded, setExpanded] = useState(false);

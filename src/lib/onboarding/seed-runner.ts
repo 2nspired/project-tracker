@@ -14,6 +14,17 @@ export interface SeedResult {
 	boardId: string;
 }
 
+// Map.get() returns `T | undefined`, but every seed lookup below targets a key
+// the seeder has already populated — a miss is a programming error, not a
+// runtime condition. Throw with a useful label rather than `!`-asserting.
+function expectMapHit<K, V>(map: Map<K, V>, key: K, label: string): V {
+	const value = map.get(key);
+	if (value === undefined) {
+		throw new Error(`Seed integrity error: missing ${label} for key ${String(key)}`);
+	}
+	return value;
+}
+
 export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult | null> {
 	// Idempotency: skip if tutorial project already exists
 	const existing = await db.project.findUnique({
@@ -81,7 +92,7 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 	for (let i = 0; i < teachingProject.cards.length; i++) {
 		const def = teachingProject.cards[i];
 		const cardNumber = i + 1;
-		const columnId = columnMap.get(def.column)!;
+		const columnId = expectMapHit(columnMap, def.column, "column");
 		const position = positionCounters.get(def.column) ?? 0;
 		positionCounters.set(def.column, position + 1);
 
@@ -107,8 +118,8 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 	for (const rel of teachingProject.relations) {
 		await db.cardRelation.create({
 			data: {
-				fromCardId: numberToId.get(rel.fromCardNumber)!,
-				toCardId: numberToId.get(rel.toCardNumber)!,
+				fromCardId: expectMapHit(numberToId, rel.fromCardNumber, "card"),
+				toCardId: expectMapHit(numberToId, rel.toCardNumber, "card"),
 				type: rel.type,
 			},
 		});
@@ -116,7 +127,7 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 
 	// Create checklists (partial checklist on card #6)
 	for (const checklist of teachingProject.checklists) {
-		const cardId = numberToId.get(checklist.cardNumber)!;
+		const cardId = expectMapHit(numberToId, checklist.cardNumber, "card");
 		for (let i = 0; i < checklist.items.length; i++) {
 			await db.checklistItem.create({
 				data: {
@@ -133,7 +144,7 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 	for (const comment of teachingProject.comments) {
 		await db.comment.create({
 			data: {
-				cardId: numberToId.get(comment.cardNumber)!,
+				cardId: expectMapHit(numberToId, comment.cardNumber, "card"),
 				content: comment.content,
 				authorType: comment.authorType,
 				authorName: comment.authorName,
@@ -152,7 +163,7 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 	await db.claim.create({
 		data: {
 			projectId: project.id,
-			cardId: numberToId.get(dec.cardNumber)!,
+			cardId: expectMapHit(numberToId, dec.cardNumber, "card"),
 			kind: "decision",
 			statement: dec.title,
 			body: dec.rationale ? `${dec.decision}\n\n${dec.rationale}` : dec.decision,

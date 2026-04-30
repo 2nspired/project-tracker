@@ -58,7 +58,7 @@ export default function TimelinePage({
 	for (const card of allCards) {
 		const date = formatDate(card.createdAt);
 		if (!grouped.has(date)) grouped.set(date, []);
-		grouped.get(date)!.push(card);
+		grouped.get(date)?.push(card);
 	}
 
 	const doneColumn = board.columns.find((c) => hasRole(c, "done"));

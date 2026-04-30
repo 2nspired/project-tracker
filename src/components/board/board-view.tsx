@@ -35,11 +35,9 @@ import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
 import { BoardPulse } from "./board-pulse";
 import { type BoardFilters, BoardToolbar, type SortMode } from "./board-toolbar";
-import { CardCreateInline } from "./card-create-inline";
 import { CardDetailSheet } from "./card-detail-sheet";
 import { AddColumnButton } from "./column-header";
 import { IntentBannerProvider } from "./intent-banner-context";
-import { SortableCard } from "./sortable-card";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
 type BoardColumnType = FullBoard["columns"][number];
@@ -190,7 +188,7 @@ export function BoardView({
 	const blocksOtherMap = useMemo(() => {
 		const map = new Map<string, number>();
 		for (const col of board.columns) {
-			for (const card of col.cards) {
+			for (const _card of col.cards) {
 				// relationsTo are "blocked by" relations on this card
 				// We need to count how many cards THIS card blocks (i.e., appears as blocker)
 				// This data isn't directly available, but _blockedByCount tells us

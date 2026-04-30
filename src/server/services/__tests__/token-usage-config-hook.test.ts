@@ -32,6 +32,7 @@ describe("configHasTokenHook", () => {
 								type: "mcp_tool",
 								server: "pigeon",
 								tool: "recordTokenUsageFromTranscript",
+								// biome-ignore lint/suspicious/noTemplateCurlyInString: ${transcript_path} is Claude Code's substitution token — must remain a literal string for the hook config
 								input: { transcriptPath: "${transcript_path}" },
 							},
 						],

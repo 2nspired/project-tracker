@@ -180,7 +180,7 @@ export async function getBlockers(db: PrismaClient, boardId?: string): Promise<B
 				blockedBy: [],
 			});
 		}
-		blockerMap.get(key)!.blockedBy.push({
+		blockerMap.get(key)?.blockedBy.push({
 			id: rel.fromCard.id,
 			number: rel.fromCard.number,
 			title: rel.fromCard.title,

@@ -17,12 +17,22 @@ async function seedTutorial(): Promise<ServiceResult<SeedTutorialResult>> {
 				where: { slug: "learn-project-tracker" },
 				include: { boards: { take: 1, select: { id: true } } },
 			});
+			if (!existing || existing.boards.length === 0) {
+				return {
+					success: false,
+					error: {
+						code: "SEED_FAILED",
+						message:
+							"Tutorial project lookup returned no rows after seedTutorialProject reported alreadyExists",
+					},
+				};
+			}
 			return {
 				success: true,
 				data: {
 					alreadyExists: true,
-					projectId: existing!.id,
-					boardId: existing!.boards[0]!.id,
+					projectId: existing.id,
+					boardId: existing.boards[0].id,
 				},
 			};
 		}

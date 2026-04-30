@@ -106,14 +106,14 @@ export async function generateStatusMarkdown(
 		}
 		lines.push("");
 
-		// Per-milestone narrative (from Milestone.description)
-		const milestonesWithDesc = milestonesWithProgress.filter((ms) => ms.description);
-		if (milestonesWithDesc.length > 0) {
-			for (const ms of milestonesWithDesc) {
-				lines.push(`### ${ms.name}`);
-				lines.push(ms.description!);
-				lines.push("");
-			}
+		// Per-milestone narrative (from Milestone.description). Filter narrows
+		// to ms.description truthy, but TS can't carry that through .filter,
+		// so guard inside the loop instead of asserting.
+		for (const ms of milestonesWithProgress) {
+			if (!ms.description) continue;
+			lines.push(`### ${ms.name}`);
+			lines.push(ms.description);
+			lines.push("");
 		}
 	}
 

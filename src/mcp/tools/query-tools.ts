@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { findStaleInProgress } from "@/server/services/stale-cards";
 import { hasRole } from "../../lib/column-roles.js";
+import { editDistance } from "../../lib/slugify.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { err, errWithToolHint, ok, safeExecute } from "../utils.js";
@@ -196,7 +197,7 @@ registerExtendedTool("queryCards", {
 registerExtendedTool("auditBoard", {
 	category: "discovery",
 	description:
-		"Board health check: find cards missing priority, tags, milestones, or checklists. Groups by issue type for quick triage. Supports custom weights for health score.",
+		"Board health check: find cards missing priority, tags, milestones, or checklists. Groups by issue type for quick triage. Also returns project-level taxonomy signals (single-use tags, near-miss slug pairs, stale-active milestones) so drift between explicit audits is visible. Supports custom weights for health score.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		excludeDone: z.boolean().default(true).describe("Skip Done/Parking columns (default true)"),
@@ -286,6 +287,53 @@ registerExtendedTool("auditBoard", {
 				})
 				.filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
+			// ─── Taxonomy-level signals (#163) ────────────────────────────
+			// Project-scoped checks that surface drift between explicit
+			// `mergeTags`/`updateMilestone` runs. Same response shape rules
+			// as the card-level sections above: count + array of items.
+			const { projectId } = board;
+
+			const tagsWithUsage = await db.tag.findMany({
+				where: { projectId },
+				select: {
+					slug: true,
+					label: true,
+					_count: { select: { cardTags: true } },
+				},
+			});
+
+			const singleUseTags = tagsWithUsage
+				.filter((t) => t._count.cardTags === 1)
+				.map((t) => ({ slug: t.slug, label: t.label }));
+
+			const slugs = tagsWithUsage.map((t) => t.slug);
+			const nearMissTagPairs: Array<{ a: string; b: string; distance: number }> = [];
+			for (let i = 0; i < slugs.length; i++) {
+				for (let j = i + 1; j < slugs.length; j++) {
+					const d = editDistance(slugs[i], slugs[j], 2);
+					if (d <= 2) {
+						nearMissTagPairs.push({ a: slugs[i], b: slugs[j], distance: d });
+					}
+				}
+			}
+
+			const activeMilestones = await db.milestone.findMany({
+				where: { projectId, state: "active" },
+				select: {
+					name: true,
+					cards: {
+						select: { column: { select: { role: true, name: true } } },
+					},
+				},
+			});
+
+			const staleActiveMilestones = activeMilestones
+				.filter((m) => {
+					if (m.cards.length === 0) return false;
+					return m.cards.every((c) => hasRole(c.column, "done") || hasRole(c.column, "parking"));
+				})
+				.map((m) => ({ name: m.name, cardCount: m.cards.length }));
+
 			const totalCards = allCards.length;
 			const totalWeight = w.priority + w.tags + w.milestone + w.checklist + w.staleInProgress;
 			const weightedIssues =
@@ -316,6 +364,14 @@ registerExtendedTool("auditBoard", {
 				noMilestone: { count: noMilestone.length, cards: noMilestone },
 				emptyChecklist: { count: emptyChecklist.length, cards: emptyChecklist },
 				staleInProgress: { count: staleInProgress.length, cards: staleInProgress },
+				taxonomy: {
+					singleUseTags: { count: singleUseTags.length, tags: singleUseTags },
+					nearMissTags: { count: nearMissTagPairs.length, pairs: nearMissTagPairs },
+					staleActiveMilestones: {
+						count: staleActiveMilestones.length,
+						milestones: staleActiveMilestones,
+					},
+				},
 			});
 		}),
 });

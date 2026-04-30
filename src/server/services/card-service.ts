@@ -12,7 +12,7 @@ import type { ServiceResult } from "@/server/services/types/service-result";
 // what the MCP write paths do (Phase 4) so the CardTag junction stays the
 // canonical source of truth across both surfaces.
 async function resolveLegacyTagsForWeb(
-	prisma: PrismaClient,
+	_prisma: PrismaClient,
 	projectId: string,
 	inputs: string[]
 ): Promise<{ tagIds: string[]; labels: string[] }> {

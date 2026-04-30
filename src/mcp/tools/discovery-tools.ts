@@ -289,7 +289,7 @@ registerExtendedTool("getRoadmap", {
 			for (const card of allCards) {
 				const key = card.milestone ?? "Ungrouped";
 				if (!milestoneMap.has(key)) milestoneMap.set(key, []);
-				milestoneMap.get(key)!.push(card);
+				milestoneMap.get(key)?.push(card);
 			}
 
 			const roadmap = {
