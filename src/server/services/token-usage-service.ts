@@ -606,10 +606,30 @@ export type SetupDiagnostics = {
 	projectsWithoutRepoPath: number;
 };
 
-// Standard Claude Code config locations checked by the setup dialog. Other
-// locations (CLAUDE_CONFIG_DIR overrides, custom installs) aren't auto-detected
-// — users with those setups are advanced enough to read AGENTS.md.
-const CLAUDE_CONFIG_PATHS = [".claude/.claude.json", ".claude-alt/.claude.json"];
+// Standard Claude Code config locations checked by the setup dialog.
+// Order matters: CLAUDE_CONFIG_DIR (Claude Code's documented override) is
+// honored first when set in the server process's environment. Then the two
+// canonical homedir locations: `~/.claude` (default) and `~/.claude-alt`
+// (the "alternate install" pattern used by users running side-by-side
+// configs). Anything else falls through to the dialog's "no config found"
+// state, which lets the user paste manually.
+//
+// Caveat for launchd-installed Pigeon: launchctl services don't inherit
+// shell env, so a CLAUDE_CONFIG_DIR set in ~/.zshrc won't be visible here
+// unless the user re-exports it via the plist. The standard-paths fallback
+// covers ~95% of installs without configuration.
+function resolveConfigCandidates(): string[] {
+	const home = homedir();
+	const candidates: string[] = [];
+	const envOverride = process.env.CLAUDE_CONFIG_DIR;
+	if (envOverride && envOverride.trim()) {
+		candidates.push(path.join(envOverride, ".claude.json"));
+	}
+	candidates.push(path.join(home, ".claude", ".claude.json"));
+	candidates.push(path.join(home, ".claude-alt", ".claude.json"));
+	// Dedupe in case env override resolves to one of the standards.
+	return Array.from(new Set(candidates));
+}
 
 // Loose typing: we walk the JSON without enforcing the full Claude Code config
 // schema. We only need `hooks.Stop[*].hooks[*].tool === "recordTokenUsageFromTranscript"`.
@@ -645,9 +665,9 @@ async function inspectConfigPath(absPath: string): Promise<SetupConfigPath> {
 
 async function getDiagnostics(): Promise<ServiceResult<SetupDiagnostics>> {
 	try {
-		const home = homedir();
+		const candidates = resolveConfigCandidates();
 		const [configPaths, latest, total, missingRepoPath] = await Promise.all([
-			Promise.all(CLAUDE_CONFIG_PATHS.map((rel) => inspectConfigPath(path.join(home, rel)))),
+			Promise.all(candidates.map(inspectConfigPath)),
 			db.tokenUsageEvent.findFirst({
 				orderBy: { recordedAt: "desc" },
 				select: { recordedAt: true },

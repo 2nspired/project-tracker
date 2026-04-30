@@ -40,7 +40,7 @@ type SetupState = "loading" | "not-configured" | "no-events" | "stale" | "workin
 // browser default `<code>` styling.
 function InlineCode({ children }: { children: ReactNode }) {
 	return (
-		<code className="rounded bg-muted/70 px-1 py-px font-mono text-[10.5px] text-foreground/85">
+		<code className="rounded bg-muted/70 px-1 py-px font-mono text-2xs text-foreground/85">
 			{children}
 		</code>
 	);
@@ -126,7 +126,7 @@ function StatePill({ state }: { state: SetupState }) {
 	return (
 		<span
 			className={cn(
-				"inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide",
+				"inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide",
 				s.pill
 			)}
 		>
@@ -179,7 +179,7 @@ export function TokenTrackingSetupDialog({ trigger }: TokenTrackingSetupDialogPr
 				<MobileHeaderArea>
 					<SetupDialogHeaderInner enabled={open} mobile />
 				</MobileHeaderArea>
-				<div className="px-5 py-5">
+				<div className="px-5 py-4">
 					<SetupDialogBody enabled={open} />
 				</div>
 			</SheetContent>
@@ -311,11 +311,11 @@ function HookSnippetSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 						)}
 					</button>
 				</div>
-				<pre className="overflow-x-auto whitespace-pre px-3 py-3 font-mono text-[11px] leading-snug text-foreground/90">
+				<pre className="overflow-x-auto whitespace-pre px-3 py-3 font-mono text-2xs leading-snug text-foreground/90">
 					{TOKEN_TRACKING_HOOK_SNIPPET}
 				</pre>
 			</div>
-			<p className="text-2xs text-muted-foreground/80">
+			<p className="text-xs text-muted-foreground">
 				Sub-agent transcripts at{" "}
 				<InlineCode>&lt;dirname&gt;/&lt;sessionId&gt;/subagents/agent-*.jsonl</InlineCode> are
 				aggregated alongside the parent automatically.
@@ -365,7 +365,7 @@ function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 								c.hasHook ? "bg-emerald-500" : "bg-muted-foreground/40"
 							)}
 						/>
-						<code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground/90">
+						<code className="min-w-0 flex-1 truncate font-mono text-2xs text-foreground/90">
 							{c.path}
 						</code>
 						<span
@@ -422,13 +422,13 @@ function VerifySection({
 			}
 		>
 			<div className={cn("rounded-md border border-l-4 bg-card", style.border)}>
-				<div className="flex items-center gap-2 border-b border-border/50 px-3 py-2">
-					<span className={cn("h-2 w-2 rounded-full", style.dot)} />
+				<div className="flex items-center gap-2 border-b border-border/50 px-3 py-2.5">
+					<span className={cn("h-1.5 w-1.5 rounded-full", style.dot)} />
 					<span className={cn("font-mono text-2xs uppercase tracking-[0.16em]", style.tone)}>
 						{style.label}
 					</span>
 				</div>
-				<div className="px-3 py-3">
+				<div className="px-3 py-2.5">
 					<VerifyMessage state={state} diagnostics={diagnostics} />
 				</div>
 				{diagnostics && (
@@ -520,14 +520,14 @@ function VerifyMessage({
 				<p>The hook is wired up but hasn't fired yet. Likely causes:</p>
 				<ul className="space-y-1">
 					<li className="flex items-start gap-2">
-						<span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
+						<span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
 						<span>
 							You haven't ended a Claude Code session since adding the hook — run one and exit.
 						</span>
 					</li>
 					{missing > 0 && (
 						<li className="flex items-start gap-2">
-							<span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-500/70" />
+							<span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500/70" />
 							<span>
 								{missing} project{missing === 1 ? "" : "s"} missing{" "}
 								<InlineCode>repoPath</InlineCode>. Sessions in unregistered repos drop silently.
@@ -535,7 +535,7 @@ function VerifyMessage({
 						</li>
 					)}
 					<li className="flex items-start gap-2">
-						<span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
+						<span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
 						<span>
 							Your Claude Code version may not support <InlineCode>type: "mcp_tool"</InlineCode>{" "}
 							hooks. Restart Claude Code after editing.
