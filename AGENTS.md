@@ -396,8 +396,11 @@ agent — Project Tracker never reads your transcript on its own.
 
 ### Claude Code (automatic)
 
-Add a Stop hook to `~/.claude-alt/.claude.json` (or wherever your Claude Code
-config lives). The MCP server must be reachable when the hook fires.
+Add a Stop hook to one of Claude Code's `settings.json` files — user-level
+(`~/.claude/settings.json`), project-level (`<repo>/.claude/settings.json`,
+shared/committed), or project-local (`<repo>/.claude/settings.local.json`,
+per-machine/gitignored). The hook **must** live in a `settings.json` file:
+in CC 2.1.x the `hooks` key in `.claude.json` is silently ignored.
 
 ```json
 {
@@ -406,14 +409,8 @@ config lives). The MCP server must be reachable when the hook fires.
       {
         "hooks": [
           {
-            "type": "mcp_tool",
-            "server": "project-tracker",
-            "tool": "recordTokenUsageFromTranscript",
-            "input": {
-              "transcriptPath": "${transcript_path}",
-              "sessionId": "${session_id}",
-              "cwd": "${cwd}"
-            }
+            "type": "command",
+            "command": "/absolute/path/to/your/pigeon/scripts/stop-hook.sh"
           }
         ]
       }
@@ -422,10 +419,19 @@ config lives). The MCP server must be reachable when the hook fires.
 }
 ```
 
-The hook reads the parent transcript and any sub-agent transcripts at
+Replace the `command` value with the absolute path to `scripts/stop-hook.sh`
+in your local Pigeon clone. The in-app setup dialog (Pulse strip → "Set up
+token tracking") fills this path in automatically — paste verbatim from
+there. We use `type: "command"` rather than `type: "mcp_tool"` because the
+latter no-ops without error in CC 2.1.x for this hook config.
+
+The script invokes `tsx scripts/stop-hook-record-tokens.ts`, which reads the
+parent transcript and any sub-agent transcripts at
 `<dirname>/<sessionId>/subagents/agent-*.jsonl`, sums per-model usage, and
 writes one `TokenUsageEvent` row per (sessionId, model). Re-running the hook
-on the same transcript replaces rather than duplicates.
+on the same transcript replaces rather than duplicates. Every fire writes a
+diagnostic line to `<repo>/data/stop-hook.log` so silent failures are
+debuggable.
 
 ### Other agents (manual)
 
