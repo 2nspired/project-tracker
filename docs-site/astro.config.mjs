@@ -17,7 +17,7 @@ export default defineConfig({
 			autoTheme: true,
 		}),
 		starlight({
-			title: "Project Tracker",
+			title: "Pigeon",
 			description:
 				"Local-first kanban board with MCP integration for AI-assisted development.",
 			logo: { src: "./src/assets/logo.svg", replacesTitle: false },
@@ -34,7 +34,7 @@ export default defineConfig({
 				{
 					label: "Get started",
 					items: [
-						{ label: "What is Project Tracker?", slug: "index" },
+						{ label: "What is Pigeon?", slug: "index" },
 						{ label: "Quickstart", slug: "quickstart" },
 					],
 				},

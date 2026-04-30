@@ -8,13 +8,15 @@
 
 ```bash
 cd /path/to/your/project-tracker     # your existing local clone
-git pull                              # pulls v5.0.0
+git pull                              # pulls v5.0.0+
 npm install
 npm run migrate-rebrand               # idempotent — safe to re-run
-# Then follow the printed manual-step checklist (launchd + ~/.claude.json)
+# Then follow the printed manual-step checklist (launchd + ~/.claude.json),
+# and verify with:
+npm run doctor                        # added in v5.1 — runs 8 install checks
 ```
 
-The whole thing should take <10 minutes. There are exactly **two manual steps** the script deliberately doesn't auto-run because they're destructive: the launchd label rename and your Claude Code config edit. Both are documented below.
+The whole thing should take <10 minutes. There are exactly **two manual steps** the script deliberately doesn't auto-run because they're destructive: the launchd label rename and your Claude Code config edit. Both are documented below. After both, run `npm run doctor` to confirm everything wired up correctly.
 
 ---
 
@@ -32,17 +34,33 @@ npm run db:push           # v4.2 bumped SCHEMA_VERSION 9 → 10 (new Tag, CardTa
 npm run service:update
 ```
 
-### 2. You should clear any `projectPrompt` content before pulling v5.0
+### 2. ⚠️ STOP — clear any `projectPrompt` content before pulling v5.0
 
-v5.0 drops the legacy `projectPrompt` column entirely (Phase 3 of the `tracker.md` migration). The v4.0 `migrateProjectPrompt` tool writes a `tracker.md` from the column's value; v4.1 added a deprecation warning when content remains. Anything still in the column when you pull v5.0 will be lost.
+> **Anything still in the `projectPrompt` DB column when you pull v5.0 is lost when the column drops.** This is the only data-loss path in the migration. Read this section before running `git pull`.
 
-Run `briefMe()` in any agent session and look at the response:
-- If `_warnings[]` mentions `projectPrompt`, **stop and run the migration first.**
-  ```
-  runTool('migrateProjectPrompt', { projectId: '<your project id>' })
-  # then clear the DB column manually (Prisma Studio, or update the project in the UI)
-  ```
-- If no `projectPrompt` warning shows up, you're good.
+v5.0 drops the legacy `projectPrompt` column entirely (Phase 3 of the `tracker.md` migration). The v4.0 `migrateProjectPrompt` tool writes a `tracker.md` from the column's value; v4.1 added a deprecation warning when content remained.
+
+**On v4.x, in any agent session:**
+
+```
+briefMe()
+```
+
+Look at the response. If `_warnings[]` mentions `projectPrompt`, you have content that needs migrating. To get the project ID:
+
+```
+runTool('listProjects')
+```
+
+Then for each project that has `projectPrompt` content:
+
+```
+runTool('migrateProjectPrompt', { projectId: '<your project id>' })
+```
+
+The migration writes `tracker.md` to that project's `repoPath` (idempotent — aborts if the file already exists). After it completes, clear the DB column manually via Prisma Studio (`npm run db:studio`) or by editing the project's prompt to empty in the UI. Commit the new `tracker.md` to your repo.
+
+If `briefMe()` does **not** include a `projectPrompt` warning, you're clear to upgrade.
 
 ### 3. Back up your database
 
@@ -187,7 +205,28 @@ Skill-usage telemetry entries like `mcp__project-tracker__some-tool` (under `sla
 
 This step is technically optional during v5.x — the legacy `mcpServers.project-tracker` + `mcp-start.sh` combination still works with a deprecation warning. But the warning will show up in every session until you do the rename, and the alias goes away in v6.0.
 
-### Step 5 — Restart any running MCP sessions
+### Step 5 — Run `npm run doctor` to verify everything wired up
+
+v5.1 adds a one-command install verifier:
+
+```bash
+npm run doctor
+```
+
+It runs 8 checks and prints a green/red list with copy-pasteable fix commands:
+
+1. **MCP registration** — confirms `mcpServers.pigeon` is in `~/.claude.json` / `~/.claude-alt/.claude.json`; flags legacy `project-tracker` keys.
+2. **Hook drift** — finds `mcp_tool` hooks that still reference `"server": "project-tracker"` (these silently no-op post-rename).
+3. **launchd label** — confirms `com.2nspired.pigeon` is loaded; flags stale `com.2nspired.project-tracker`.
+4. **Connected repos** — for each project's `repoPath`, verifies `.mcp.json` uses the new key shape.
+5. **Server version** — running service version vs `package.json` (catches missed `service:update`).
+6. **Per-project `tracker.md`** — exists and parseable for every connected project.
+7. **WAL hygiene** — flags an unhealthy SQLite WAL size that triggers Prisma's phantom-drop foot-gun.
+8. **FTS5 sanity** — verifies the `knowledge_fts` virtual table and shadow tables are consistent.
+
+Exit code is `0` when nothing failed (warnings are OK), `1` when at least one check is in `fail`.
+
+### Step 6 — Restart any running MCP sessions
 
 Close any active Claude Code (or Codex / Cursor / Windsurf) conversations that have Pigeon connected, then start a new one. Verify in the new session:
 
@@ -197,11 +236,13 @@ briefMe()
 
 - The response should **not** include a `_brandDeprecation` field. If it does, you're still running under the legacy entrypoint — re-check Step 4.
 - The pulse line should mention your project name normally.
-- The `_serverVersion` field should read `5.0.0` (or whatever v5.x version you pulled).
+- The `_serverVersion` field should read `5.0.0` or higher.
 
 ---
 
 ## Verifying it worked
+
+The fastest path is `npm run doctor` (Step 5 above). For a manual cross-check:
 
 ```bash
 # 1. Service is running under the new label

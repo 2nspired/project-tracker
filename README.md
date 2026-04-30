@@ -20,14 +20,20 @@ Nothing leaves your machine. The database is a single SQLite file you own.
 
 ```bash
 git clone https://github.com/2nspired/pigeon.git
-cd project-tracker
+cd pigeon
 npm install
 npm run setup          # creates the DB, optionally seeds a tutorial
 npm run service:install  # macOS: UI on localhost:3100 as a background service
                          # or: npm run dev for a foreground dev server on :3000
 ```
 
-After `git pull`, see [docs/UPDATING.md](docs/UPDATING.md) for the upgrade steps — `npm run service:update` alone is not always enough. Upgrading from v4.x? Run `npm run migrate-rebrand` once after pulling v5.0 to migrate the tutorial project's name and your connected projects' `.mcp.json` keys.
+After install, run `npm run doctor` to verify the MCP wiring, launchd label, and per-project `tracker.md` files are all healthy.
+
+### Upgrading
+
+After `git pull`, see [docs/UPDATING.md](docs/UPDATING.md) — `npm run service:update` alone is not always enough.
+
+Upgrading from v4.x? Follow [docs/MIGRATING-TO-PIGEON.md](docs/MIGRATING-TO-PIGEON.md). The TL;DR: `npm run migrate-rebrand` once after pulling v5.0 migrates the tutorial project's name and your connected projects' `.mcp.json` keys; then `npm run doctor` confirms the install.
 
 Then, from inside any project you want to track:
 
@@ -79,6 +85,7 @@ Next.js 16 + React 19 · Prisma 7 + SQLite · tRPC v11 · shadcn/ui + Tailwind 4
 | `npm run db:studio` | Prisma Studio |
 | `npm run service:*` | macOS background service (install, start, stop, logs, update) |
 | `npm run release` | Verify version agreement, run quality gates, tag + push (see `docs/VERSIONING.md`) |
+| `npm run doctor` | Install health check — runs 8 diagnostics with copy-pasteable fixes |
 | `npm run docs:dev` | Dev the docs site on :4321 |
 | `npm run docs:build` | Build the docs site |
 

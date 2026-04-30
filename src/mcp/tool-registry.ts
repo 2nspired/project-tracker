@@ -19,7 +19,8 @@ export type ToolCategory =
 	| "session"
 	| "decisions"
 	| "git"
-	| "context";
+	| "context"
+	| "diagnostics";
 
 export type ToolAnnotations = {
 	readOnlyHint?: boolean;
@@ -285,6 +286,7 @@ export function getToolCatalog(opts?: { category?: string; tool?: string }):
 		decisions: "Structured architectural decision records",
 		git: "Git commit linking and code mapping",
 		context: "Context bundles, persistent knowledge entries, and code facts",
+		diagnostics: "Install health check — config drift, version skew, FTS state",
 	};
 
 	return {

@@ -8,6 +8,61 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [5.1.0] — 2026-04-29
+
+First post-rebrand release. Focus: install-health diagnostics (so the v5.0 migration's foot-guns are detectable in one command instead of one-at-a-time discovery in production), plus rebrand-drift cleanup the v5.0 PR missed.
+
+### Added
+
+- **`pigeon doctor` — install health check** (#140)
+  - New MCP tool `doctor` (category `diagnostics`) and `npm run doctor` CLI wrapper. Same check set, two transports.
+  - Eight checks, each returning `{ status, message, fix? }` with copy-pasteable fix commands:
+    1. **MCP registration** — `mcpServers.pigeon` vs legacy `project-tracker` in `~/.claude.json` and `~/.claude-alt/.claude.json` (and `$CLAUDE_CONFIG_DIR` if set).
+    2. **Hook drift** — finds `mcp_tool` hooks that still reference `"server": "project-tracker"`. These silently no-op post-rename — no error, just dropped data. The v5.0 doc warned about this; the doctor catches it.
+    3. **launchd label** — confirms `com.2nspired.pigeon` is loaded; flags stale `com.2nspired.project-tracker`.
+    4. **Connected repos** — for each `Project.repoPath`, verifies `.mcp.json` uses the new `pigeon` key.
+    5. **Server version** — running service version (via new `/api/health` endpoint) vs `package.json`. Catches users who forgot `npm run service:update` after `git pull`.
+    6. **Per-project `tracker.md`** — exists at `repoPath/tracker.md` and is non-empty for every connected project.
+    7. **WAL hygiene** — flags non-trivial `tracker.db-wal` size (≥4 MiB) that triggers Prisma's phantom-drop foot-gun observed during the v5.0 migration. Fix: `PRAGMA wal_checkpoint(TRUNCATE)`.
+    8. **FTS5 sanity** — verifies `knowledge_fts` virtual table and all four shadow tables (`_data`, `_idx`, `_docsize`, `_config`) are present together. Flags any half-state.
+  - CLI exits 0 when nothing failed (warnings are OK), 1 when at least one check is in `fail`.
+  - Pretty CLI output with status glyphs (`✓` `!` `✗` `·`), aligned columns, and per-check fix lines. `NO_COLOR=1` disables color.
+  - Implementation: `src/lib/doctor/` (8 checks + runner + types) — checks are pure functions where possible, accepting fs paths or db queries as parameters so they're directly unit-testable. 22 unit tests cover legacy / current / missing / malformed fixtures via temp-dir JSON.
+- **`/api/health` endpoint** — returns `{ ok: true, version, brand: "pigeon" }`. Used by the doctor's server-version check; cheap enough that any consumer can poll.
+- **`MIGRATING-TO-PIGEON.md`** — Step 5 now recommends `npm run doctor` as the post-migration verifier; the previous manual `briefMe` smoke check moved to a fallback.
+
+### Fixed
+
+- **Rebrand drift the v5.0 PR missed:**
+  - `README.md` — `cd project-tracker` → `cd pigeon` after `git clone` (the first command broke for fresh installs).
+  - `docs-site/src/content/docs/quickstart.mdx` — same fix.
+  - `docs-site/src/content/docs/index.mdx` — frontmatter `title: Project Tracker` → `title: Pigeon`; alt-text and body copy updated.
+  - `docs-site/src/content/docs/why.mdx` — opening line referenced the old brand.
+  - `docs-site/src/content/docs/anti-patterns.mdx` — frontmatter description.
+- **`MIGRATING-TO-PIGEON.md`:**
+  - Promoted the "clear `projectPrompt` before pulling v5.0" warning from a sub-bullet to its own ⚠️ STOP-banner H3. It's the only data-loss path in the migration; depth needed to match consequence.
+  - Added explicit "how to find your projectId" pointer (`runTool('listProjects')`) in the projectPrompt cleanup.
+  - TL;DR now shows `npm run doctor` as the verification step, not just a printed checklist hand-wave.
+- **`CHANGELOG.md`:**
+  - v5.0 entry referenced the deprecation field as `_deprecation`. Actual field name is `_brandDeprecation` (per `src/mcp/server.ts:741`). Corrected.
+  - `[Unreleased]` link footer compared from `v4.0.0`; rebased to `v5.1.0...HEAD`. Added missing `[5.1.0]`, `[5.0.0]`, `[4.2.0]`, `[4.1.0]` link references.
+
+### Changed
+
+- `package.json` `version` 5.0.0 → 5.1.0.
+
+### Migration
+
+No required migration. v5.1 is purely additive — no schema change, no breaking API. After pulling:
+
+```bash
+npm install
+npm run service:update
+npm run doctor       # verify the install
+```
+
+If `doctor` reports any `fail` results, follow the printed fix commands. Most v5.0-migration foot-guns now surface as a single fail line with a one-line fix.
+
 ## [5.0.0] — 2026-04-29
 
 Major release: rebrand to **Pigeon** + drop the legacy `projectPrompt` DB column. Builds on the v4.2 taxonomy + token-tracking baseline.
@@ -44,7 +99,7 @@ Then it prints a final checklist for steps it deliberately doesn't auto-execute:
 
 - New canonical entrypoint: `scripts/pigeon-start.sh` (sets `MCP_SERVER_BRAND=pigeon`).
 - Legacy entrypoint: `scripts/mcp-start.sh` (sets `MCP_SERVER_BRAND=project-tracker`, emits stderr deprecation notice).
-- `src/mcp/server.ts` reads `MCP_SERVER_BRAND` to set the SDK `name` field and inject a `_deprecation` field into `briefMe` / `checkOnboarding` responses when legacy.
+- `src/mcp/server.ts` reads `MCP_SERVER_BRAND` to set the SDK `name` field and inject a `_brandDeprecation` field into `briefMe` / `checkOnboarding` responses when legacy.
 - All user-visible Pigeon strings updated: web UI header, browser title, CLI banners, slash command descriptions, README/CLAUDE.md/AGENTS.md/docs.
 - Tutorial seed (`src/lib/onboarding/teaching-project.ts`) renamed; new installs get "Learn Pigeon".
 - `package.json` `name` → `pigeon-mcp` (npm `pigeon` is squatted by an abandoned 2013 package).
@@ -311,7 +366,11 @@ Earlier history is captured in the git log. Highlights:
 
 Reconstructed entries below this point are best-effort; treat git log as authoritative.
 
-[Unreleased]: https://github.com/2nspired/pigeon/compare/v4.0.0...HEAD
+[Unreleased]: https://github.com/2nspired/pigeon/compare/v5.1.0...HEAD
+[5.1.0]: https://github.com/2nspired/pigeon/releases/tag/v5.1.0
+[5.0.0]: https://github.com/2nspired/pigeon/releases/tag/v5.0.0
+[4.2.0]: https://github.com/2nspired/pigeon/releases/tag/v4.2.0
+[4.1.0]: https://github.com/2nspired/pigeon/releases/tag/v4.1.0
 [4.0.0]: https://github.com/2nspired/pigeon/releases/tag/v4.0.0
 [3.0.0]: https://github.com/2nspired/pigeon/releases/tag/v3.0.0
 [2.5.0]: https://github.com/2nspired/pigeon/releases/tag/v2.5.0

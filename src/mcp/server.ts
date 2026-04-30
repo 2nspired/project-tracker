@@ -214,6 +214,7 @@ import "./tools/knowledge-tools.js";
 import "./tools/instrumentation-tools.js";
 import "./tools/tag-tools.js";
 import "./tools/token-tools.js";
+import "./tools/doctor-tools.js";
 
 import { LEGACY_BRAND_DEPRECATION, resolveServerBrand } from "./brand.js";
 
