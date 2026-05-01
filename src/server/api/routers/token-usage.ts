@@ -13,9 +13,21 @@ const modelPricingSchema = z.object({
 
 export const tokenUsageRouter = createTRPCRouter({
 	getProjectSummary: publicProcedure
-		.input(z.object({ projectId: z.string().uuid() }))
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				// Optional board scope (#200 Phase 1a). When set, narrows the
+				// summary to the cards on that board via the same session-
+				// expansion rule as `getCardSummary` — so a session that touched
+				// cards on multiple boards contributes its full cost to *each*
+				// board's total, and `boardA + boardB > project` is *expected*,
+				// not a bug. UI plumbing (board picker, route segment) follows
+				// in Phase 2a; this just exposes the optional knob.
+				boardId: z.string().uuid().optional(),
+			})
+		)
 		.query(async ({ input }) => {
-			const result = await tokenUsageService.getProjectSummary(input.projectId);
+			const result = await tokenUsageService.getProjectSummary(input.projectId, input.boardId);
 			if (!result.success) {
 				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
 			}
@@ -59,9 +71,18 @@ export const tokenUsageRouter = createTRPCRouter({
 		}),
 
 	getDailyCostSeries: publicProcedure
-		.input(z.object({ projectId: z.string().uuid() }))
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				// Optional board scope (#200 Phase 1a) — same semantics as
+				// `getProjectSummary.boardId`. React Query's cache key picks up
+				// the new param automatically, so existing callers that don't
+				// supply `boardId` keep their cache entries.
+				boardId: z.string().uuid().optional(),
+			})
+		)
 		.query(async ({ input }) => {
-			const result = await tokenUsageService.getDailyCostSeries(input.projectId);
+			const result = await tokenUsageService.getDailyCostSeries(input.projectId, input.boardId);
 			if (!result.success) {
 				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
 			}

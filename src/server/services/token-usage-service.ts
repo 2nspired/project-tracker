@@ -3,7 +3,7 @@ import { access, readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
-import type { PrismaClient } from "prisma/generated/client";
+import type { Prisma, PrismaClient } from "prisma/generated/client";
 import { computeCost, type ModelPricing, resolvePricing } from "@/lib/token-pricing-defaults";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
@@ -201,6 +201,71 @@ async function listSubAgentTranscripts(parentPath: string): Promise<string[]> {
 	} catch {
 		return [];
 	}
+}
+
+// ─── Internal: board-scope where helper (#200 Phase 1a) ───────────
+//
+// Centralizes the "what does it mean to scope a token-usage query to a
+// board?" rule so the join can't drift between callers. Two modes:
+//
+//   - `boardId === undefined` → returns `{ projectId }`. Identical to the
+//     pre-#200 callsite behavior; existing project-scope queries route
+//     through here without changing their results.
+//
+//   - `boardId` set → resolves the cards under any column on the board,
+//     then expands to "any session that touched a card on this board"
+//     using the same session-expansion rule that backs `getCardSummary`
+//     (see its doc comment): a session that touched multiple cards
+//     contributes its full cost to *each* card it touched, no fictional
+//     split. Bubbled up to the board level, this means a session that
+//     touched cards on both boardA and boardB contributes its full cost
+//     to BOTH boards' totals. That's intentional — it's the "Cost
+//     inequality" acceptance from #200: `boardA.total + boardB.total >
+//     project.total` is expected, not a bug.
+//
+// `projectId` is pinned in the returned `where` even when `boardId` is
+// set so a sessionId that happens to collide across projects (deliberate
+// or otherwise) can't leak the other project's cost into this board's
+// totals. The cross-project isolation test pins this — it's the bug
+// class this helper exists to prevent.
+//
+// A `boardId` that resolves to no cards (bad id, brand-new empty board)
+// produces a where that matches no rows. Callers see clean zeros. The
+// 404-on-bad-boardId concern lives at the router/UI layer — this helper
+// stays pure.
+async function resolveBoardScopeWhere(
+	projectId: string,
+	boardId?: string
+): Promise<Prisma.TokenUsageEventWhereInput> {
+	if (!boardId) return { projectId };
+
+	const cards = await db.card.findMany({
+		where: { column: { boardId } },
+		select: { id: true },
+	});
+	const cardIds = cards.map((c) => c.id);
+
+	if (cardIds.length === 0) {
+		// Empty board (or bad boardId): build a where that can never match.
+		// Mirrors the `id: { in: [] }` sentinel `getMilestoneSummary` uses for
+		// the same reason — a missing `OR` would otherwise widen back to the
+		// full project, which would be a silent leak.
+		return { projectId, id: { in: [] } };
+	}
+
+	const directRows = await db.tokenUsageEvent.findMany({
+		where: { projectId, cardId: { in: cardIds } },
+		select: { sessionId: true },
+	});
+	const sessionIds = Array.from(new Set(directRows.map((r) => r.sessionId)));
+
+	return {
+		projectId,
+		OR: [
+			{ cardId: { in: cardIds } },
+			...(sessionIds.length > 0 ? [{ sessionId: { in: sessionIds } }] : []),
+		],
+	};
 }
 
 // ─── Public API ────────────────────────────────────────────────────
@@ -418,11 +483,20 @@ async function recordFromTranscript(
 // use). If we ever grow into the 100k+ range per project, switch to a SQL
 // `groupBy` on `model` so the aggregation runs in SQLite and only the
 // per-model totals cross the boundary.
-async function getProjectSummary(projectId: string): Promise<ServiceResult<UsageSummary>> {
+//
+// Optional `boardId`: when set, scopes the summary to the cards on that
+// board via `resolveBoardScopeWhere` (session-expansion rule applies, so
+// `boardA + boardB > project` is *expected* — see helper's doc). When
+// omitted, behavior is identical to pre-#200 (whole project).
+async function getProjectSummary(
+	projectId: string,
+	boardId?: string
+): Promise<ServiceResult<UsageSummary>> {
 	try {
+		const where = await resolveBoardScopeWhere(projectId, boardId);
 		const [events, pricing] = await Promise.all([
 			db.tokenUsageEvent.findMany({
-				where: { projectId },
+				where,
 				select: {
 					sessionId: true,
 					model: true,
@@ -612,7 +686,14 @@ export type DailyCostSeries = {
 // today's UTC day**. That means index 6 = today (UTC) regardless of the
 // time-of-day at which the request fires; the rightmost sparkline bar is a
 // full calendar day, not a "last 24h" smear.
-async function getDailyCostSeries(projectId: string): Promise<ServiceResult<DailyCostSeries>> {
+//
+// Optional `boardId`: routes through `resolveBoardScopeWhere` and merges
+// the resulting where with the `recordedAt` window filter. Same
+// session-expansion semantics as `getProjectSummary`'s board scope.
+async function getDailyCostSeries(
+	projectId: string,
+	boardId?: string
+): Promise<ServiceResult<DailyCostSeries>> {
 	try {
 		// Anchor the 7-day window at UTC midnight so buckets line up with
 		// calendar days. `Date.UTC` returns ms since epoch for midnight UTC of
@@ -621,9 +702,10 @@ async function getDailyCostSeries(projectId: string): Promise<ServiceResult<Dail
 		const todayUtcMidnightMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 		const windowStart = new Date(todayUtcMidnightMs - 6 * 24 * 60 * 60 * 1000);
 
+		const scopeWhere = await resolveBoardScopeWhere(projectId, boardId);
 		const [events, pricing] = await Promise.all([
 			db.tokenUsageEvent.findMany({
-				where: { projectId, recordedAt: { gte: windowStart } },
+				where: { ...scopeWhere, recordedAt: { gte: windowStart } },
 				select: {
 					sessionId: true,
 					model: true,
@@ -1771,5 +1853,9 @@ export const tokenUsageService = {
 /** Test seam: lets unit tests exercise the hook-detection logic without
  * spinning up the DB-backed `getDiagnostics` path, plus the JSONL
  * aggregator so #190 can lock down the parser shape against synthetic
- * transcripts. Not part of the public service API. */
-export const __testing__ = { configHasTokenHook, aggregateTranscript };
+ * transcripts. Not part of the public service API.
+ *
+ * `resolveBoardScopeWhere` is also exposed here so #200 Phase 1a tests
+ * can pin the where-clause shape directly without round-tripping through
+ * a query — keeps the unit "what does this helper return?" honest. */
+export const __testing__ = { configHasTokenHook, aggregateTranscript, resolveBoardScopeWhere };
