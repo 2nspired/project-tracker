@@ -133,49 +133,9 @@ async function deleteNote(noteId: string): Promise<ServiceResult<Note>> {
 	}
 }
 
-async function listHandoffs(
-	boardId: string,
-	limit = 10
-): Promise<ServiceResult<NoteWithProject[]>> {
-	try {
-		const notes = await db.note.findMany({
-			where: { kind: "handoff", boardId },
-			orderBy: { createdAt: "desc" },
-			take: limit,
-			include: { project: { select: { id: true, name: true } } },
-		});
-		return { success: true, data: notes };
-	} catch (error) {
-		console.error("[NOTE_SERVICE] listHandoffs error:", error);
-		return {
-			success: false,
-			error: { code: "LIST_FAILED", message: "Failed to fetch handoffs." },
-		};
-	}
-}
-
-async function getLatestHandoff(boardId: string): Promise<ServiceResult<NoteWithProject | null>> {
-	try {
-		const note = await db.note.findFirst({
-			where: { kind: "handoff", boardId },
-			orderBy: { createdAt: "desc" },
-			include: { project: { select: { id: true, name: true } } },
-		});
-		return { success: true, data: note };
-	} catch (error) {
-		console.error("[NOTE_SERVICE] getLatestHandoff error:", error);
-		return {
-			success: false,
-			error: { code: "FETCH_FAILED", message: "Failed to fetch latest handoff." },
-		};
-	}
-}
-
 export const noteService = {
 	list,
 	create,
 	update,
 	delete: deleteNote,
-	listHandoffs,
-	getLatestHandoff,
 };

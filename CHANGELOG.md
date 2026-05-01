@@ -11,15 +11,25 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Added
 
 - **CI: CHANGELOG `[Unreleased]` enforcement workflow** (`.github/workflows/changelog.yml`). PRs that touch `src/`, `prisma/`, `scripts/`, `docs/`, `docs-site/`, or `package.json` must update the `## [Unreleased]` section or apply a `skip-changelog` label. Documented co-located with the cadence rule in `docs/VERSIONING.md`. (#177)
+- **`Handoff` table** — agent session handoffs now live in their own typed entity instead of riding on `Note(kind="handoff")`. Schema: `id, boardId, projectId, agentName, summary, workingOn, findings, nextSteps, blockers, createdAt`. Append-only, indexed by `(boardId, createdAt)` and `(projectId, createdAt)`. (#179)
 
 ### Changed
 
+- **BREAKING — handoffs extracted from `Note` table.** `note.list`, `listNotes` MCP tool, and the public `NOTE_KINDS` enum no longer accept `kind: "handoff"`. Reads/writes go through `db.handoff`, the existing `handoff.*` tRPC router, and the `saveHandoff` MCP tool (wire shape unchanged for callers — `agentName` / `summary` / `workingOn` / `findings` / `nextSteps` / `blockers`). Sessions Sheet UI sources from the new table. (#179)
 - Header "MCP" pill renamed to "Commands" (`Command` icon); popover/sheet title and copy lead with slash commands. Cmd-K search pill gains a tooltip pointing at `?` for the full catalog. (#156)
+
+### Removed
+
+- **BREAKING — brief-snapshot persistence and the Briefings Sheet UI.** `briefMe` no longer persists each call as `Note(kind="brief")`; briefs are pure derived state synthesized from board + last handoff. Deleted: `src/lib/services/brief-snapshot.ts`, `src/server/services/brief-snapshot-service.ts`, `src/server/api/routers/brief-snapshot.ts`, `src/components/board/briefings-sheet.tsx`, `scripts/smoke-brief-snapshots.ts`. The `briefSnapshot.list` tRPC route is gone. (#179)
 
 ### Fixed
 
 - **`saveClaim` `payload.env` schema asymmetry** — measurement-claim env values now accept `string | number | boolean` on write to match what reads return. Previously, updating an existing measurement claim whose env was written with numeric values (e.g. `{ cards: 84, rows: 50 }`) failed Zod validation on the way back in. (#178)
 - **Notes tab no longer surfaces agent-generated brief/handoff rows.** The `note.list` tRPC procedure now defaults to `kind: "general"` when callers don't specify a kind, so the Project Notes tab and global Notes page show only human-authored notes. Callers wanting handoffs still pass `kind: "handoff"` explicitly. Stop-the-bleeding fix; Phase 2 of #179 will migrate handoffs to a dedicated table and stop persisting `kind: "brief"` rows entirely. (#179)
+
+### Schema
+
+- **`SCHEMA_VERSION` 12 → 13.** New `handoff` table; `note` table loses the `kind="handoff"` and `kind="brief"` row populations (column itself stays). The `scripts/migrate-handoffs-from-notes.ts` one-shot script handles the data move and FTS5 reset; runs once on upgrade with the launchd service stopped.
 
 ## [5.2.0] — 2026-04-30
 

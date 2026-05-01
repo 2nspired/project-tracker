@@ -10,7 +10,6 @@ import { tokenUsageService } from "@/server/services/token-usage-service";
 import { hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
-import { saveBriefSnapshot } from "../lib/services/brief-snapshot.js";
 import { isRecentDecision } from "../lib/services/decisions.js";
 import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
 import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
@@ -678,7 +677,7 @@ server.registerTool(
 			db.project.count(),
 			db.board.count(),
 			db.card.count(),
-			db.note.count({ where: { kind: "handoff" } }),
+			db.handoff.count(),
 			db.project.findMany({
 				orderBy: { createdAt: "desc" },
 				include: {
@@ -1016,17 +1015,6 @@ server.registerTool(
 					: "No prior handoff — pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Run `listWorkflows({ boardId })` for the full recipe set; call `saveHandoff` before wrapping to save context (`endSession` is a deprecated alias).",
 			};
 
-			try {
-				await saveBriefSnapshot(db, {
-					boardId,
-					agentName: AGENT_NAME,
-					pulse,
-					payload: briefPayload,
-				});
-			} catch (e) {
-				console.error("[briefMe] snapshot persist failed:", e);
-			}
-
 			return ok(briefPayload, format as "json" | "toon");
 		});
 	})
@@ -1201,7 +1189,7 @@ async function handleSaveHandoff({
 			handoff: {
 				id: handoff.id,
 				boardId: handoff.boardId,
-				agentName: handoff.author,
+				agentName: handoff.agentName,
 				createdAt: handoff.createdAt,
 			},
 			board: { id: boardId, project: projectName, name: boardName },

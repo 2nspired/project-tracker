@@ -1129,13 +1129,11 @@ registerExtendedTool("listMilestones", {
 
 // ─── Notes ──────────────────────────────────────────────────────────
 //
-// RFC-v2 step 2: the `note` table carries kind/author/cardId/boardId/
-// metadata/expiresAt columns. Tools accept the new fields as optional;
-// legacy calls (title/content/tags only) still produce a general note
-// owned by HUMAN with empty metadata. No dual-write from saveHandoff yet
-// — that's step 3.
+// As of v6.0.0 (#179 Phase 2) handoffs live in their own table. Notes
+// are the human-authored scratch layer — kind is reserved for future
+// human-facing kinds and currently only `general` is valid.
 
-const NOTE_KINDS = ["general", "handoff"] as const;
+const NOTE_KINDS = ["general"] as const;
 
 registerExtendedTool("listNotes", {
 	category: "notes",
@@ -1226,11 +1224,8 @@ registerExtendedTool("createNote", {
 			.default(() => AGENT_NAME)
 			.describe("AGENT_NAME or HUMAN"),
 		cardId: z.string().optional().describe("Card UUID or #number (requires projectId for #N form)"),
-		boardId: z.string().optional().describe("Board UUID — required for handoff kind (step 3)"),
-		metadata: z
-			.record(z.string(), z.unknown())
-			.default({})
-			.describe("Kind-specific metadata (handoff: workingOn/findings/nextSteps/blockers)"),
+		boardId: z.string().optional().describe("Board UUID"),
+		metadata: z.record(z.string(), z.unknown()).default({}).describe("Kind-specific metadata"),
 		expiresAt: z.string().optional().describe("ISO datetime — optional TTL"),
 	}),
 	handler: (params) =>

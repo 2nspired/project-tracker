@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-export const NOTE_KINDS = ["general", "handoff"] as const;
+// As of v6.0.0 (#179 Phase 2) handoffs live in their own table; the Note
+// surface is the human-authored scratch layer.
+export const NOTE_KINDS = ["general"] as const;
 
 export const createNoteSchema = z.object({
 	title: z.string().min(1, "Title is required.").max(200),
@@ -45,20 +47,9 @@ export type ListNoteFilter = z.infer<typeof listNoteFilterSchema>;
 
 export const generalMetadataSchema = z.object({}).strict();
 
-export const handoffMetadataSchema = z
-	.object({
-		workingOn: z.array(z.string()).default([]),
-		findings: z.array(z.string()).default([]),
-		nextSteps: z.array(z.string()).default([]),
-		blockers: z.array(z.string()).default([]),
-	})
-	.strict();
-
 export const noteMetadataByKind = {
 	general: generalMetadataSchema,
-	handoff: handoffMetadataSchema,
 } as const;
 
 export type NoteKind = (typeof NOTE_KINDS)[number];
 export type GeneralMetadata = z.infer<typeof generalMetadataSchema>;
-export type HandoffMetadata = z.infer<typeof handoffMetadataSchema>;

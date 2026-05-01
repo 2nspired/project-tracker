@@ -180,27 +180,21 @@ export function registerResources(server: McpServer) {
 		new ResourceTemplate("tracker://board/{boardId}/handoff", { list: undefined }),
 		{ title: "Latest Handoff", description: "Most recent agent session handoff" },
 		async (uri, { boardId }) => {
-			const note = await db.note.findFirst({
-				where: { kind: "handoff", boardId: boardId as string },
+			const handoff = await db.handoff.findFirst({
+				where: { boardId: boardId as string },
 				orderBy: { createdAt: "desc" },
 			});
-			if (!note)
+			if (!handoff)
 				return { contents: [{ uri: uri.href, text: "No handoff found", mimeType: "text/plain" }] };
 
-			const metadata = JSON.parse(note.metadata || "{}") as {
-				workingOn?: string[];
-				findings?: string[];
-				nextSteps?: string[];
-				blockers?: string[];
-			};
 			const data = {
-				agentName: note.author,
-				summary: note.content,
-				workingOn: metadata.workingOn ?? [],
-				findings: metadata.findings ?? [],
-				nextSteps: metadata.nextSteps ?? [],
-				blockers: metadata.blockers ?? [],
-				createdAt: note.createdAt,
+				agentName: handoff.agentName,
+				summary: handoff.summary,
+				workingOn: JSON.parse(handoff.workingOn) as string[],
+				findings: JSON.parse(handoff.findings) as string[],
+				nextSteps: JSON.parse(handoff.nextSteps) as string[],
+				blockers: JSON.parse(handoff.blockers) as string[],
+				createdAt: handoff.createdAt,
 			};
 
 			return {

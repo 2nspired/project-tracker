@@ -1401,14 +1401,14 @@ export const TOOL_CATALOG: {
 				"description": "Card UUID or #number (requires projectId for #N form)"
 			},
 			"boardId": {
-				"type": "Board UUID — required for handoff kind (step 3)",
+				"type": "Board UUID",
 				"required": false,
-				"description": "Board UUID — required for handoff kind (step 3)"
+				"description": "Board UUID"
 			},
 			"metadata": {
-				"type": "Kind-specific metadata (handoff: workingOn/findings/nextSteps/blockers)",
+				"type": "Kind-specific metadata",
 				"required": false,
-				"description": "Kind-specific metadata (handoff: workingOn/findings/nextSteps/blockers)"
+				"description": "Kind-specific metadata"
 			},
 			"expiresAt": {
 				"type": "ISO datetime — optional TTL",
