@@ -17,6 +17,8 @@ import { api } from "@/trpc/react";
 type CostsPageProps = {
 	projectId: string;
 	projectName: string;
+	boardId?: string;
+	boardName?: string;
 };
 
 // Client component owning the data fetches for the Costs page. Splits the
@@ -25,11 +27,22 @@ type CostsPageProps = {
 // with mutations on the same page). 60s `staleTime` matches the BoardPulse
 // strip; this data is rolled-up cost/session counters that don't need to
 // repaint on every focus.
-export function CostsPage({ projectId, projectName }: CostsPageProps) {
+//
+// Board-scope plumbing (#200 Phase 2a): when `boardId` is set, the two
+// scope-aware queries (`getProjectSummary`, `getDailyCostSeries`) pass it
+// through so the summary strip + sparkline reflect that board only. The
+// other sections (`<SavingsSection>`, `<PigeonOverheadSection>`,
+// `<CardDeliverySection>`, `<PricingOverrideTable>`) deliberately keep
+// project-only signatures — they're not yet board-aware (Phase 1b
+// territory) and continue to render project-wide as a placeholder until
+// design (Phase 2b) decides what they should show on the board view.
+export function CostsPage({ projectId, projectName, boardId, boardName }: CostsPageProps) {
 	const { data: projectSummary, isLoading: summaryLoading } =
-		api.tokenUsage.getProjectSummary.useQuery({ projectId }, { staleTime: 60_000 });
+		api.tokenUsage.getProjectSummary.useQuery(boardId ? { projectId, boardId } : { projectId }, {
+			staleTime: 60_000,
+		});
 	const { data: dailyCost, isLoading: dailyLoading } = api.tokenUsage.getDailyCostSeries.useQuery(
-		{ projectId },
+		boardId ? { projectId, boardId } : { projectId },
 		{ staleTime: 60_000 }
 	);
 
@@ -51,6 +64,9 @@ export function CostsPage({ projectId, projectName }: CostsPageProps) {
 				</Link>
 				<h1 className="text-2xl font-bold tracking-tight">Costs</h1>
 				<p className="text-sm text-muted-foreground">Token usage and spend for {projectName}.</p>
+				{boardName ? (
+					<p className="mt-1 text-2xs text-muted-foreground">Viewing: {boardName}</p>
+				) : null}
 			</div>
 
 			{isLoading ? (
