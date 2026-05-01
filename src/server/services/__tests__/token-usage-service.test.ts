@@ -362,6 +362,158 @@ describe("getCardSummary attribution", () => {
 	});
 });
 
+// ─── T4b: recordFromTranscript preserves cardId across re-runs (#202) ─
+
+describe("recordFromTranscript re-run preserves attributeSession cardId", () => {
+	let testDb: TestDb;
+	let tmpDir: string;
+
+	const PROJECT_ID = "10000000-1000-4000-8000-100000000201";
+	const BOARD_ID = "20000000-2000-4000-8000-200000000201";
+	const COLUMN_ID = "30000000-3000-4000-8000-300000000201";
+	const CARD_ID = "40000000-4000-4000-8000-400000000201";
+	const SESSION_ID = "rerun-session-id-202";
+
+	beforeAll(async () => {
+		testDb = await createTestDb();
+		dbRef.current = testDb.prisma;
+		tmpDir = mkdtempSync(path.join(tmpdir(), "pigeon-rerun-"));
+
+		await testDb.prisma.project.create({
+			data: { id: PROJECT_ID, name: "Test #202", slug: "test-202" },
+		});
+		await testDb.prisma.board.create({
+			data: { id: BOARD_ID, projectId: PROJECT_ID, name: "Test board" },
+		});
+		await testDb.prisma.column.create({
+			data: { id: COLUMN_ID, boardId: BOARD_ID, name: "Todo", position: 0 },
+		});
+		await testDb.prisma.card.create({
+			data: {
+				id: CARD_ID,
+				columnId: COLUMN_ID,
+				projectId: PROJECT_ID,
+				number: 1,
+				title: "Card #202",
+				position: 0,
+			},
+		});
+	});
+
+	afterAll(async () => {
+		dbRef.current = null;
+		await testDb.cleanup();
+		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	function writeTranscript(name: string, lines: object[]): string {
+		const p = path.join(tmpDir, name);
+		writeFileSync(p, lines.map((l) => JSON.stringify(l)).join("\n"), "utf8");
+		return p;
+	}
+
+	it("restores cardId set by attributeSession after a Stop-hook re-run", async () => {
+		// 1. First Stop-hook fire: transcript has no cardId.
+		const transcriptPath = writeTranscript("transcript.jsonl", [
+			{
+				message: {
+					role: "assistant",
+					model: "claude-opus-4-7",
+					usage: { input_tokens: 100, output_tokens: 50 },
+				},
+			},
+		]);
+		const first = await tokenUsageService.recordFromTranscript({
+			projectId: PROJECT_ID,
+			sessionId: SESSION_ID,
+			transcriptPath,
+		});
+		expect(first.success).toBe(true);
+
+		// Pre-condition: rows exist with cardId=null.
+		const beforeAttribute = await testDb.prisma.tokenUsageEvent.findMany({
+			where: { sessionId: SESSION_ID },
+			select: { cardId: true },
+		});
+		expect(beforeAttribute).toHaveLength(1);
+		expect(beforeAttribute[0]?.cardId).toBeNull();
+
+		// 2. attributeSession writes cardId onto the existing rows.
+		const attribute = await tokenUsageService.attributeSession(SESSION_ID, CARD_ID);
+		expect(attribute.success).toBe(true);
+		const afterAttribute = await testDb.prisma.tokenUsageEvent.findMany({
+			where: { sessionId: SESSION_ID },
+			select: { cardId: true },
+		});
+		expect(afterAttribute[0]?.cardId).toBe(CARD_ID);
+
+		// 3. Stop hook re-runs against the same transcript (still no cardId).
+		//    Pre-fix: this delete-and-replace silently wiped CARD_ID.
+		const second = await tokenUsageService.recordFromTranscript({
+			projectId: PROJECT_ID,
+			sessionId: SESSION_ID,
+			transcriptPath,
+		});
+		expect(second.success).toBe(true);
+
+		// 4. cardId must survive the re-run.
+		const afterRerun = await testDb.prisma.tokenUsageEvent.findMany({
+			where: { sessionId: SESSION_ID },
+			select: { cardId: true },
+		});
+		expect(afterRerun).toHaveLength(1);
+		expect(afterRerun[0]?.cardId).toBe(CARD_ID);
+	});
+
+	it("respects an explicit cardId on the re-run instead of restoring the prior one", async () => {
+		// Different session so the previous test's rows don't interfere.
+		const SESSION = "rerun-explicit-cardid";
+		const OTHER_CARD = "40000000-4000-4000-8000-400000000202";
+		await testDb.prisma.card.create({
+			data: {
+				id: OTHER_CARD,
+				columnId: COLUMN_ID,
+				projectId: PROJECT_ID,
+				number: 2,
+				title: "Card #202b",
+				position: 1,
+			},
+		});
+
+		const transcriptPath = writeTranscript("transcript-2.jsonl", [
+			{
+				message: {
+					role: "assistant",
+					model: "claude-opus-4-7",
+					usage: { input_tokens: 10, output_tokens: 5 },
+				},
+			},
+		]);
+
+		// Original run + attribution to CARD_ID.
+		await tokenUsageService.recordFromTranscript({
+			projectId: PROJECT_ID,
+			sessionId: SESSION,
+			transcriptPath,
+		});
+		await tokenUsageService.attributeSession(SESSION, CARD_ID);
+
+		// Re-run with an explicit (different) cardId — caller wins.
+		const second = await tokenUsageService.recordFromTranscript({
+			projectId: PROJECT_ID,
+			sessionId: SESSION,
+			transcriptPath,
+			cardId: OTHER_CARD,
+		});
+		expect(second.success).toBe(true);
+		const after = await testDb.prisma.tokenUsageEvent.findMany({
+			where: { sessionId: SESSION },
+			select: { cardId: true },
+		});
+		expect(after.every((r) => r.cardId === OTHER_CARD)).toBe(true);
+	});
+});
+
 // ─── T5: configHasTokenHook coverage extensions ─────────────────────
 
 describe("configHasTokenHook (extended cases)", () => {
