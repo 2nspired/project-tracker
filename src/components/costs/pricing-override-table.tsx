@@ -146,14 +146,16 @@ export function PricingOverrideTable({ projectId: _projectId, projectSummary }: 
 		// set minus this model and fire the mutation immediately so the
 		// "reset" feels like a single confirmable action rather than a
 		// staged edit that needs a save click.
-		setDrafts((prev) => {
-			const next = { ...prev };
-			delete next[model];
-			return next;
-		});
+		// Compute next-drafts up front and pass to both setDrafts and the
+		// payload builder — using the closure `drafts` after `setDrafts`
+		// would read the pre-update value, leaking the row's draft values
+		// back into persisted overrides for any *other* edited row.
+		const nextDrafts = { ...drafts };
+		delete nextDrafts[model];
+		setDrafts(nextDrafts);
 		const nextOverrides = buildOverridesPayload({
 			pricing,
-			drafts,
+			drafts: nextDrafts,
 			newRows,
 			excludeModel: model,
 		});
@@ -369,7 +371,7 @@ function PricingRow({
 					defaultValue={pricing[f.key]}
 					draftValue={draft[f.key]}
 					onChange={(v) => onChangeRate(f.key, v)}
-					isOverridden={hasOverrideForField(pricing, f.key) || draft[f.key] !== undefined}
+					isOverridden={hasOverrideForField(model, pricing, f.key) || draft[f.key] !== undefined}
 				/>
 			))}
 			<div className="col-span-2 flex justify-end sm:col-span-1 sm:justify-start">
@@ -531,13 +533,19 @@ function hasOverride(pricing: Record<string, ModelPricing>, model: string): bool
 	return RATE_FIELDS.some((f) => current[f.key] !== builtin[f.key]);
 }
 
-function hasOverrideForField(pricing: ModelPricing, field: RateField): boolean {
-	const def = DEFAULT_PRICING.__default__;
-	// We can't tell per-field if this came from a user vs the default since
-	// `pricing` is post-merge. The styling here is best-effort — the
-	// `isOverridden` styling on the cell also flips when the user has a
-	// local draft, which covers the meaningful "I've changed this" case.
-	return pricing[field] !== def[field];
+function hasOverrideForField(
+	model: string,
+	pricing: ModelPricing,
+	field: RateField
+): boolean {
+	// Compare against the model's own built-in default — not the zero
+	// `__default__` fallback — otherwise every built-in model (e.g. gpt-4o
+	// at $5/MTok) reads as "overridden" the moment the table loads. For
+	// models with no built-in entry (pure user-added rows), any non-zero
+	// value is by definition an override.
+	const builtin = DEFAULT_PRICING[model];
+	if (!builtin) return pricing[field] !== 0;
+	return pricing[field] !== builtin[field];
 }
 
 function formatRate(value: number): string {
