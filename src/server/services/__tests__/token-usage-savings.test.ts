@@ -120,7 +120,11 @@ describe("getSavingsSummary — ready state with positive net savings", () => {
 		});
 
 		// Session with two briefMe calls + one getCardContext (overhead).
-		// Model claude-opus-4-7 → outputPerMTok = 75.
+		// Model claude-opus-4-7 → inputPerMTok = 15, outputPerMTok = 75.
+		// Savings price at the *input* rate (#204): consumer-side semantics
+		// — the avoided briefMe payload would have been read as input.
+		// Overhead stays output-priced (the agent emits those response
+		// tokens).
 		await testDb.prisma.tokenUsageEvent.create({
 			data: {
 				sessionId: SESSION_RECENT,
@@ -136,7 +140,7 @@ describe("getSavingsSummary — ready state with positive net savings", () => {
 			},
 		});
 
-		// briefMe calls: 2 — each "saved" 10_000 × $75/M = $0.75. Two calls = $1.50.
+		// briefMe calls: 2 — each "saved" 10_000 × $15/M = $0.15. Two calls = $0.30.
 		// Plus a getCardContext (overhead) so the U2 result has a non-zero overhead.
 		await testDb.prisma.toolCallLog.createMany({
 			data: [
@@ -213,10 +217,13 @@ describe("getSavingsSummary — ready state with positive net savings", () => {
 		expect(result.data.state).toBe("ready");
 		if (result.data.state !== "ready") return;
 
-		// Per-call savings = (11_000 - 1_000) × 75 / 1_000_000 = $0.75
-		// briefMeCallCount = 2 → grossSavings = $1.50
+		// Per-call savings = (11_000 - 1_000) × 15 / 1_000_000 = $0.15
+		// briefMeCallCount = 2 → grossSavings = $0.30
+		// (Priced at inputPerMTok per #204 — consumer reads briefMe
+		// payload as input on next turn, so the avoided cost is the
+		// avoided input read. Old output-rate math gave $1.50.)
 		expect(result.data.briefMeCallCount).toBe(2);
-		expect(result.data.grossSavingsUsd).toBeCloseTo(1.5, 5);
+		expect(result.data.grossSavingsUsd).toBeCloseTo(0.3, 5);
 
 		// Pigeon overhead = (briefMe×2 = 0 tokens) + (getCardContext = 1k tokens × $75/M)
 		//                = $0.000075 total
@@ -291,7 +298,8 @@ describe("getSavingsSummary — ready state with negative net savings", () => {
 						measuredAt: "2026-04-01T00:00:00Z",
 						naiveBootstrapTokens: 1_500,
 						briefMeTokens: 1_000,
-						// per-call savings = only 500 tokens × $75/M = $0.0000375
+						// per-call savings = only 500 tokens × $15/M = $0.0000075
+						// (priced at inputPerMTok per #204; old output rate gave $0.0000375)
 					},
 				}),
 			},
@@ -349,10 +357,10 @@ describe("getSavingsSummary — ready state with negative net savings", () => {
 		if (!result.success) return;
 		if (result.data.state !== "ready") return;
 
-		// gross = (500 × 75 × 1) / 1M = $0.0000375
-		// overhead = 1M × 75 / 1M = $75.00
+		// gross = (500 × 15 × 1) / 1M = $0.0000075 (input rate, #204)
+		// overhead = 1M × 75 / 1M = $75.00 (output rate — agent emits these)
 		// net = ~ −$74.99...
-		expect(result.data.grossSavingsUsd).toBeCloseTo((500 * 75) / 1_000_000, 5);
+		expect(result.data.grossSavingsUsd).toBeCloseTo((500 * 15) / 1_000_000, 5);
 		expect(result.data.pigeonOverheadUsd).toBeCloseTo(75, 5);
 		expect(result.data.netSavingsUsd).toBeLessThan(0);
 		expect(result.data.netSavingsUsd).toBeCloseTo(
@@ -450,5 +458,102 @@ describe("getSavingsSummary — per-session log ordering & cap", () => {
 		for (const entry of result.data.perSessionLog) {
 			expect(entry.savingsUsd).toBeGreaterThan(0);
 		}
+	});
+});
+
+// Regression test: pins the input-rate factor in the savings math (#204).
+// If anyone ever swaps the factor back to outputPerMTok, this asserts the
+// exact dollar arithmetic with the explicit rate values from
+// `DEFAULT_PRICING` so the failure mode is loud and unambiguous: the
+// expected number is the input-rate product, the would-be-bug number is
+// the output-rate product, and they differ by ~5× under default Anthropic
+// pricing (15 vs 75 per Mtok for claude-opus-4-7).
+describe("getSavingsSummary — savings priced at input rate (#204)", () => {
+	const PROJECT_RATE_PIN = "10000000-1000-4000-8000-100000000204";
+	const SESSION_RATE_PIN = "savings-session-rate-pin";
+
+	let testDb: TestDb;
+
+	beforeAll(async () => {
+		testDb = await createTestDb();
+		dbRef.current = testDb.prisma;
+
+		// Snapshot fixture: 100_000 tokens/call savings, 3 calls.
+		// Under default pricing (claude-opus-4-7 → input=15, output=75):
+		//   gross @ input  = (100_000 × 15 × 3) / 1M = $4.50  ← correct
+		//   gross @ output = (100_000 × 75 × 3) / 1M = $22.50 ← old bug
+		await testDb.prisma.project.create({
+			data: {
+				id: PROJECT_RATE_PIN,
+				name: "Rate pin",
+				slug: "rate-pin-204",
+				metadata: JSON.stringify({
+					tokenBaseline: {
+						measuredAt: "2026-05-01T00:00:00Z",
+						naiveBootstrapTokens: 110_000,
+						briefMeTokens: 10_000, // per-call savings = 100_000 tokens
+					},
+				}),
+			},
+		});
+
+		await testDb.prisma.tokenUsageEvent.create({
+			data: {
+				sessionId: SESSION_RATE_PIN,
+				projectId: PROJECT_RATE_PIN,
+				cardId: null,
+				agentName: "test-agent",
+				model: "claude-opus-4-7",
+				inputTokens: 1,
+				outputTokens: 1,
+				cacheReadTokens: 0,
+				cacheCreation1hTokens: 0,
+				cacheCreation5mTokens: 0,
+			},
+		});
+
+		await testDb.prisma.toolCallLog.createMany({
+			data: [1, 2, 3].map(() => ({
+				toolName: "briefMe",
+				toolType: "essential",
+				agentName: "test-agent",
+				sessionId: SESSION_RATE_PIN,
+				durationMs: 5,
+				success: true,
+				responseTokens: 0,
+			})),
+		});
+	});
+
+	afterAll(async () => {
+		dbRef.current = null;
+		await testDb.cleanup();
+	});
+
+	it("multiplies per-call savings × inputPerMTok × call count (NOT outputPerMTok)", async () => {
+		const result = await tokenUsageService.getSavingsSummary(PROJECT_RATE_PIN, "lifetime");
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		if (result.data.state !== "ready") return;
+
+		// Pin the rate values explicitly so a future pricing-default change
+		// makes this assertion fail at the *fixture* level, not silently.
+		const PER_CALL_SAVINGS_TOKENS = 100_000;
+		const CALL_COUNT = 3;
+		const INPUT_PER_MTOK = 15; // claude-opus-4-7 default
+		const OUTPUT_PER_MTOK = 75; // claude-opus-4-7 default — would-be bug
+
+		const expectedAtInputRate = (PER_CALL_SAVINGS_TOKENS * INPUT_PER_MTOK * CALL_COUNT) / 1_000_000;
+		const wouldBeBugAtOutputRate =
+			(PER_CALL_SAVINGS_TOKENS * OUTPUT_PER_MTOK * CALL_COUNT) / 1_000_000;
+
+		expect(expectedAtInputRate).toBeCloseTo(4.5, 5);
+		expect(wouldBeBugAtOutputRate).toBeCloseTo(22.5, 5);
+
+		expect(result.data.briefMeCallCount).toBe(CALL_COUNT);
+		// Correct value: priced at input rate.
+		expect(result.data.grossSavingsUsd).toBeCloseTo(expectedAtInputRate, 5);
+		// And explicitly NOT the output-rate value — guards the regression.
+		expect(result.data.grossSavingsUsd).not.toBeCloseTo(wouldBeBugAtOutputRate, 5);
 	});
 });
