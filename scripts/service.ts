@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { backupDatabase, formatBytes, pruneBackups } from "@/lib/db-backup.js";
 import { runDoctor } from "@/lib/doctor/index.js";
 import { writeUpgradeReport } from "@/lib/upgrade-report.js";
 
@@ -356,11 +357,8 @@ function logs() {
 // `serverVersionCheck` carries a 1.5s timeout (see
 // `src/lib/doctor/checks/server-version.ts`) so a still-booting service
 // degrades to `status: "skip"` rather than producing a false fail.
-async function postUpdateDoctor() {
+async function postUpdateDoctor(targetVersion: string) {
 	console.log("Running post-update doctor checks...\n");
-	const targetVersion = (
-		JSON.parse(readFileSync(resolve(PROJECT_DIR, "package.json"), "utf-8")) as { version: string }
-	).version;
 	const doctor = await runDoctor();
 	await writeUpgradeReport({
 		completedAt: new Date().toISOString(),
@@ -377,18 +375,41 @@ async function postUpdateDoctor() {
 	}
 }
 
+// Snapshot `data/tracker.db` before `ensureBuild()` runs `prisma db push`.
+// Captures the pre-upgrade state regardless of whether this run's schema
+// change ends up being destructive (#214). Sidecars (`-wal` / `-shm`) are
+// copied alongside when present. Fresh installs (no `tracker.db` yet)
+// no-op silently — not an error.
+async function backupBeforeUpdate(targetVersion: string) {
+	const result = await backupDatabase(targetVersion);
+	if (!result) {
+		// Fresh install — no DB to back up. Stay quiet.
+		return;
+	}
+	console.log(`Backed up DB → ${result.path} (${formatBytes(result.size)})`);
+	const pruned = await pruneBackups();
+	if (pruned.length > 0) {
+		console.log(`Pruned ${pruned.length} older backup${pruned.length === 1 ? "" : "s"}.`);
+	}
+	console.log("");
+}
+
 async function update() {
 	if (!isLoaded()) {
 		console.error("Service is not running. Run: npm run service:install");
 		process.exit(1);
 	}
 
+	const targetVersion = (
+		JSON.parse(readFileSync(resolve(PROJECT_DIR, "package.json"), "utf-8")) as { version: string }
+	).version;
+	await backupBeforeUpdate(targetVersion);
 	ensureBuild();
 	writePlist(); // Refresh in case paths changed
 	bootout();
 	bootstrap();
 	console.log(`Service rebuilt and restarted at http://localhost:${PORT}\n`);
-	await postUpdateDoctor();
+	await postUpdateDoctor(targetVersion);
 }
 
 // ---------------------------------------------------------------------------
