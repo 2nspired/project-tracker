@@ -24,7 +24,7 @@ export const ESSENTIAL_TOOLS: Array<{ name: string; description: string }> = [
 	{
 		name: "saveHandoff",
 		description:
-			"Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. (`endSession` is a deprecated alias, removed in v6.0.0.)",
+			"Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt.",
 	},
 	{ name: "createCard", description: "Create a card in a column (by name)." },
 	{ name: "updateCard", description: "Update card fields; optional `intent`." },

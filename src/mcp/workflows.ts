@@ -92,7 +92,7 @@ export const WORKFLOWS: Workflow[] = [
 			{
 				tool: "saveHandoff",
 				intent:
-					"Save handoff, run syncGitActivity, report touched cards, and emit a resume prompt the human pastes into the next chat. (`endSession` is a deprecated alias — same params.)",
+					"Save handoff, run syncGitActivity, report touched cards, and emit a resume prompt the human pastes into the next chat.",
 			},
 		],
 	},

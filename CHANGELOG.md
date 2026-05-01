@@ -21,6 +21,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Removed
 
 - **BREAKING — brief-snapshot persistence and the Briefings Sheet UI.** `briefMe` no longer persists each call as `Note(kind="brief")`; briefs are pure derived state synthesized from board + last handoff. Deleted: `src/lib/services/brief-snapshot.ts`, `src/server/services/brief-snapshot-service.ts`, `src/server/api/routers/brief-snapshot.ts`, `src/components/board/briefings-sheet.tsx`, `scripts/smoke-brief-snapshots.ts`. The `briefSnapshot.list` tRPC route is gone. (#179)
+- **BREAKING — `endSession` MCP alias.** Calling `endSession` now returns "tool not found"; only `saveHandoff` resolves. The alias was a v5.x deprecation bridge; v6.0.0 is the announced cutoff per `docs/VERSIONING.md`. The `end-session` MCP prompt (a redirect pointer that existed solely to nudge clients off the old name) is also gone. Slash commands, workflows, the slash-command UI catalog, and the `essentialPrompts` text in `briefMe` and `getBoard` no longer reference `endSession`. (#184)
 
 ### Fixed
 

@@ -40,7 +40,7 @@ columns:
 # Project policy for my-project
 
 Start every session with `briefMe`. Prefer `source: 'pinned'` over `source: 'scored'`.
-End every session with `endSession` — saves a handoff and links new commits.
+End every session with `saveHandoff` — saves a handoff and links new commits.
 ```
 
 `tracker.md` is git-versioned, reviewable, and rolls back like any other file. The DB column was none of those.

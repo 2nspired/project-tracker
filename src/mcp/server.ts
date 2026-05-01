@@ -750,7 +750,7 @@ server.registerTool(
 				workflows:
 					"Named multi-step recipes (sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge) are listed via `runTool('listWorkflows', { boardId? })` — use these to learn what to do, not just which tool to call.",
 				prompts:
-					"8 MCP prompts are available (resume-session, end-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
+					"7 MCP prompts are available (resume-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
 				manifest:
 					"Machine-readable surface at resource `tracker://server/manifest` — all tool names, categories, descriptions, schema version, and commit SHA.",
 			},
@@ -1012,7 +1012,7 @@ server.registerTool(
 				...(intentReminder ? { intentReminder } : {}),
 				_hint: lastHandoff
 					? "Continue via handoff.nextSteps or pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
-					: "No prior handoff — pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Run `listWorkflows({ boardId })` for the full recipe set; call `saveHandoff` before wrapping to save context (`endSession` is a deprecated alias).",
+					: "No prior handoff — pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Run `listWorkflows({ boardId })` for the full recipe set; call `saveHandoff` before wrapping to save context.",
 			};
 
 			return ok(briefPayload, format as "json" | "toon");
@@ -1022,7 +1022,7 @@ server.registerTool(
 
 // ─── Session Wrap-Up (Essential) ─────────────────────────────────────
 
-// Shared input schema for `saveHandoff` (and its deprecated `endSession` alias).
+// Shared input schema for `saveHandoff`.
 const saveHandoffInputSchema = {
 	boardId: z
 		.string()
@@ -1063,8 +1063,6 @@ type SaveHandoffArgs = {
 	syncGit?: boolean;
 };
 
-// Core handoff handler. Used by both `saveHandoff` (the canonical essential)
-// and the deprecated `endSession` alias below.
 async function handleSaveHandoff({
 	boardId: explicitBoardId,
 	summary,
@@ -1212,58 +1210,6 @@ server.registerTool(
 		inputSchema: saveHandoffInputSchema,
 	},
 	wrapEssentialHandler("saveHandoff", handleSaveHandoff)
-);
-
-// ─── Deprecated alias: endSession → saveHandoff ──────────────────────
-// Renamed in v5.x for naming continuity (slash command `/handoff`, skill,
-// service, DB artifact `Note.kind="handoff"`, MCP resource — all "handoff").
-// Removed in v6.0.0. The alias forwards every param to the same handler and
-// emits a one-time process warning so older clients see the migration hint.
-let endSessionDeprecationWarned = false;
-function warnEndSessionDeprecatedOnce(): void {
-	if (endSessionDeprecationWarned) return;
-	endSessionDeprecationWarned = true;
-	console.warn(
-		"[mcp] DEPRECATED: `endSession` was renamed to `saveHandoff` in v5.x and will be removed in v6.0.0. Update your client to call `saveHandoff` with the same parameters."
-	);
-}
-
-server.registerTool(
-	"endSession",
-	{
-		title: "End Session (deprecated — use saveHandoff)",
-		description:
-			"DEPRECATED: renamed to `saveHandoff` in v5.x; removed in v6.0.0. Forwards to `saveHandoff`. Session wrap-up companion to `briefMe`. Saves a handoff, links new commits via syncGitActivity, reports which cards the agent touched since the last handoff, and returns a copy-pasteable resume prompt for the next conversation. Does NOT auto-move cards — call `moveCard` with `intent` for any remaining transitions before wrapping up. With no boardId, auto-detects the project from the current git repo.",
-		inputSchema: saveHandoffInputSchema,
-	},
-	wrapEssentialHandler("endSession", async (args: SaveHandoffArgs) => {
-		warnEndSessionDeprecatedOnce();
-		const result = await handleSaveHandoff(args);
-		// Inject `_deprecated` migration metadata into successful payloads,
-		// mirroring the convention used for legacy `tags`/`milestoneName`
-		// params elsewhere. On error, leave the response untouched.
-		if (result.isError) return result;
-		try {
-			const text = result.content[0]?.text ?? "";
-			const parsed = JSON.parse(text);
-			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-				parsed._deprecated = {
-					renamedTo: "saveHandoff",
-					removeIn: "v6.0.0",
-					message:
-						"`endSession` was renamed to `saveHandoff`. Update your client — same parameters, same response.",
-				};
-				return {
-					...result,
-					content: [{ type: "text" as const, text: JSON.stringify(parsed, null, 2) }],
-				};
-			}
-		} catch {
-			// If the payload isn't JSON for any reason, fall through with the
-			// original result rather than masking the underlying response.
-		}
-		return result;
-	})
 );
 
 server.registerTool(
@@ -1548,44 +1494,6 @@ server.registerPrompt(
 					content: { type: "text" as const, text: lines.join("\n") },
 				},
 			],
-		};
-	}
-);
-
-server.registerPrompt(
-	"end-session",
-	{
-		title: "End Session (superseded)",
-		description:
-			"Superseded by the `saveHandoff` essential tool. Kept as a pointer for older clients.",
-		argsSchema: {
-			boardId: z.string().describe("Board ID").optional(),
-		},
-	},
-	async ({ boardId }) => {
-		const text = [
-			"# End Session — superseded",
-			"",
-			"This prompt has been replaced by the **`saveHandoff`** essential tool (renamed from `endSession` in v5.x; the old name is a deprecated alias removed in v6.0.0). Call it directly instead of walking a checklist:",
-			"",
-			"```",
-			"saveHandoff({",
-			`  ${boardId ? `boardId: '${boardId}',` : "// boardId auto-detected from cwd"}`,
-			"  summary: 'one paragraph — what this session accomplished',",
-			"  workingOn: ['cards or topics'],",
-			"  findings: ['non-obvious discoveries'],",
-			"  nextSteps: ['concrete first actions for the next agent'],",
-			"  blockers: ['anything waiting on a human or external change'],",
-			"})",
-			"```",
-			"",
-			"`saveHandoff` saves the handoff, runs `syncGitActivity`, reports which cards you touched this session, and returns a copy-pasteable resume prompt for the next conversation. Pass `syncGit: false` for a mid-session checkpoint.",
-			"",
-			"Before calling it, move any finished cards with `moveCard({ intent })` — the tool won't auto-move cards because the intent contract requires a human-readable reason on every transition.",
-		].join("\n");
-
-		return {
-			messages: [{ role: "user" as const, content: { type: "text" as const, text } }],
 		};
 	}
 );

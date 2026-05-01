@@ -24,7 +24,7 @@ export const TOOL_CATALOG: {
 		},
 		{
 			"name": "saveHandoff",
-			"description": "Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. (`endSession` is a deprecated alias, removed in v6.0.0.)"
+			"description": "Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt."
 		},
 		{
 			"name": "createCard",

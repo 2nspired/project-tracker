@@ -19,7 +19,7 @@ These are in the agent's context on every session. They cover the hot path: star
 | Tool | What it does |
 | --- | --- |
 | `briefMe` | One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse. |
-| `saveHandoff` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. (`endSession` is a deprecated alias, removed in v6.0.0.) |
+| `saveHandoff` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. |
 | `createCard` | Create a card in a column (by name). |
 | `updateCard` | Update card fields; optional `intent`. |
 | `moveCard` | Move a card to a column. Requires `intent`. |
@@ -71,14 +71,13 @@ flowchart LR
 
 Most sessions never reach past `briefMe` + the essentials + one or two `runTool` calls.
 
-## Prompts (8)
+## Prompts (7)
 
 MCP prompts are reusable session openers. Useful when you want to trigger a specific workflow.
 
 | Prompt | Purpose |
 | --- | --- |
 | `resume-session` | Loads board state + last handoff + diff. Alternative to `briefMe`. |
-| `end-session` | Superseded — returns a pointer to the `saveHandoff` essential tool (was `endSession` pre-v5.2). |
 | `onboarding` | Guided setup — `tutorial` seeds a sample project, `quickstart` creates a real one. |
 | `deep-dive` | Loads focused context for deep work on a specific card. |
 | `sprint-review` | Velocity, milestone progress, stale cards, blockers. |

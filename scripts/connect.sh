@@ -108,20 +108,21 @@ cat <<'SNIPPET'
 
   **Session lifecycle:** Call `briefMe()` at the start of each conversation
   for a one-shot session primer (handoff, top work, blockers, pulse). Call
-  `endSession({ summary, ... })` before wrapping up — it saves the handoff,
+  `saveHandoff({ summary, ... })` before wrapping up — it saves the handoff,
   links new commits, reports touched cards, and returns a copy-pasteable
   resume prompt for the next chat. Both auto-detect the board from your git
   repo — no args needed.
 
-  **Tool architecture:** 9 essential tools are always visible (briefMe,
-  endSession, createCard, updateCard, moveCard, addComment, checkOnboarding,
-  getTools, runTool). ~60 extended tools live behind `getTools`/`runTool` —
-  including getBoard, searchCards, and getRoadmap, which briefMe composes
-  internally. Call `getTools()` with no args to see all categories.
+  **Tool architecture:** 10 essential tools are always visible (briefMe,
+  saveHandoff, createCard, updateCard, moveCard, addComment, registerRepo,
+  checkOnboarding, getTools, runTool). ~60 extended tools live behind
+  `getTools`/`runTool` — including getBoard, searchCards, and getRoadmap,
+  which briefMe composes internally. Call `getTools()` with no args to see
+  all categories.
 
   **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
   reflect progress. Use `addComment` for decisions and blockers. Call
-  `endSession` to save a handoff so the next conversation picks up in context.
+  `saveHandoff` to save a handoff so the next conversation picks up in context.
 
   **Intent on writes:** `moveCard` and `deleteCard` require a short `intent`
   string (≤120 chars) explaining *why* — humans watching the board read it live

@@ -258,7 +258,7 @@ export const teachingProject = {
 				"**What:** `saveHandoff` records what you worked on, what you found, what's next, and what's blocking — and (by default) auto-links new git commits, reports touched cards, and returns a copy-pasteable resume prompt for the next chat.",
 				"**Why it matters:** Handoffs are what make multi-session agent work coherent. `briefMe` reads the latest handoff at session start — without one, the next agent starts cold.",
 				"**Try it (UI):** Open the Session History panel on the board page. This project has a sample handoff already.",
-				'**Try it (agent):** End of session: `saveHandoff({ summary: "Completed dual-audience tutorial walkthrough", nextSteps: ["Delete tutorial and create a real project"] })` — saves the handoff, links commits, prints a resume prompt for the next chat.\n\nMid-session checkpoint without git sync: `saveHandoff({ summary: "Walked tutorial", nextSteps: ["Try the remaining backlog cards"], syncGit: false })`.\n\nNote: `endSession` is a deprecated alias for `saveHandoff` (same params, removed in v6.0.0).',
+				'**Try it (agent):** End of session: `saveHandoff({ summary: "Completed dual-audience tutorial walkthrough", nextSteps: ["Delete tutorial and create a real project"] })` — saves the handoff, links commits, prints a resume prompt for the next chat.\n\nMid-session checkpoint without git sync: `saveHandoff({ summary: "Walked tutorial", nextSteps: ["Try the remaining backlog cards"], syncGit: false })`.',
 				"**Outcome:** Your next `briefMe` call returns your handoff as `handoff.summary` and `handoff.nextSteps` — the next session picks up where you left off.",
 			].join("\n\n"),
 			column: "Backlog",

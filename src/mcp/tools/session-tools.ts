@@ -13,8 +13,7 @@ import { err, ok, safeExecute } from "../utils.js";
 // ─── Session ───────────────────────────────────────────────────────
 // `saveHandoff` is registered as an essential tool in `src/mcp/server.ts`
 // (it absorbed the old extended `saveHandoff` primitive — pass `syncGit: false`
-// for a mid-session checkpoint). The deprecated `endSession` alias also lives
-// there.
+// for a mid-session checkpoint).
 
 registerExtendedTool("loadHandoff", {
 	category: "session",

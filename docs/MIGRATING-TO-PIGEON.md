@@ -89,7 +89,7 @@ These are deliberately preserved so your existing data and tooling keep working:
 
 - `tracker.db` filename — your SQLite DB stays at `data/tracker.db`
 - `tracker.md` filename — your project policy file keeps the same name
-- All MCP tool names: `briefMe`, `endSession`, `createCard`, `moveCard`, etc.
+- All MCP tool names: `briefMe`, `saveHandoff`, `createCard`, `moveCard`, etc.
 - Prisma table names and DB schema (other than the projectPrompt drop in #129)
 - `tracker://` URI scheme for MCP resources
 - The tutorial project's slug (`learn-project-tracker`) — internal idempotency guard
@@ -301,14 +301,14 @@ If you ask Claude (or Codex, Cursor, Windsurf, etc.) to help with this migration
 - **The script does NOT touch** `~/.claude.json` or your launchd-installed service. Those are the two manual steps in the printed checklist.
 - **A `_brandDeprecation` field** in `briefMe` / `checkOnboarding` responses means the agent is connecting via the legacy entrypoint. The fix is Step 4 above (rename the `mcpServers` key + the command path).
 - **Backups exist.** Every rewritten `.mcp.json` has a sibling `.bak.<timestamp>`. The DB has whatever pre-migration backup you made (Step 0). If the agent suggests something that feels destructive, ask it to confirm a backup is in place first.
-- **Out of scope for this migration:** changing `tracker.db` filename, `tracker.md` filename, MCP tool names like `briefMe`/`endSession`, the `tracker://` URI scheme, the on-disk repo directory name, or the GitHub repo URL slug. All preserved.
+- **Out of scope for this migration:** changing `tracker.db` filename, `tracker.md` filename, MCP tool names like `briefMe`/`saveHandoff`, the `tracker://` URI scheme, the on-disk repo directory name, or the GitHub repo URL slug. All preserved.
 - **Final restart matters.** Tools cache the server manifest at handshake time — your agent will keep showing the old brand until you start a fresh session after Step 4.
 
 ---
 
 ## Why all this?
 
-Short version: the tool's positioning got clearer this year. "project-tracker" reads as generic infrastructure; the differentiator is the multi-session context-carrying loop (briefMe → endSession → next session's briefMe), which is exactly what a homing pigeon does. Renaming makes the tool talkable and gives it an identity that survives outside the dev's head — which matters for adoption beyond the original two users.
+Short version: the tool's positioning got clearer this year. "project-tracker" reads as generic infrastructure; the differentiator is the multi-session context-carrying loop (briefMe → saveHandoff → next session's briefMe), which is exactly what a homing pigeon does. Renaming makes the tool talkable and gives it an identity that survives outside the dev's head — which matters for adoption beyond the original two users.
 
 The migration is non-breaking by design. Every breaking change has a deprecation alias that lasts through v5.x and goes away in v6.0. You can do the manual `~/.claude.json` edit at your own pace; the legacy script keeps working with a nudge.
 

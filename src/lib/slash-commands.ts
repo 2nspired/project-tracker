@@ -10,10 +10,6 @@
 // here in the UI layer so the MCP module stays read-only from the web
 // surface and Webpack/Turbopack never has to resolve `.js`-suffixed MCP
 // imports.
-//
-// Coordination note (card #151): `endSession` is being renamed to
-// `saveHandoff`. Until that workflow change lands, we translate the old
-// name on the way out so UI surfaces always show the canonical name.
 
 import { WORKFLOWS, type Workflow } from "@/mcp/workflows";
 
@@ -34,13 +30,6 @@ export type SlashCommand = {
 // the MCP catalog.
 const COMMON: ReadonlySet<string> = new Set(["/brief-me", "/handoff", "/plan-card"]);
 
-// Pre-rename → post-rename tool aliasing. When workflow steps still
-// reference `endSession`, surface `saveHandoff` instead so the UI is
-// already correct on day one of the rename rollout.
-const TOOL_ALIASES: Record<string, string> = {
-	endSession: "saveHandoff",
-};
-
 const DESCRIPTIONS: Record<string, string> = {
 	"/brief-me": "Start a session — load the latest handoff, top work, blockers, and pulse.",
 	"/handoff":
@@ -53,10 +42,9 @@ function uniqueTools(workflow: Workflow): string[] {
 	const seen = new Set<string>();
 	const ordered: string[] = [];
 	for (const step of workflow.steps) {
-		const aliased = TOOL_ALIASES[step.tool] ?? step.tool;
-		if (seen.has(aliased)) continue;
-		seen.add(aliased);
-		ordered.push(aliased);
+		if (seen.has(step.tool)) continue;
+		seen.add(step.tool);
+		ordered.push(step.tool);
 	}
 	return ordered;
 }
