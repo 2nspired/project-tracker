@@ -425,6 +425,13 @@ export const TOOL_CATALOG: {
 			"destructive": false
 		},
 		{
+			"name": "recalibrateBaseline",
+			"category": "session",
+			"description": "Measure briefMe vs. naive-bootstrap payload sizes for this project and store on Project.metadata.tokenBaseline. Used by the 'Pigeon paid for itself' surface. Pass projectId, or boardId — boardId resolves to its project. Returns { briefMeTokens, naiveBootstrapTokens, latestHandoffTokens?, savings, savingsPct, measuredAt }.",
+			"readOnly": false,
+			"destructive": false
+		},
+		{
 			"name": "recordTokenUsage",
 			"category": "session",
 			"description": "Record token usage for the current MCP session. Use when the agent's transcript isn't accessible (Codex, custom agents) — Claude Code uses recordTokenUsageFromTranscript via Stop hook instead. Always additive: each call creates one new row, so callers shouldn't loop and should sum their counts before calling.",
@@ -1558,6 +1565,18 @@ export const TOOL_CATALOG: {
 				"type": "Board UUID",
 				"required": true,
 				"description": "Board UUID"
+			}
+		},
+		"recalibrateBaseline": {
+			"projectId": {
+				"type": "Project UUID (omit if boardId is set)",
+				"required": false,
+				"description": "Project UUID (omit if boardId is set)"
+			},
+			"boardId": {
+				"type": "Board UUID — resolves to projectId; convenience for board-scoped agents",
+				"required": false,
+				"description": "Board UUID — resolves to projectId; convenience for board-scoped agents"
 			}
 		},
 		"recordTokenUsage": {

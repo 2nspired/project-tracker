@@ -17,6 +17,7 @@ model Project {
   repoPath        String?  @unique @map("repo_path")
   defaultBoardId  String?  @unique @map("default_board_id")
   nextCardNumber  Int      @default(1) @map("next_card_number")
+  metadata        String   @default("{}") // JSON: agent-writable; tokenBaseline, etc.
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

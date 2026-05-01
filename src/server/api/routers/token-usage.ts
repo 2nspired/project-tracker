@@ -93,4 +93,18 @@ export const tokenUsageRouter = createTRPCRouter({
 			}
 			return result.data;
 		}),
+
+	// Measure briefMe payload vs. naive bootstrap and persist on
+	// Project.metadata.tokenBaseline. Backs the "Pigeon paid for itself"
+	// surface — invoked from the project settings page (and via the MCP
+	// recalibrateBaseline tool). #192
+	recalibrateBaseline: publicProcedure
+		.input(z.object({ projectId: z.string().uuid() }))
+		.mutation(async ({ input }) => {
+			const result = await tokenUsageService.recalibrateBaseline(input.projectId);
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
 });
