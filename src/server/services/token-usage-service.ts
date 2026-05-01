@@ -587,6 +587,205 @@ async function getDailyCostSeries(projectId: string): Promise<ServiceResult<Dail
 	}
 }
 
+// ─── Card delivery metrics (#196 U4) ───────────────────────────────
+//
+// "Shipped" definition for this surface: `Card.completedAt IS NOT NULL` —
+// `card-service.ts` stamps that field on entry to a Done-role column and
+// clears it on exit, so it's the stable source of truth (Activity rows are
+// not consulted). We join shipped cards to their attributed token spend so
+// the Costs page can render "12 cards shipped, $7 avg, ↑ from $5 last
+// period" without an agent having to eyeball the board.
+//
+// Cost attribution mirrors `getCardSummary`'s session-expansion rule: any
+// `TokenUsageEvent` directly attributed to the card *plus* any event whose
+// `sessionId` was anchored to the card via the same direct-attribution
+// chain. F2's `attributeSession` MCP tool closes most of the un-attributed
+// gap — events that still lack a `cardId` after that are intentionally
+// excluded ("no AI involvement on record"). Cards with $0 cost are dropped
+// from the headline so they don't dilute the average.
+
+export type CardDeliveryPeriod = "7d" | "30d" | "lifetime";
+
+export type CardDeliveryEntry = {
+	cardId: string;
+	cardNumber: number;
+	cardTitle: string;
+	completedAt: Date;
+	totalCostUsd: number;
+};
+
+export type CardDeliveryMetrics = {
+	shippedCount: number;
+	avgCostUsd: number;
+	totalCostUsd: number;
+	top5: CardDeliveryEntry[];
+	periodLabel: CardDeliveryPeriod;
+	periodStartDate: Date | null;
+	previousPeriodAvgCostUsd: number | null;
+};
+
+const PERIOD_DAYS: Record<Exclude<CardDeliveryPeriod, "lifetime">, number> = {
+	"7d": 7,
+	"30d": 30,
+};
+
+// Sum the cost of a shipped card using the same "session-expansion" rule
+// `getCardSummary` applies — direct rows + session-shared rows. Returns 0
+// when no events resolve, in which case the caller filters this card out
+// of the avg/total math (see exclusion note above).
+async function sumCardCost(
+	cardId: string,
+	projectId: string,
+	pricing: Record<string, ModelPricing>
+): Promise<number> {
+	const directRows = await db.tokenUsageEvent.findMany({
+		where: { cardId },
+		select: { sessionId: true },
+	});
+	const sessionIds = Array.from(new Set(directRows.map((r) => r.sessionId)));
+	if (sessionIds.length === 0) {
+		// No direct attribution → no cost to count for this card. Skipping
+		// the second query saves a roundtrip on the (large) shipped-but-no-
+		// AI-involvement subset of cards.
+		return 0;
+	}
+	const events = await db.tokenUsageEvent.findMany({
+		where: {
+			projectId,
+			OR: [{ cardId }, { sessionId: { in: sessionIds } }],
+		},
+		select: {
+			model: true,
+			inputTokens: true,
+			outputTokens: true,
+			cacheReadTokens: true,
+			cacheCreation1hTokens: true,
+			cacheCreation5mTokens: true,
+		},
+	});
+	let total = 0;
+	for (const event of events) total += computeCost(event, pricing);
+	return total;
+}
+
+// Average cost over shipped+priced cards in `[periodStart, periodEnd)`.
+// Returns null when no priced cards land in the window — used by the
+// previous-period comparison so the caller can hide the delta arrow when
+// the prior window is empty rather than rendering a meaningless "↑ from $0".
+async function avgCostForWindow(
+	projectId: string,
+	periodStart: Date,
+	periodEnd: Date,
+	pricing: Record<string, ModelPricing>
+): Promise<number | null> {
+	const cards = await db.card.findMany({
+		where: {
+			projectId,
+			completedAt: { gte: periodStart, lt: periodEnd, not: null },
+		},
+		select: { id: true },
+	});
+	if (cards.length === 0) return null;
+	let pricedCount = 0;
+	let totalCost = 0;
+	for (const card of cards) {
+		const cost = await sumCardCost(card.id, projectId, pricing);
+		if (cost > 0) {
+			pricedCount += 1;
+			totalCost += cost;
+		}
+	}
+	if (pricedCount === 0) return null;
+	return totalCost / pricedCount;
+}
+
+async function getCardDeliveryMetrics(
+	projectId: string,
+	period: CardDeliveryPeriod
+): Promise<ServiceResult<CardDeliveryMetrics>> {
+	try {
+		const pricing = await loadPricing(db);
+		const now = new Date();
+
+		// Window math: 7d → [now-7d, now); 30d → [now-30d, now). Lifetime
+		// uses null so the Prisma where-clause skips the lower bound.
+		const periodStartDate =
+			period === "lifetime"
+				? null
+				: new Date(now.getTime() - PERIOD_DAYS[period] * 24 * 60 * 60 * 1000);
+
+		const cards = await db.card.findMany({
+			where: {
+				projectId,
+				completedAt: periodStartDate ? { gte: periodStartDate, not: null } : { not: null },
+			},
+			select: { id: true, number: true, title: true, completedAt: true },
+		});
+
+		// Compute cost per card serially. Cards-shipped-per-period is bounded
+		// in the dozens for any realistic Pigeon project, so a parallel
+		// `Promise.all` would just hammer SQLite without a meaningful win.
+		const entries: CardDeliveryEntry[] = [];
+		let totalCostUsd = 0;
+		let pricedCount = 0;
+		let shippedCount = 0;
+		for (const card of cards) {
+			if (!card.completedAt) continue; // satisfies TS narrowing
+			shippedCount += 1;
+			const cost = await sumCardCost(card.id, projectId, pricing);
+			if (cost <= 0) continue; // exclude $0 cards from headline math
+			pricedCount += 1;
+			totalCostUsd += cost;
+			entries.push({
+				cardId: card.id,
+				cardNumber: card.number,
+				cardTitle: card.title,
+				completedAt: card.completedAt,
+				totalCostUsd: cost,
+			});
+		}
+
+		const top5 = entries.sort((a, b) => b.totalCostUsd - a.totalCostUsd).slice(0, 5);
+		const avgCostUsd = pricedCount > 0 ? totalCostUsd / pricedCount : 0;
+
+		// Previous-period comparison: same window length, immediately before
+		// the current one. Hidden for lifetime (no "previous lifetime"). The
+		// avgCostForWindow helper returns null when the prior window has zero
+		// priced cards — UI uses that to suppress the delta arrow rather than
+		// drawing a phantom comparison against $0.
+		let previousPeriodAvgCostUsd: number | null = null;
+		if (period !== "lifetime" && periodStartDate) {
+			const days = PERIOD_DAYS[period];
+			const prevStart = new Date(periodStartDate.getTime() - days * 24 * 60 * 60 * 1000);
+			previousPeriodAvgCostUsd = await avgCostForWindow(
+				projectId,
+				prevStart,
+				periodStartDate,
+				pricing
+			);
+		}
+
+		return {
+			success: true,
+			data: {
+				shippedCount,
+				avgCostUsd,
+				totalCostUsd,
+				top5,
+				periodLabel: period,
+				periodStartDate,
+				previousPeriodAvgCostUsd,
+			},
+		};
+	} catch (error) {
+		console.error("[TOKEN_USAGE_SERVICE] getCardDeliveryMetrics error:", error);
+		return {
+			success: false,
+			error: { code: "QUERY_FAILED", message: "Failed to load card delivery metrics." },
+		};
+	}
+}
+
 // ─── Setup diagnostics ─────────────────────────────────────────────
 
 export type SetupConfigPath = {
@@ -994,6 +1193,7 @@ export const tokenUsageService = {
 	getCardSummary,
 	getMilestoneSummary,
 	getDailyCostSeries,
+	getCardDeliveryMetrics,
 	getDiagnostics,
 	getPricing,
 	updatePricing,

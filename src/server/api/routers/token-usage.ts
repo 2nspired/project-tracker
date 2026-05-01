@@ -68,6 +68,25 @@ export const tokenUsageRouter = createTRPCRouter({
 			return result.data;
 		}),
 
+	// Cost-per-shipped-card lens for the Costs page (#196 U4). Joins
+	// `Card.completedAt IS NOT NULL` to attributed token spend (same
+	// session-expansion rule as `getCardSummary`) and returns headline
+	// avg/total + top-5 list + previous-period avg for the delta arrow.
+	getCardDeliveryMetrics: publicProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				period: z.enum(["7d", "30d", "lifetime"]).default("30d"),
+			})
+		)
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getCardDeliveryMetrics(input.projectId, input.period);
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
+
 	getDiagnostics: publicProcedure.query(async () => {
 		const result = await tokenUsageService.getDiagnostics();
 		if (!result.success) {

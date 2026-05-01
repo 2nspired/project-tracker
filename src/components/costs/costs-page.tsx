@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
+import { CardDeliverySection } from "@/components/costs/card-delivery-section";
 import { SummaryStrip } from "@/components/costs/summary-strip";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -73,7 +74,16 @@ export function CostsPage({ projectId, projectName }: CostsPageProps) {
 					/>
 				</EmptyState>
 			) : projectSummary && dailyCost ? (
-				<SummaryStrip projectSummary={projectSummary} dailyCost={dailyCost} />
+				<>
+					<SummaryStrip projectSummary={projectSummary} dailyCost={dailyCost} />
+					{/*
+					 * U2 (#194 PigeonOverheadSection) is concurrently inserting a
+					 * section in this slot. Card-delivery (U4) appends after — at
+					 * integration time U2's section lands above this one and the
+					 * order becomes: SummaryStrip → PigeonOverhead → CardDelivery.
+					 */}
+					<CardDeliverySection projectId={projectId} />
+				</>
 			) : null}
 		</div>
 	);
