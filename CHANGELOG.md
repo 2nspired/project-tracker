@@ -8,7 +8,9 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
-_Nothing yet — append entries here as PRs merge._
+### Changed
+
+- Header "MCP" pill renamed to "Commands" (`Command` icon); popover/sheet title and copy lead with slash commands. Cmd-K search pill gains a tooltip pointing at `?` for the full catalog. (#156)
 
 ## [5.2.0] — 2026-04-30
 

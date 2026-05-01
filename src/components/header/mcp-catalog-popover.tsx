@@ -135,7 +135,7 @@ export function McpCatalogPopover({
 	return (
 		<Command className={fullWidth ? "h-full w-full" : "w-[28rem] max-h-[min(36rem,75vh)]"}>
 			<CommandInput
-				placeholder="Search MCP tools…"
+				placeholder="Search commands and tools…"
 				value={search}
 				onValueChange={handleSearchChange}
 				autoFocus

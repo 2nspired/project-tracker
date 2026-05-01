@@ -7,6 +7,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { McpCatalogTrigger } from "@/components/header/mcp-catalog-trigger";
 import { ServerStatusPill } from "@/components/layout/server-status-pill";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname();
@@ -66,21 +67,28 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 							Notes
 						</Link>
 					</nav>
-					<button
-						type="button"
-						onClick={() =>
-							document.dispatchEvent(
-								new KeyboardEvent("keydown", {
-									key: "k",
-									metaKey: true,
-								})
-							)
-						}
-						className="hidden items-center gap-1.5 rounded-md border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent sm:flex"
-					>
-						Search
-						<kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">⌘K</kbd>
-					</button>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<button
+								type="button"
+								onClick={() =>
+									document.dispatchEvent(
+										new KeyboardEvent("keydown", {
+											key: "k",
+											metaKey: true,
+										})
+									)
+								}
+								className="hidden items-center gap-1.5 rounded-md border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent sm:flex"
+							>
+								Search
+								<kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">⌘K</kbd>
+							</button>
+						</TooltipTrigger>
+						<TooltipContent side="bottom" sideOffset={6}>
+							Press <kbd className="font-mono">?</kbd> for the full command catalog
+						</TooltipContent>
+					</Tooltip>
 					<McpCatalogTrigger />
 					<ServerStatusPill />
 					<ThemeToggle />

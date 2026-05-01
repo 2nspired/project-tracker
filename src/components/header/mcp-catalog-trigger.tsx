@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes } from "lucide-react";
+import { Command } from "lucide-react";
 import { useEffect, useState } from "react";
 import { McpCatalogPopover } from "@/components/header/mcp-catalog-popover";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -62,7 +62,7 @@ export function McpCatalogTrigger() {
 					sideOffset={8}
 					className="w-auto p-0"
 					role="dialog"
-					aria-label="MCP tool catalog"
+					aria-label="Commands"
 				>
 					<McpCatalogPopover enabled={open} />
 				</PopoverContent>
@@ -77,9 +77,9 @@ export function McpCatalogTrigger() {
 			</SheetTrigger>
 			<SheetContent id="mcp-catalog" side="bottom" className="max-h-[85vh] gap-0 p-0">
 				<SheetHeader className="border-b">
-					<SheetTitle className="text-sm">MCP tool catalog</SheetTitle>
+					<SheetTitle className="text-sm">Commands</SheetTitle>
 					<SheetDescription className="text-xs">
-						Tap a tool to open its docs. The Essentials list at the top is what most agents use.
+						Slash commands at the top — type one to your agent. MCP tools below for reference.
 					</SheetDescription>
 				</SheetHeader>
 				<div className="flex-1 overflow-hidden">
@@ -97,14 +97,14 @@ function TriggerButton({ open, ...props }: { open: boolean } & React.ComponentPr
 	return (
 		<button
 			type="button"
-			aria-label="Browse MCP tools"
+			aria-label="Browse commands"
 			aria-expanded={open}
 			aria-controls="mcp-catalog"
 			className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground sm:h-auto sm:w-auto sm:gap-1.5 sm:px-2 sm:py-1 sm:text-xs"
 			{...props}
 		>
-			<Boxes className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-			<span className="hidden sm:inline">MCP</span>
+			<Command className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+			<span className="hidden sm:inline">Commands</span>
 			<kbd className="hidden rounded bg-muted px-1 py-0.5 font-mono text-[10px] sm:inline">?</kbd>
 		</button>
 	);
