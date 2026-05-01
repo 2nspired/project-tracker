@@ -3,6 +3,7 @@
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCost } from "@/lib/format-cost";
 import { formatRelativeCompact } from "@/lib/format-date";
@@ -32,9 +33,16 @@ const PERIOD_OPTIONS: { value: Period; label: string }[] = [
 
 type CardDeliverySectionProps = {
 	projectId: string;
+	/**
+	 * Cosmetic. Renders a `(project-wide)` Badge in the section header when
+	 * `scope === "board"` to honestly signal that this lens does not yet
+	 * board-scope its query (Phase 1b territory). Not a data input — the
+	 * underlying tRPC call still passes only `projectId`.
+	 */
+	scope?: "project" | "board";
 };
 
-export function CardDeliverySection({ projectId }: CardDeliverySectionProps) {
+export function CardDeliverySection({ projectId, scope = "project" }: CardDeliverySectionProps) {
 	const [period, setPeriod] = useState<Period>("30d");
 	const { data, isLoading, error } = api.tokenUsage.getCardDeliveryMetrics.useQuery(
 		{ projectId, period },
@@ -44,8 +52,16 @@ export function CardDeliverySection({ projectId }: CardDeliverySectionProps) {
 	return (
 		<section className="space-y-3">
 			<header className="flex items-baseline justify-between gap-3">
-				<h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+				<h2 className="inline-flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
 					Cost per shipped card
+					{scope === "board" ? (
+						<Badge
+							variant="outline"
+							className="font-mono text-2xs font-normal normal-case tracking-normal"
+						>
+							project-wide
+						</Badge>
+					) : null}
 				</h2>
 				<PeriodPills value={period} onChange={setPeriod} />
 			</header>

@@ -91,12 +91,22 @@ export default async function CostsRoute({
 
 	const boardScope = await resolveBoardScope(project.id, boardParam);
 
+	// A1/A2 — fetch boards server-side via the existing `board.list`
+	// procedure (no new tRPC). Avoids a client waterfall (the switcher would
+	// otherwise flash an empty Popover) and lets the server decide
+	// hide-when-≤1. We pluck `{id, name}` from the heavier `BoardListItem`
+	// here since the switcher only needs that — over-fetch from the wider
+	// payload is negligible against SQLite.
+	const boardsFull = await api.board.list({ projectId: project.id });
+	const lightBoards = boardsFull.map((b) => ({ id: b.id, name: b.name }));
+
 	return (
 		<CostsPage
 			projectId={project.id}
 			projectName={project.name}
 			boardId={boardScope?.boardId}
 			boardName={boardScope?.boardName}
+			boards={lightBoards}
 		/>
 	);
 }

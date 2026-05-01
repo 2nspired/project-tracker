@@ -1,9 +1,7 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
+import { CostsBreadcrumb } from "@/components/costs/breadcrumb";
 import { CardDeliverySection } from "@/components/costs/card-delivery-section";
 import { PigeonOverheadSection } from "@/components/costs/pigeon-overhead-section";
 import { PricingOverrideTable } from "@/components/costs/pricing-override-table";
@@ -14,29 +12,46 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/trpc/react";
 
+type LightBoard = { id: string; name: string };
+
 type CostsPageProps = {
 	projectId: string;
 	projectName: string;
 	boardId?: string;
 	boardName?: string;
+	boards: LightBoard[];
 };
 
-// Client component owning the data fetches for the Costs page. Splits the
-// shell out of the server component so the queries can stream in (and
-// later — when the pricing override table lands in Step 5 — co-locate
-// with mutations on the same page). 60s `staleTime` matches the BoardPulse
-// strip; this data is rolled-up cost/session counters that don't need to
-// repaint on every focus.
+// Client component owning the data fetches for the Costs page.
 //
-// Board-scope plumbing (#200 Phase 2a): when `boardId` is set, the two
+// Board-scope plumbing (#200 Phase 2a + 3): when `boardId` is set, the two
 // scope-aware queries (`getProjectSummary`, `getDailyCostSeries`) pass it
 // through so the summary strip + sparkline reflect that board only. The
 // other sections (`<SavingsSection>`, `<PigeonOverheadSection>`,
 // `<CardDeliverySection>`, `<PricingOverrideTable>`) deliberately keep
 // project-only signatures — they're not yet board-aware (Phase 1b
-// territory) and continue to render project-wide as a placeholder until
-// design (Phase 2b) decides what they should show on the board view.
-export function CostsPage({ projectId, projectName, boardId, boardName }: CostsPageProps) {
+// territory). To stay honest with the user we render a `(project-wide)`
+// Badge in their headers via the `scope` prop (Phase 3 D7).
+//
+// In board mode we also fetch the project-wide summary IN ADDITION to the
+// board-scoped one. We need both for the SummaryStrip's Board's-share cell
+// (Phase 3, C3 — `(boardTotal / projectTotal) * 100` with a >0 guard) and
+// also for the empty-state branch in <SavingsSection>'s Statement (Phase 3
+// N2 — "no board-attributed sessions yet" link out to project totals).
+//
+// Cache key safety (A3): React Query passes the input object straight to
+// `JSON.stringify` for hashing. `JSON.stringify({ projectId, boardId:
+// undefined })` strips the `undefined`, so the project-only call key
+// equals `JSON.stringify({ projectId })`. The ternary on the input object
+// is therefore not required for correctness — but we keep it explicit so
+// the call sites read as "we ask different questions in different modes."
+export function CostsPage({
+	projectId,
+	projectName,
+	boardId,
+	boardName: _boardName,
+	boards,
+}: CostsPageProps) {
 	const { data: projectSummary, isLoading: summaryLoading } =
 		api.tokenUsage.getProjectSummary.useQuery(boardId ? { projectId, boardId } : { projectId }, {
 			staleTime: 60_000,
@@ -44,6 +59,13 @@ export function CostsPage({ projectId, projectName, boardId, boardName }: CostsP
 	const { data: dailyCost, isLoading: dailyLoading } = api.tokenUsage.getDailyCostSeries.useQuery(
 		boardId ? { projectId, boardId } : { projectId },
 		{ staleTime: 60_000 }
+	);
+	// In board mode, also fetch the project-wide totals — the Board's-share
+	// cell + the Statement's empty-state branch both need `projectTotal`.
+	// `enabled: !!boardId` keeps project mode from double-fetching.
+	const { data: projectWideSummary } = api.tokenUsage.getProjectSummary.useQuery(
+		{ projectId },
+		{ staleTime: 60_000, enabled: !!boardId }
 	);
 
 	const isLoading = summaryLoading || dailyLoading;
@@ -55,18 +77,14 @@ export function CostsPage({ projectId, projectName, boardId, boardName }: CostsP
 
 	return (
 		<div className="mx-auto max-w-3xl space-y-8 px-4 py-6 sm:px-6">
+			<CostsBreadcrumb projectId={projectId} boards={boards} currentBoardId={boardId ?? null} />
+
 			<div>
-				<Link href={`/projects/${projectId}`}>
-					<Button variant="ghost" size="sm" className="mb-2">
-						<ArrowLeft className="mr-2 h-4 w-4" />
-						Back to project
-					</Button>
-				</Link>
+				{/* H1 stays "Costs" (D2). Pigeon has no left nav so the resource
+				    label is load-bearing — promoting the scope into the H1 would
+				    bury it. Scope reads from the breadcrumb above instead. */}
 				<h1 className="text-2xl font-bold tracking-tight">Costs</h1>
 				<p className="text-sm text-muted-foreground">Token usage and spend for {projectName}.</p>
-				{boardName ? (
-					<p className="mt-1 text-2xs text-muted-foreground">Viewing: {boardName}</p>
-				) : null}
 			</div>
 
 			{isLoading ? (
@@ -94,15 +112,31 @@ export function CostsPage({ projectId, projectName, boardId, boardName }: CostsP
 				</EmptyState>
 			) : projectSummary && dailyCost ? (
 				<>
-					<SummaryStrip projectSummary={projectSummary} dailyCost={dailyCost} />
-					<SavingsSection projectId={projectId} />
-					<PigeonOverheadSection projectId={projectId} />
-					<CardDeliverySection projectId={projectId} />
-					{/* Pricing override table mounts after the analytics lenses —
-					    pricing is configuration, not a metric. U3's
-					    `<SavingsSection>` is concurrently being inserted; the
-					    integration pass resolves the order. */}
-					<PricingOverrideTable projectId={projectId} projectSummary={projectSummary} />
+					<SummaryStrip
+						projectSummary={projectSummary}
+						dailyCost={dailyCost}
+						boardId={boardId}
+						projectWideSummary={boardId ? projectWideSummary : undefined}
+					/>
+					{boardId ? (
+						<p className="font-mono text-2xs italic text-muted-foreground/60">
+							A session that touched cards on multiple boards counts toward each board's total.
+						</p>
+					) : null}
+					<SavingsSection
+						projectId={projectId}
+						boardId={boardId}
+						boardSummary={boardId ? projectSummary : undefined}
+						projectWideSummary={boardId ? projectWideSummary : undefined}
+					/>
+					<PigeonOverheadSection projectId={projectId} scope={boardId ? "board" : "project"} />
+					<CardDeliverySection projectId={projectId} scope={boardId ? "board" : "project"} />
+					{/* Pricing override table is a project-level configuration
+					    surface — hide in board mode (D-spec step 7). It comes back
+					    when the user clears the scope to "All boards". */}
+					{!boardId ? (
+						<PricingOverrideTable projectId={projectId} projectSummary={projectSummary} />
+					) : null}
 				</>
 			) : null}
 		</div>

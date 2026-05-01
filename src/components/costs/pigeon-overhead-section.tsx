@@ -3,16 +3,24 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
+import { DiagnosticRow, type Period, PeriodPills, Section } from "@/components/costs/section";
+import { Badge } from "@/components/ui/badge";
 import { formatCost } from "@/lib/format-cost";
 import { cn } from "@/lib/utils";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
 
-type Period = "7d" | "30d" | "lifetime";
 type Overhead = RouterOutputs["tokenUsage"]["getPigeonOverhead"];
 
 type Props = {
 	projectId: string;
+	/**
+	 * Cosmetic. Renders a `(project-wide)` Badge in the section header when
+	 * `scope === "board"` to honestly signal that this lens does not yet
+	 * board-scope its query (Phase 1b territory). Not a data input — the
+	 * underlying tRPC call still passes only `projectId`.
+	 */
+	scope?: "project" | "board";
 };
 
 // "Pigeon overhead" section on the Costs page. Sums `responseTokens` from
@@ -21,10 +29,9 @@ type Props = {
 // against `TokenUsageEvent.recordedAt` — sessions whose first event lands
 // in-window are included.
 //
-// Visual contract mirrors `<Section>` from token-tracking-setup-dialog
-// (step "02", border-top frame, 2xs uppercase step label) so the Costs
-// page reads as a single editorial procedure.
-export function PigeonOverheadSection({ projectId }: Props) {
+// Section / StepLabel / PeriodPills / DiagnosticRow live in `./section.tsx`
+// (#200 Phase 3 refactor).
+export function PigeonOverheadSection({ projectId, scope = "project" }: Props) {
 	const [period, setPeriod] = useState<Period>("7d");
 	const [showBreakdown, setShowBreakdown] = useState(false);
 
@@ -36,7 +43,12 @@ export function PigeonOverheadSection({ projectId }: Props) {
 	return (
 		<Section
 			step="02"
-			title="Pigeon overhead"
+			title={
+				<span className="inline-flex items-center gap-2">
+					Pigeon overhead
+					{scope === "board" ? <ProjectWideBadge /> : null}
+				</span>
+			}
 			right={<PeriodPills value={period} onChange={setPeriod} />}
 		>
 			{error ? (
@@ -68,75 +80,13 @@ export function PigeonOverheadSection({ projectId }: Props) {
 	);
 }
 
-// ─── Section frame (mirrors token-tracking-setup-dialog) ──────────
+// ─── Project-wide badge (cosmetic, board-mode only) ───────────────
 
-function StepLabel({ n }: { n: string }) {
-	return <span className="font-mono text-2xs text-muted-foreground/60 tabular-nums">{n}</span>;
-}
-
-function Section({
-	step,
-	title,
-	right,
-	children,
-}: {
-	step: string;
-	title: string;
-	right?: ReactNode;
-	children: ReactNode;
-}) {
+function ProjectWideBadge() {
 	return (
-		<section className="space-y-2.5 border-t border-border/50 pt-4">
-			<div className="flex items-baseline gap-2.5">
-				<StepLabel n={step} />
-				<h3 className="text-sm font-medium tracking-tight">{title}</h3>
-				{right && <div className="ml-auto">{right}</div>}
-			</div>
-			{children}
-		</section>
-	);
-}
-
-// ─── Period pill selector ─────────────────────────────────────────
-
-function PeriodPills({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
-	return (
-		<div className="inline-flex items-center gap-1">
-			<PeriodPill active={value === "7d"} onClick={() => onChange("7d")}>
-				7d
-			</PeriodPill>
-			<PeriodPill active={value === "30d"} onClick={() => onChange("30d")}>
-				30d
-			</PeriodPill>
-			<PeriodPill active={value === "lifetime"} onClick={() => onChange("lifetime")}>
-				Lifetime
-			</PeriodPill>
-		</div>
-	);
-}
-
-function PeriodPill({
-	active,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	onClick: () => void;
-	children: ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={cn(
-				"inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors",
-				active
-					? "border-foreground/20 bg-muted text-foreground"
-					: "border-border bg-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-			)}
-		>
-			{children}
-		</button>
+		<Badge variant="outline" className="font-mono text-2xs font-normal">
+			project-wide
+		</Badge>
 	);
 }
 
@@ -202,17 +152,5 @@ function RowCells({
 			</dd>
 			<dd className="text-right tabular-nums text-foreground/80">{formatCost(t.totalCostUsd)}</dd>
 		</>
-	);
-}
-
-// ─── Diagnostic row (muted amber strip) ───────────────────────────
-
-function DiagnosticRow({ children, tone = "amber" }: { children: ReactNode; tone?: "amber" }) {
-	const tonal =
-		tone === "amber"
-			? "border-l-amber-500 bg-amber-500/5 text-amber-700 dark:text-amber-400"
-			: "border-l-muted-foreground/40 bg-muted/30 text-muted-foreground";
-	return (
-		<div className={cn("rounded border-l-2 px-3 py-1.5 font-mono text-2xs", tonal)}>{children}</div>
 	);
 }

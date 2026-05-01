@@ -1,10 +1,12 @@
 "use client";
 
 import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { SavingsMethodologySheet } from "@/components/costs/savings-methodology-sheet";
+import { DiagnosticRow, type Period, PeriodPills, Section } from "@/components/costs/section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCost } from "@/lib/format-cost";
@@ -13,11 +15,31 @@ import { cn } from "@/lib/utils";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
 
-type Period = "7d" | "30d" | "lifetime";
 type SavingsSummary = RouterOutputs["tokenUsage"]["getSavingsSummary"];
+type ProjectSummary = RouterOutputs["tokenUsage"]["getProjectSummary"];
 
 type Props = {
 	projectId: string;
+	/**
+	 * Set when the route is in board mode (Phase 3 D2/N2). Savings itself
+	 * is project-only (Phase 1b territory) so the figures don't change —
+	 * but the section gains a clarifying subtitle and an empty-state branch
+	 * when this board has no attributed sessions yet.
+	 */
+	boardId?: string;
+	/**
+	 * Board-scoped project summary (totals constrained to the active
+	 * board). Used only to detect "this board has zero attributed cost"
+	 * for the N2 empty-state branch.
+	 */
+	boardSummary?: ProjectSummary;
+	/**
+	 * Project-wide summary (totals across all boards). Used to confirm
+	 * the project has *some* data before flipping into the empty-state
+	 * branch — keeps us from claiming "no board data" when the project
+	 * itself is brand new and has nothing recorded anywhere yet.
+	 */
+	projectWideSummary?: ProjectSummary;
 };
 
 // "Pigeon paid for itself" — headline differentiator for the Token
@@ -34,7 +56,13 @@ type Props = {
 //   - ready+positive: dollar headline + 3-row diagnostic + per-session log
 //   - ready+negative: amber headline + same body + sub-note
 //   - error: amber DiagnosticRow, no crash
-export function SavingsSection({ projectId }: Props) {
+//
+// Section / StepLabel / PeriodPills / DiagnosticRow live in `./section.tsx`
+// (#200 Phase 3 refactor). The `tone="anchor"` Section variant + inline
+// formula caption + headline scale (D3/D4/D5/D6) are applied here so this
+// section anchors the Costs page visually while keeping the same step-
+// numbered rhythm as the lenses below it.
+export function SavingsSection({ projectId, boardId, boardSummary, projectWideSummary }: Props) {
 	const [period, setPeriod] = useState<Period>("30d");
 	const [methodologyOpen, setMethodologyOpen] = useState(false);
 
@@ -43,21 +71,41 @@ export function SavingsSection({ projectId }: Props) {
 		{ staleTime: 60_000, retry: false }
 	);
 
+	// N2 — Statement empty-state for board mode. Trigger only when:
+	//   • we're scoped to a board,
+	//   • that board has zero attributed cost,
+	//   • the project itself does have some data (otherwise the user is
+	//     just before-first-event, the regular `<EmptyState>` higher up
+	//     covers that).
+	const showBoardEmptyState =
+		!!boardId &&
+		!!boardSummary &&
+		boardSummary.totalCostUsd === 0 &&
+		!!projectWideSummary &&
+		projectWideSummary.totalCostUsd > 0;
+
 	return (
 		<>
 			<Section
 				step="01b"
 				title="Pigeon paid for itself"
+				tone="anchor"
 				right={<PeriodPills value={period} onChange={setPeriod} />}
 			>
-				{error ? (
+				{showBoardEmptyState ? (
+					<BoardEmptyState />
+				) : error ? (
 					<DiagnosticRow tone="amber">Could not load savings data — {error.message}</DiagnosticRow>
 				) : isLoading || !data ? (
 					<LoadingState />
 				) : data.state === "no-baseline" ? (
 					<NoBaselineState projectId={projectId} />
 				) : (
-					<ReadyState summary={data} onOpenMethodology={() => setMethodologyOpen(true)} />
+					<ReadyState
+						summary={data}
+						boardId={boardId}
+						onOpenMethodology={() => setMethodologyOpen(true)}
+					/>
 				)}
 			</Section>
 			{data && (
@@ -69,6 +117,29 @@ export function SavingsSection({ projectId }: Props) {
 				/>
 			)}
 		</>
+	);
+}
+
+// ─── Board empty-state (N2) ────────────────────────────────────────
+
+function BoardEmptyState() {
+	const router = useRouter();
+	const pathname = usePathname();
+	return (
+		<div className="space-y-3">
+			<p className="font-mono text-sm text-muted-foreground">
+				No board-attributed sessions yet — savings shown at project level.
+			</p>
+			<button
+				type="button"
+				onClick={() =>
+					router.replace(pathname as Parameters<typeof router.replace>[0], { scroll: false })
+				}
+				className="font-mono text-2xs text-muted-foreground transition-colors hover:text-foreground"
+			>
+				View project totals →
+			</button>
+		</div>
 	);
 }
 
@@ -121,24 +192,34 @@ function NoBaselineState({ projectId }: { projectId: string }) {
 
 function ReadyState({
 	summary,
+	boardId,
 	onOpenMethodology,
 }: {
 	summary: Extract<SavingsSummary, { state: "ready" }>;
+	boardId?: string;
 	onOpenMethodology: () => void;
 }) {
 	const negative = summary.netSavingsUsd < 0;
+	const netToneClass = negative
+		? "text-amber-700 dark:text-amber-400"
+		: "text-emerald-700 dark:text-emerald-400";
 
 	return (
 		<div className="space-y-4">
 			<Headline summary={summary} negative={negative} />
 
-			<button
-				type="button"
-				onClick={onOpenMethodology}
-				className="font-mono text-2xs text-muted-foreground transition-colors hover:text-foreground"
-			>
-				How we calculate this →
-			</button>
+			{boardId ? (
+				<p className="text-xs text-muted-foreground">Calculated from the project-level baseline.</p>
+			) : null}
+
+			{/* D3 — inline formula caption, sits above the existing dl. */}
+			<p className="font-mono text-2xs text-muted-foreground/70">
+				{formatCost(summary.grossSavingsUsd)} gross − {formatCost(summary.pigeonOverheadUsd)}{" "}
+				overhead ={" "}
+				<span className={cn("tabular-nums", netToneClass)}>
+					{formatCost(summary.netSavingsUsd)} net
+				</span>
+			</p>
 
 			<dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 font-mono text-2xs">
 				<MetricRow label="gross savings" value={formatCost(summary.grossSavingsUsd)} />
@@ -149,6 +230,14 @@ function ReadyState({
 					tone={negative ? "amber" : "emerald"}
 				/>
 			</dl>
+
+			<button
+				type="button"
+				onClick={onOpenMethodology}
+				className="font-mono text-2xs text-muted-foreground transition-colors hover:text-foreground"
+			>
+				How we calculate this →
+			</button>
 
 			{negative && (
 				<p className="text-xs text-muted-foreground">
@@ -168,16 +257,19 @@ function Headline({
 	summary: Extract<SavingsSummary, { state: "ready" }>;
 	negative: boolean;
 }) {
+	// D4 — `text-2xl sm:text-3xl md:text-4xl`. At 375px `text-3xl` orphans the
+	// dollar amount. Dollar value stays neutral (no violet ink — D5) so the
+	// only color cue is the amber/foreground split for negative vs positive.
 	if (negative) {
 		const cost = Math.abs(summary.netSavingsUsd);
 		return (
-			<p className="font-mono text-3xl tabular-nums text-amber-600 dark:text-amber-400">
+			<p className="font-mono text-2xl tabular-nums text-amber-600 sm:text-3xl md:text-4xl dark:text-amber-400">
 				Pigeon cost {formatCost(cost)} more than it saved this period.
 			</p>
 		);
 	}
 	return (
-		<p className="font-mono text-3xl tabular-nums text-foreground">
+		<p className="font-mono text-2xl tabular-nums text-foreground sm:text-3xl md:text-4xl">
 			Pigeon saved you {formatCost(summary.netSavingsUsd)} this period.
 		</p>
 	);
@@ -228,89 +320,7 @@ function PerSessionLog({
 	);
 }
 
-// ─── Section frame (mirrors PigeonOverheadSection) ─────────────────
-
-function StepLabel({ n }: { n: string }) {
-	return <span className="font-mono text-2xs text-muted-foreground/60 tabular-nums">{n}</span>;
-}
-
-function Section({
-	step,
-	title,
-	right,
-	children,
-}: {
-	step: string;
-	title: string;
-	right?: ReactNode;
-	children: ReactNode;
-}) {
-	return (
-		<section className="space-y-2.5 border-t border-border/50 pt-4">
-			<div className="flex items-baseline gap-2.5">
-				<StepLabel n={step} />
-				<h3 className="text-sm font-medium tracking-tight">{title}</h3>
-				{right && <div className="ml-auto">{right}</div>}
-			</div>
-			{children}
-		</section>
-	);
-}
-
-// ─── Period pill selector (mirrors PigeonOverheadSection) ──────────
-
-function PeriodPills({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
-	return (
-		<div className="inline-flex items-center gap-1">
-			<PeriodPill active={value === "7d"} onClick={() => onChange("7d")}>
-				7d
-			</PeriodPill>
-			<PeriodPill active={value === "30d"} onClick={() => onChange("30d")}>
-				30d
-			</PeriodPill>
-			<PeriodPill active={value === "lifetime"} onClick={() => onChange("lifetime")}>
-				Lifetime
-			</PeriodPill>
-		</div>
-	);
-}
-
-function PeriodPill({
-	active,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	onClick: () => void;
-	children: ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={cn(
-				"inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors",
-				active
-					? "border-foreground/20 bg-muted text-foreground"
-					: "border-border bg-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-			)}
-		>
-			{children}
-		</button>
-	);
-}
-
-// ─── Diagnostic + metric rows ──────────────────────────────────────
-
-function DiagnosticRow({ children, tone = "amber" }: { children: ReactNode; tone?: "amber" }) {
-	const tonal =
-		tone === "amber"
-			? "border-l-amber-500 bg-amber-500/5 text-amber-700 dark:text-amber-400"
-			: "border-l-muted-foreground/40 bg-muted/30 text-muted-foreground";
-	return (
-		<div className={cn("rounded border-l-2 px-3 py-1.5 font-mono text-2xs", tonal)}>{children}</div>
-	);
-}
+// ─── Metric rows ───────────────────────────────────────────────────
 
 function MetricRow({
 	label,

@@ -11,21 +11,47 @@ type DailyCostSeries = RouterOutputs["tokenUsage"]["getDailyCostSeries"];
 type SummaryStripProps = {
 	projectSummary: ProjectSummary;
 	dailyCost: DailyCostSeries;
+	/**
+	 * When set, the strip is in board mode. The fourth cell flips from
+	 * "Tracking since" to "Board's share" — the percentage of the project's
+	 * lifetime cost attributable to this board.
+	 */
+	boardId?: string;
+	/**
+	 * Project-wide summary (totals across all boards). Required in board
+	 * mode; the share calculation needs the project denominator. Pass
+	 * `undefined` in project mode — the existing "Tracking since" cell
+	 * stays.
+	 */
+	projectWideSummary?: ProjectSummary;
 };
 
 // Top-of-page summary for the Costs view. Four cells (lifetime cost,
-// 7-day cost + sparkline, session count, tracking-since) laid out as a
-// `<dl>` so each label/value pair is semantically a description term.
-// Mobile collapses to a 2-col grid — no horizontal scroll, no table.
+// 7-day cost + sparkline, session count, tracking-since OR board's-share)
+// laid out as a `<dl>` so each label/value pair is semantically a
+// description term. Mobile collapses to a 2-col grid — no horizontal
+// scroll, no table.
 //
 // The sparkline mirrors the violet accent the BoardPulse strip uses for
 // cost data so the visual association ("violet = cost") carries across
 // surfaces.
-export function SummaryStrip({ projectSummary, dailyCost }: SummaryStripProps) {
+//
+// Phase 3 — board mode flips the fourth cell to "Board's share" (C3 with
+// the `>0` denominator guard). The "Tracking since" timestamp moves out
+// of the strip in board mode because it's a project-level fact, not a
+// board-level one — and the share % is the question users actually have
+// when they switch scope.
+export function SummaryStrip({
+	projectSummary,
+	dailyCost,
+	boardId,
+	projectWideSummary,
+}: SummaryStripProps) {
 	const lifetimeCost = projectSummary.totalCostUsd;
 	const weekCost = dailyCost.weekTotalCostUsd;
 	const sessionCount = projectSummary.sessionCount;
 	const trackingSince = projectSummary.trackingSince;
+	const inBoardMode = !!boardId && !!projectWideSummary;
 
 	return (
 		<dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -50,13 +76,30 @@ export function SummaryStrip({ projectSummary, dailyCost }: SummaryStripProps) {
 				<span className="font-mono text-2xl tabular-nums">{sessionCount}</span>
 			</Cell>
 
-			<Cell label="Tracking since">
-				<span className="text-sm text-muted-foreground">
-					{trackingSince ? formatRelative(trackingSince) : "—"}
-				</span>
-			</Cell>
+			{inBoardMode ? (
+				<Cell label="Board's share">
+					<span className="font-mono text-2xl tabular-nums">
+						{formatBoardShare(projectSummary.totalCostUsd, projectWideSummary.totalCostUsd)}
+					</span>
+				</Cell>
+			) : (
+				<Cell label="Tracking since">
+					<span className="text-sm text-muted-foreground">
+						{trackingSince ? formatRelative(trackingSince) : "—"}
+					</span>
+				</Cell>
+			)}
 		</dl>
 	);
+}
+
+// C3 — guard against a zero denominator. Mirrors the existing
+// `formatRelative` `"—"` convention so the cell stays a single character
+// when there's no project-wide cost yet. Exported for unit tests.
+export function formatBoardShare(boardTotal: number, projectTotal: number): string {
+	if (projectTotal <= 0) return "—";
+	const pct = (boardTotal / projectTotal) * 100;
+	return `${pct.toFixed(1)}%`;
 }
 
 function Cell({ label, children }: { label: string; children: React.ReactNode }) {
