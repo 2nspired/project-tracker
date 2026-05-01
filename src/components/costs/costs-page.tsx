@@ -6,6 +6,7 @@ import Link from "next/link";
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
 import { CardDeliverySection } from "@/components/costs/card-delivery-section";
 import { PigeonOverheadSection } from "@/components/costs/pigeon-overhead-section";
+import { PricingOverrideTable } from "@/components/costs/pricing-override-table";
 import { SummaryStrip } from "@/components/costs/summary-strip";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -79,6 +80,11 @@ export function CostsPage({ projectId, projectName }: CostsPageProps) {
 					<SummaryStrip projectSummary={projectSummary} dailyCost={dailyCost} />
 					<PigeonOverheadSection projectId={projectId} />
 					<CardDeliverySection projectId={projectId} />
+					{/* Pricing override table mounts after the analytics lenses —
+					    pricing is configuration, not a metric. U3's
+					    `<SavingsSection>` is concurrently being inserted; the
+					    integration pass resolves the order. */}
+					<PricingOverrideTable projectId={projectId} projectSummary={projectSummary} />
 				</>
 			) : null}
 		</div>
