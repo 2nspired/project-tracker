@@ -18,7 +18,12 @@ export const noteRouter = createTRPCRouter({
 		)
 		.query(async ({ input }) => {
 			const { projectId, ...filter } = input ?? {};
-			const result = await noteService.list(projectId, filter);
+			// Default to "general": agent-authored brief/handoff rows live in the
+			// same table today but should not surface in the Notes UI. Callers
+			// that want a specific kind (e.g. "handoff") pass it explicitly.
+			const effectiveFilter =
+				filter.kind === undefined ? { ...filter, kind: "general" as const } : filter;
+			const result = await noteService.list(projectId, effectiveFilter);
 			if (!result.success) {
 				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
 			}
