@@ -6,10 +6,19 @@ One page, written for people who run a local copy. Thomas writes the code; this 
 
 ```bash
 git pull
-npm install
-npm run db:push          # only if CHANGELOG says SCHEMA_VERSION bumped
-npm run service:update   # rebuild + restart the launchd service
+npm run service:update   # syncs deps + schema, rebuilds, restarts the launchd service
 ```
+
+`service:update` is the one command for MINOR and PATCH updates — it runs `npm install`, applies any additive schema changes via `prisma db push`, rebuilds the Next.js app, and bootstraps the launchd service. The legacy two-step (`npm install && npm run db:push && npm run service:update`) still works but is no longer necessary. For MAJOR updates, keep reading.
+
+## What `service:update` does, step by step
+
+1. **`npm install`** — picks up any new or bumped dependencies. Prisma's `postinstall` hook regenerates the client.
+2. **Drop derived FTS5 index tables** — `knowledge_fts` and its 5 shadow tables (`_data`, `_idx`, `_content`, `_docsize`, `_config`) are dropped before the schema sync. They're a denormalized full-text search index over Note/Claim/Card/Comment/markdown — pure derived state. Prisma sees them as drift (they live outside `schema.prisma`) and would otherwise refuse to push. Source data is untouched.
+3. **`prisma db push`** — applies any additive schema changes from `prisma/schema.prisma`. Destructive changes (column rename / type narrow / drop) still abort with a pointer to run `npx prisma db push` manually so Prisma can prompt for data-loss confirmation.
+4. **`npm run build`** — Turbopack production build.
+5. **Restart the launchd service** — old process is booted out, new one is bootstrapped at `http://localhost:3100`.
+6. **FTS index rebuilds itself** — on first connection, `initFts5` recreates the empty virtual table. The first knowledge search per project triggers a per-project rebuild from source rows (cards, comments, claims, notes, repo markdown). No manual rebuild needed.
 
 That's it for MINOR and PATCH updates. For MAJOR updates, keep reading.
 
@@ -73,7 +82,7 @@ npm run db:studio        # eyeball the tables
 | `npm run db:push` | When `SCHEMA_VERSION` bumped | Applies the schema to `data/tracker.db`. Drops columns/tables if the schema removed them. |
 | `npm run db:studio` | Debugging | Opens Prisma Studio to inspect the DB. Read-only unless you write in the UI. |
 | `npm run db:seed` | Fresh install only | Seeds the tutorial project. Idempotent — safe to re-run, does nothing if the tutorial project exists. |
-| `npm run service:update` | Every pull (when using the background service) | Builds with Turbopack and restarts the launchd service so the UI at `localhost:3100` picks up the new code. |
+| `npm run service:update` | Every pull (when using the background service) | Syncs deps, drops derived FTS5 index, runs `prisma db push`, rebuilds with Turbopack, restarts the launchd service. The FTS index rebuilds lazily on first search per project — no manual step. |
 | `npm run service:status` | Sanity check | Shows whether the launchd service is running. |
 | `npm run service:logs` | Debugging | Tails stdout/stderr from the service. |
 

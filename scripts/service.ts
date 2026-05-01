@@ -122,8 +122,42 @@ function ensureDeps() {
 	console.log("");
 }
 
+// FTS5 virtual + shadow tables created at runtime by `initFts5` in
+// `src/server/db.ts`. They live outside Prisma's schema view, so under
+// Prisma 7 `prisma db push` flags every one of them as drift and refuses
+// to push without `--accept-data-loss`. Dropping them pre-push is safe:
+// the index is derived state over Note/Claim/Card/Comment/markdown, and
+// `initFts5` recreates the empty virtual table on the next service start.
+// `queryKnowledge` lazy-rebuilds per project on the first search after.
+const FTS_TABLES = [
+	"knowledge_fts",
+	"knowledge_fts_data",
+	"knowledge_fts_idx",
+	"knowledge_fts_content",
+	"knowledge_fts_docsize",
+	"knowledge_fts_config",
+];
+
+function dropDerivedFtsTables() {
+	const dbPath = resolve(PROJECT_DIR, "data", "tracker.db");
+	if (!existsSync(dbPath)) return;
+	const sql = FTS_TABLES.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
+	try {
+		execSync("npx prisma db execute --stdin", {
+			cwd: PROJECT_DIR,
+			input: sql,
+			stdio: ["pipe", "pipe", "inherit"],
+		});
+	} catch {
+		// Non-fatal: the worst case is `prisma db push` will then ask for
+		// --accept-data-loss with a clear pointer in the error path below.
+		console.warn("[service:update] FTS5 cleanup raised an error; continuing.");
+	}
+}
+
 function ensureSchema() {
 	console.log("Syncing database schema...\n");
+	dropDerivedFtsTables();
 	try {
 		execSync("npx prisma db push", { cwd: PROJECT_DIR, stdio: "inherit" });
 	} catch {
