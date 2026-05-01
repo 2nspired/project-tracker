@@ -14,12 +14,19 @@ import { api } from "@/trpc/react";
 
 type LightBoard = { id: string; name: string };
 
+type FromBoard = { id: string; name: string };
+
 type CostsPageProps = {
 	projectId: string;
 	projectName: string;
 	boardId?: string;
 	boardName?: string;
 	boards: LightBoard[];
+	// Phase 2c — when set (resolved server-side from `?from=<boardId>`), the
+	// breadcrumb's first segment links back to the originating board instead
+	// of the project root. Decorative-only; `null`/`undefined` means "no
+	// referrer", not "invalid".
+	fromBoard?: FromBoard;
 };
 
 // Client component owning the data fetches for the Costs page.
@@ -51,6 +58,7 @@ export function CostsPage({
 	boardId,
 	boardName: _boardName,
 	boards,
+	fromBoard,
 }: CostsPageProps) {
 	const { data: projectSummary, isLoading: summaryLoading } =
 		api.tokenUsage.getProjectSummary.useQuery(boardId ? { projectId, boardId } : { projectId }, {
@@ -77,7 +85,12 @@ export function CostsPage({
 
 	return (
 		<div className="mx-auto max-w-3xl space-y-8 px-4 py-6 sm:px-6">
-			<CostsBreadcrumb projectId={projectId} boards={boards} currentBoardId={boardId ?? null} />
+			<CostsBreadcrumb
+				projectId={projectId}
+				boards={boards}
+				currentBoardId={boardId ?? null}
+				fromBoard={fromBoard}
+			/>
 
 			<div>
 				{/* H1 stays "Costs" (D2). Pigeon has no left nav so the resource

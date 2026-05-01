@@ -5,6 +5,7 @@ import {
 	ArrowUpRight,
 	Bold,
 	Code,
+	DollarSign,
 	Eye,
 	FileText,
 	Heading2,
@@ -281,6 +282,12 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 								<Tags className="h-3.5 w-3.5" />
 								Manage tags
 							</Button>
+							<Link href={`/projects/${projectId}/costs`}>
+								<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+									<DollarSign className="h-3.5 w-3.5" />
+									Costs
+								</Button>
+							</Link>
 							<CreateBoardDialog projectId={projectId} />
 						</div>
 					)}

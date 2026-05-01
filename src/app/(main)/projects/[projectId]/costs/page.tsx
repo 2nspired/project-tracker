@@ -24,8 +24,13 @@ import { api } from "@/trpc/server";
 // board must exist *and* belong to the URL-scoped project. Cross-project
 // or unknown ids hit `notFound()` rather than rendering an empty page —
 // keeps the URL from leaking info about another project's board ids.
-// `from` is read but not yet acted on (Phase 2c uses it for back-link
-// precedence).
+//
+// Back-link precedence (#200 Phase 2c). Optional `?from=<boardId>` is
+// resolved into a `fromBoard` prop that the breadcrumb's first segment
+// uses for both label and href. Unlike `?board=`, `?from=` is decorative
+// (only affects the back-link), so a bad value silently falls back to
+// the project root rather than 404'ing — mismatched validation tiers
+// are deliberate.
 
 type CostsRouteSearchParams = {
 	board?: string;
@@ -35,6 +40,11 @@ type CostsRouteSearchParams = {
 type ResolvedBoardScope = {
 	boardId: string;
 	boardName: string;
+};
+
+type ResolvedFromBoard = {
+	id: string;
+	name: string;
 };
 
 async function resolveBoardScope(
@@ -53,6 +63,24 @@ async function resolveBoardScope(
 		notFound();
 	}
 	return { boardId: board.id, boardName: board.name };
+}
+
+async function resolveFromBoard(
+	projectId: string,
+	fromParam: string | undefined
+): Promise<ResolvedFromBoard | null> {
+	if (!fromParam) return null;
+	const board = await db.board.findUnique({
+		where: { id: fromParam },
+		select: { id: true, name: true, projectId: true },
+	});
+	// `?from=` is decorative (back-link only), not a primary route param —
+	// so unlike `resolveBoardScope` we deliberately do NOT 404 on cross-
+	// project / missing / malformed ids. Silent fallback to the project
+	// root keeps a bad `?from=` from breaking the page; the asymmetry with
+	// `?board=` is intentional (different security tier per param).
+	if (!board || board.projectId !== projectId) return null;
+	return { id: board.id, name: board.name };
 }
 
 export async function generateMetadata({
@@ -80,7 +108,10 @@ export default async function CostsRoute({
 	params: Promise<{ projectId: string }>;
 	searchParams: Promise<CostsRouteSearchParams>;
 }) {
-	const [{ projectId }, { board: boardParam }] = await Promise.all([params, searchParams]);
+	const [{ projectId }, { board: boardParam, from: fromParam }] = await Promise.all([
+		params,
+		searchParams,
+	]);
 
 	let project: { id: string; name: string };
 	try {
@@ -89,7 +120,10 @@ export default async function CostsRoute({
 		notFound();
 	}
 
-	const boardScope = await resolveBoardScope(project.id, boardParam);
+	const [boardScope, fromBoard] = await Promise.all([
+		resolveBoardScope(project.id, boardParam),
+		resolveFromBoard(project.id, fromParam),
+	]);
 
 	// A1/A2 — fetch boards server-side via the existing `board.list`
 	// procedure (no new tRPC). Avoids a client waterfall (the switcher would
@@ -107,6 +141,7 @@ export default async function CostsRoute({
 			boardId={boardScope?.boardId}
 			boardName={boardScope?.boardName}
 			boards={lightBoards}
+			fromBoard={fromBoard ?? undefined}
 		/>
 	);
 }

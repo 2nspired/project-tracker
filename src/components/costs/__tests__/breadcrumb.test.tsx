@@ -66,4 +66,35 @@ describe("<CostsBreadcrumb>", () => {
 		);
 		expect(screen.getByText("Board · Token Tracking")).toBeDefined();
 	});
+
+	// Phase 2c — when `fromBoard` is set (resolved upstream from `?from=`),
+	// the first segment's label/href reflect the originating board so the
+	// back-link returns the user to the surface they came from.
+	it("renders the originating board name + href when fromBoard is set", () => {
+		render(
+			<CostsBreadcrumb
+				projectId="abc"
+				boards={[
+					{ id: "b1", name: "Adoption" },
+					{ id: "b2", name: "Token Tracking" },
+				]}
+				currentBoardId="b2"
+				fromBoard={{ id: "b2", name: "Token Tracking" }}
+			/>
+		);
+		// First segment label is the board name, not "Project Tracker"
+		expect(screen.queryByText("Project Tracker")).toBeNull();
+		const links = screen.getAllByRole("link");
+		const firstLink = links[0];
+		expect(firstLink?.textContent).toBe("Token Tracking");
+		expect(firstLink?.getAttribute("href")).toBe("/projects/abc/boards/b2");
+	});
+
+	it("falls back to Project Tracker / project root when fromBoard is not set", () => {
+		render(<CostsBreadcrumb projectId="abc" boards={[]} currentBoardId={null} />);
+		const links = screen.getAllByRole("link");
+		const firstLink = links[0];
+		expect(firstLink?.textContent).toBe("Project Tracker");
+		expect(firstLink?.getAttribute("href")).toBe("/projects/abc");
+	});
 });
