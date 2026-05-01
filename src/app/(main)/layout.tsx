@@ -10,7 +10,7 @@ import { ServerStatusPill } from "@/components/layout/server-status-pill";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const DOCS_URL = "https://github.com/2nspired/pigeon#readme";
+const DOCS_URL = "https://2nspired.github.io/pigeon/quickstart/";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname();
