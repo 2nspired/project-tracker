@@ -16,7 +16,14 @@ import { tokenUsageService } from "@/server/services/token-usage-service";
 import { db } from "../db.js";
 import { SESSION_ID } from "../instrumentation.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { AGENT_NAME, ok, safeExecute } from "../utils.js";
+import {
+	AGENT_NAME,
+	err,
+	getProjectIdForBoard,
+	ok,
+	resolveCardRef,
+	safeExecute,
+} from "../utils.js";
 
 registerExtendedTool("recordTokenUsage", {
 	category: "session",
@@ -100,6 +107,51 @@ registerExtendedTool("recordTokenUsage", {
 				return ok({ recorded: false, warning: result.error.code, detail: result.error.message });
 			}
 			return ok({ recorded: true, created: result.data.created });
+		});
+	},
+});
+
+registerExtendedTool("attributeSession", {
+	category: "session",
+	description:
+		"Attribute all TokenUsageEvent rows for a session to a specific card. Call automatically from briefMe when an active card is known, or from saveHandoff when the session was card-focused. Safe to call multiple times — last write wins. Returns the count of updated rows.",
+	parameters: z.object({
+		sessionId: z.string().optional().describe("Session UUID (defaults to current MCP SESSION_ID)"),
+		cardId: z.string().uuid().optional().describe("Card UUID"),
+		boardId: z.string().uuid().optional().describe("Board UUID — used to resolve #N refs"),
+		cardRef: z
+			.string()
+			.optional()
+			.describe("Card ref like '#7' — resolved within boardId's project"),
+	}),
+	handler: async (params) => {
+		const p = params as {
+			sessionId?: string;
+			cardId?: string;
+			boardId?: string;
+			cardRef?: string;
+		};
+		return safeExecute(async () => {
+			const sessionId = p.sessionId ?? SESSION_ID;
+
+			let cardId: string | undefined = p.cardId;
+			if (!cardId && p.cardRef) {
+				const projectId = p.boardId ? await getProjectIdForBoard(p.boardId) : undefined;
+				const resolved = await resolveCardRef(p.cardRef, projectId);
+				if (!resolved.ok) {
+					return err(resolved.message);
+				}
+				cardId = resolved.id;
+			}
+			if (!cardId) {
+				return err("cardId or cardRef is required.");
+			}
+
+			const result = await tokenUsageService.attributeSession(sessionId, cardId);
+			if (!result.success) {
+				return err(`${result.error.code}: ${result.error.message}`);
+			}
+			return ok({ attributed: true, updated: result.data.updated, sessionId, cardId });
 		});
 	},
 });

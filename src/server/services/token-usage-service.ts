@@ -733,6 +733,40 @@ async function getPricing(): Promise<ServiceResult<Record<string, ModelPricing>>
 	}
 }
 
+// Bulk-attribute every TokenUsageEvent for a session to a specific card.
+// Used by the MCP `attributeSession` tool — auto-called from `briefMe` when
+// the session has a known active card, and from `saveHandoff` when exactly
+// one card was touched. Closes the $0 `getCardSummary` gap that occurs when
+// the Stop hook records token rows with no `cardId`.
+//
+// Idempotency: re-calling with the same `cardId` is a no-op (UPDATE writes
+// the same value back). Calling with a different `cardId` is last-write-
+// wins — the most recent attribution overwrites prior ones. No locking is
+// needed because the call sites are timing-isolated (briefMe at session
+// start, saveHandoff before exit, Stop hook after exit).
+async function attributeSession(
+	sessionId: string,
+	cardId: string
+): Promise<ServiceResult<{ updated: number }>> {
+	try {
+		const card = await db.card.findUnique({ where: { id: cardId }, select: { id: true } });
+		if (!card) {
+			return { success: false, error: { code: "NOT_FOUND", message: "Card not found." } };
+		}
+		const result = await db.tokenUsageEvent.updateMany({
+			where: { sessionId },
+			data: { cardId },
+		});
+		return { success: true, data: { updated: result.count } };
+	} catch (error) {
+		console.error("[TOKEN_USAGE_SERVICE] attributeSession error:", error);
+		return {
+			success: false,
+			error: { code: "WRITE_FAILED", message: "Failed to attribute session." },
+		};
+	}
+}
+
 async function updatePricing(
 	overrides: Record<string, Partial<ModelPricing>>
 ): Promise<ServiceResult<Record<string, ModelPricing>>> {
@@ -954,6 +988,7 @@ async function recalibrateBaseline(projectId: string): Promise<ServiceResult<Bas
 export const tokenUsageService = {
 	recordManual,
 	recordFromTranscript,
+	attributeSession,
 	getProjectSummary,
 	getSessionSummary,
 	getCardSummary,
