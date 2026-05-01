@@ -514,6 +514,116 @@ describe("recordFromTranscript re-run preserves attributeSession cardId", () => 
 	});
 });
 
+// ─── recordManual idempotency (#205) ────────────────────────────────
+//
+// Locks the contract: calling `recordManual` twice with the same
+// `(sessionId, model)` pair leaves exactly one row, with the second call's
+// values (last-write-wins). Mirrors `recordFromTranscript`'s
+// "same input → same row count" guarantee, just keyed on `(sessionId, model)`
+// instead of `sessionId` alone — manual callers (Codex/OpenAI agents) often
+// emit one row per model in a session, so the wider key avoids clobbering a
+// sibling-model row from the same session.
+describe("recordManual idempotency", () => {
+	let testDb: TestDb;
+
+	const PROJECT_ID = "10000000-1000-4000-8000-100000000010";
+	const BOARD_ID = "20000000-2000-4000-8000-200000000010";
+	const COLUMN_ID = "30000000-3000-4000-8000-300000000010";
+	const SESSION_A = "manual-session-a";
+	const SESSION_B = "manual-session-b";
+
+	beforeAll(async () => {
+		testDb = await createTestDb();
+		dbRef.current = testDb.prisma;
+
+		// Seed: project only — no cards/columns are required for recordManual,
+		// but the projectId must reference a real Project row (FK).
+		await testDb.prisma.project.create({
+			data: { id: PROJECT_ID, name: "Manual Test", slug: "manual-test" },
+		});
+		await testDb.prisma.board.create({
+			data: { id: BOARD_ID, projectId: PROJECT_ID, name: "Board" },
+		});
+		await testDb.prisma.column.create({
+			data: { id: COLUMN_ID, boardId: BOARD_ID, name: "Todo", position: 0 },
+		});
+	});
+
+	afterAll(async () => {
+		dbRef.current = null;
+		await testDb.cleanup();
+	});
+
+	it("replaces (not duplicates) on a second call with the same (sessionId, model)", async () => {
+		const first = await tokenUsageService.recordManual({
+			projectId: PROJECT_ID,
+			sessionId: SESSION_A,
+			model: "claude-opus-4-7",
+			inputTokens: 100,
+			outputTokens: 50,
+		});
+		expect(first.success).toBe(true);
+
+		// Second call, same (sessionId, model) — replace with new totals.
+		const second = await tokenUsageService.recordManual({
+			projectId: PROJECT_ID,
+			sessionId: SESSION_A,
+			model: "claude-opus-4-7",
+			inputTokens: 999,
+			outputTokens: 333,
+		});
+		expect(second.success).toBe(true);
+
+		const rows = await testDb.prisma.tokenUsageEvent.findMany({
+			where: { sessionId: SESSION_A, model: "claude-opus-4-7" },
+		});
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.inputTokens).toBe(999);
+		expect(rows[0]?.outputTokens).toBe(333);
+	});
+
+	it("keeps sibling-model rows for the same sessionId untouched", async () => {
+		// Seed two distinct models under SESSION_B; updating one must not
+		// clobber the other — that's why the idempotency key is (sessionId,
+		// model) and not sessionId alone.
+		await tokenUsageService.recordManual({
+			projectId: PROJECT_ID,
+			sessionId: SESSION_B,
+			model: "claude-opus-4-7",
+			inputTokens: 1,
+			outputTokens: 1,
+		});
+		await tokenUsageService.recordManual({
+			projectId: PROJECT_ID,
+			sessionId: SESSION_B,
+			model: "claude-sonnet-4-6",
+			inputTokens: 2,
+			outputTokens: 2,
+		});
+
+		// Re-record opus only with new values; sonnet must remain at (2, 2).
+		await tokenUsageService.recordManual({
+			projectId: PROJECT_ID,
+			sessionId: SESSION_B,
+			model: "claude-opus-4-7",
+			inputTokens: 77,
+			outputTokens: 88,
+		});
+
+		const rows = await testDb.prisma.tokenUsageEvent.findMany({
+			where: { sessionId: SESSION_B },
+			orderBy: { model: "asc" },
+		});
+		expect(rows).toHaveLength(2);
+		const opus = rows.find((r) => r.model === "claude-opus-4-7");
+		const sonnet = rows.find((r) => r.model === "claude-sonnet-4-6");
+		expect(opus?.inputTokens).toBe(77);
+		expect(opus?.outputTokens).toBe(88);
+		expect(sonnet?.inputTokens).toBe(2);
+		expect(sonnet?.outputTokens).toBe(2);
+	});
+});
+
 // ─── T5: configHasTokenHook coverage extensions ─────────────────────
 
 describe("configHasTokenHook (extended cases)", () => {

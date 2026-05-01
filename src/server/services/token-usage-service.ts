@@ -70,7 +70,7 @@ async function loadPricing(prisma: PrismaClient): Promise<Record<string, ModelPr
 	return resolvePricing(settings?.tokenPricing ?? null);
 }
 
-// ─── Internal: row insert (shared between record paths) ────────────
+// ─── Internal: row insert shape (used by recordFromTranscript) ─────
 
 type InsertRow = {
 	sessionId: string;
@@ -84,28 +84,6 @@ type InsertRow = {
 	cacheCreation1hTokens: number;
 	cacheCreation5mTokens: number;
 };
-
-async function insertRows(prisma: PrismaClient, rows: InsertRow[]): Promise<void> {
-	if (rows.length === 0) return;
-	await prisma.$transaction(
-		rows.map((row) =>
-			prisma.tokenUsageEvent.create({
-				data: {
-					sessionId: row.sessionId,
-					projectId: row.projectId,
-					cardId: row.cardId,
-					agentName: row.agentName,
-					model: row.model,
-					inputTokens: row.inputTokens,
-					outputTokens: row.outputTokens,
-					cacheReadTokens: row.cacheReadTokens,
-					cacheCreation1hTokens: row.cacheCreation1hTokens,
-					cacheCreation5mTokens: row.cacheCreation5mTokens,
-				},
-			})
-		)
-	);
-}
 
 // ─── Internal: transcript JSONL streaming aggregator ───────────────
 
@@ -227,22 +205,54 @@ async function listSubAgentTranscripts(parentPath: string): Promise<string[]> {
 
 // ─── Public API ────────────────────────────────────────────────────
 
+// Manual record path (Codex/OpenAI agents that don't emit a JSONL transcript).
+// Idempotent on `(sessionId, model)` — re-calling with the same pair replaces
+// the existing row's token counts (last-write-wins), matching `recordFromTranscript`'s
+// "same input → same row count" contract. A retry of a failed call therefore
+// can't double-bill the user, and test fixtures that seed the same row twice
+// stay deterministic. Replace (not sum) was chosen for parity with the sibling;
+// callers that need accumulation should pre-sum before calling.
+//
+// Implementation note: the `(sessionId, model)` pair has no DB-level unique
+// constraint, so we use a `findFirst` + conditional `update`/`create` rather
+// than a Prisma upsert. Adding the constraint would interact with
+// `recordFromTranscript`'s delete-and-replace semantics on `sessionId`; a
+// one-function read-then-write keeps the fix scoped and migration-free.
 async function recordManual(input: ManualRecordInput): Promise<ServiceResult<RecordResult>> {
 	try {
-		await insertRows(db, [
-			{
-				sessionId: input.sessionId,
-				projectId: input.projectId,
-				cardId: input.cardId ?? null,
-				agentName: input.agentName ?? "unknown",
-				model: input.model,
-				inputTokens: Math.max(0, Math.floor(input.inputTokens)),
-				outputTokens: Math.max(0, Math.floor(input.outputTokens)),
-				cacheReadTokens: Math.max(0, Math.floor(input.cacheReadTokens ?? 0)),
-				cacheCreation1hTokens: Math.max(0, Math.floor(input.cacheCreation1hTokens ?? 0)),
-				cacheCreation5mTokens: Math.max(0, Math.floor(input.cacheCreation5mTokens ?? 0)),
-			},
-		]);
+		const data = {
+			sessionId: input.sessionId,
+			projectId: input.projectId,
+			cardId: input.cardId ?? null,
+			agentName: input.agentName ?? "unknown",
+			model: input.model,
+			inputTokens: Math.max(0, Math.floor(input.inputTokens)),
+			outputTokens: Math.max(0, Math.floor(input.outputTokens)),
+			cacheReadTokens: Math.max(0, Math.floor(input.cacheReadTokens ?? 0)),
+			cacheCreation1hTokens: Math.max(0, Math.floor(input.cacheCreation1hTokens ?? 0)),
+			cacheCreation5mTokens: Math.max(0, Math.floor(input.cacheCreation5mTokens ?? 0)),
+		};
+		const existing = await db.tokenUsageEvent.findFirst({
+			where: { sessionId: data.sessionId, model: data.model },
+			select: { id: true },
+		});
+		if (existing) {
+			await db.tokenUsageEvent.update({
+				where: { id: existing.id },
+				data: {
+					projectId: data.projectId,
+					cardId: data.cardId,
+					agentName: data.agentName,
+					inputTokens: data.inputTokens,
+					outputTokens: data.outputTokens,
+					cacheReadTokens: data.cacheReadTokens,
+					cacheCreation1hTokens: data.cacheCreation1hTokens,
+					cacheCreation5mTokens: data.cacheCreation5mTokens,
+				},
+			});
+		} else {
+			await db.tokenUsageEvent.create({ data });
+		}
 		return { success: true, data: { created: 1, subAgentFiles: 0, warnings: [] } };
 	} catch (error) {
 		console.error("[TOKEN_USAGE_SERVICE] recordManual error:", error);
