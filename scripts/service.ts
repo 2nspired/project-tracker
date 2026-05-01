@@ -116,7 +116,14 @@ function isAutoStartEnabled(): boolean {
 	return content.includes("<key>RunAtLoad</key>\n\t<true/>");
 }
 
+function ensureDeps() {
+	console.log("Syncing dependencies...\n");
+	execSync("npm install --no-audit --no-fund", { cwd: PROJECT_DIR, stdio: "inherit" });
+	console.log("");
+}
+
 function ensureBuild() {
+	ensureDeps();
 	console.log("Building project...\n");
 	execSync("npm run build", { cwd: PROJECT_DIR, stdio: "inherit" });
 	console.log("");
