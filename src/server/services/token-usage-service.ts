@@ -1448,10 +1448,26 @@ async function getCardPigeonOverhead(
 //      (`ToolCallLog.toolName = 'briefMe'` joined to sessions whose token
 //      events landed in-window),
 //   2. multiplying the per-call savings (naiveBootstrap − briefMe) ×
-//      project's primary `outputPerMTok` rate × that count,
+//      project's primary `inputPerMTok` rate × that count,
 //   3. subtracting `getPigeonOverhead`'s totalCostUsd over the same window
 //      so the headline is *net* (gross savings minus what Pigeon's tool
 //      responses themselves cost the agent in output tokens).
+//
+// Why input rate, not output rate (#204, locked 2026-05-01):
+// The avoided tokens here are the briefMe payload the consumer would have
+// otherwise had to *read* on its next turn. Anthropic bills payload reads
+// as input tokens, so the savings are the input-rate cost we did not pay
+// — pricing them at output rate would inflate the headline ~5× under
+// default Anthropic pricing without a defensible billing model behind it.
+// Switching to input rate gives `<SavingsSection>` a single, defensible
+// "what you'd actually pay" number.
+//
+// Asymmetry with `getPigeonOverhead`: overhead stays priced at
+// `outputPerMTok` because the agent *emits* tool responses (those tokens
+// land on the assistant side of the bill). Both framings are correct in
+// their own direction — savings = avoided input read on the consumer
+// side, overhead = output the agent actually produced. The asymmetry is
+// load-bearing, not a typo.
 //
 // Conservative framing: we assume one briefMe-equivalent rebuild per
 // session would have been needed in the naive case (i.e. `briefMeCallCount`
@@ -1569,7 +1585,10 @@ async function getSavingsSummary(
 		const primaryModel = eventRows.length > 0 ? (eventRows[0]?.model ?? null) : null;
 		const primaryRates =
 			(primaryModel && pricing[primaryModel]) || pricing.__default__ || DEFAULT_PRICING_DEFAULT;
-		const outputPerMTok = primaryRates.outputPerMTok;
+		// Savings are priced at the consumer-side *input* rate — the avoided
+		// briefMe payload would have been read as input tokens on the next
+		// turn (see doc comment above for the rationale + asymmetry note).
+		const inputPerMTok = primaryRates.inputPerMTok;
 
 		// Step 3: count briefMe calls in this period (sessions in-window
 		// that called the briefMe MCP tool). One row per call.
@@ -1588,7 +1607,7 @@ async function getSavingsSummary(
 		// Step 4: gross savings — per-call delta × call count × project rate.
 		const perCallSavingsTokens = baseline.naiveBootstrapTokens - baseline.briefMeTokens;
 		const grossSavingsUsd =
-			(Math.max(0, perCallSavingsTokens) * outputPerMTok * briefMeCallCount) / 1_000_000;
+			(Math.max(0, perCallSavingsTokens) * inputPerMTok * briefMeCallCount) / 1_000_000;
 
 		// Step 5: Pigeon overhead over the same window — reuses the U2
 		// service so the numerator and denominator can never drift.
@@ -1614,7 +1633,7 @@ async function getSavingsSummary(
 		const perSessionLog: SavingsSessionEntry[] = [];
 		for (const [sessionId, recordedAt] of orderedSessions) {
 			const calls = briefMeBySession.get(sessionId) ?? 0;
-			const savingsUsd = (Math.max(0, perCallSavingsTokens) * outputPerMTok * calls) / 1_000_000;
+			const savingsUsd = (Math.max(0, perCallSavingsTokens) * inputPerMTok * calls) / 1_000_000;
 			const sessionOverhead = await getSessionPigeonOverhead(sessionId);
 			const pigeonCostUsd = sessionOverhead.success ? sessionOverhead.data.totalCostUsd : 0;
 			perSessionLog.push({
