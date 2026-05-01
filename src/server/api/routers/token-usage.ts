@@ -173,4 +173,28 @@ export const tokenUsageRouter = createTRPCRouter({
 			}
 			return result.data;
 		}),
+
+	// "Pigeon paid for itself" surface (#195 U3). Combines the F3 baseline
+	// (`Project.metadata.tokenBaseline`) with `briefMe` call count + period
+	// Pigeon overhead to produce a net savings number — honest, including
+	// when net is negative. Returns `state: "no-baseline"` when the project
+	// has not been recalibrated; the UI flips to a Recalibrate CTA in that
+	// state.
+	getSavingsSummary: publicProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				period: z.enum(["7d", "30d", "lifetime"]).default("30d"),
+			})
+		)
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getSavingsSummary(input.projectId, input.period);
+			if (!result.success) {
+				throw new TRPCError({
+					code: result.error.code === "NOT_FOUND" ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+					message: result.error.message,
+				});
+			}
+			return result.data;
+		}),
 });

@@ -7,6 +7,7 @@ import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setu
 import { CardDeliverySection } from "@/components/costs/card-delivery-section";
 import { PigeonOverheadSection } from "@/components/costs/pigeon-overhead-section";
 import { PricingOverrideTable } from "@/components/costs/pricing-override-table";
+import { SavingsSection } from "@/components/costs/savings-section";
 import { SummaryStrip } from "@/components/costs/summary-strip";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -78,6 +79,7 @@ export function CostsPage({ projectId, projectName }: CostsPageProps) {
 			) : projectSummary && dailyCost ? (
 				<>
 					<SummaryStrip projectSummary={projectSummary} dailyCost={dailyCost} />
+					<SavingsSection projectId={projectId} />
 					<PigeonOverheadSection projectId={projectId} />
 					<CardDeliverySection projectId={projectId} />
 					{/* Pricing override table mounts after the analytics lenses —

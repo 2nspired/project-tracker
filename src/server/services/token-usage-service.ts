@@ -1375,6 +1375,217 @@ async function getCardPigeonOverhead(
 	}
 }
 
+// ─── Savings summary (#195 U3) ─────────────────────────────────────
+//
+// "Pigeon paid for itself" — turns the F3 baseline (`Project.metadata.
+// tokenBaseline`) into a dollar-denominated headline by:
+//   1. counting how many `briefMe` calls fired in the period
+//      (`ToolCallLog.toolName = 'briefMe'` joined to sessions whose token
+//      events landed in-window),
+//   2. multiplying the per-call savings (naiveBootstrap − briefMe) ×
+//      project's primary `outputPerMTok` rate × that count,
+//   3. subtracting `getPigeonOverhead`'s totalCostUsd over the same window
+//      so the headline is *net* (gross savings minus what Pigeon's tool
+//      responses themselves cost the agent in output tokens).
+//
+// Conservative framing: we assume one briefMe-equivalent rebuild per
+// session would have been needed in the naive case (i.e. `briefMeCallCount`
+// stands in for "sessions that benefited from Pigeon"). This under-counts
+// savings on multi-resume sessions and intentionally over-attributes
+// overhead to the same window; the resulting net is a lower bound the UI
+// renders honestly even when negative.
+
+export type SavingsPeriod = "7d" | "30d" | "lifetime";
+
+export type SavingsSessionEntry = {
+	sessionId: string;
+	savingsUsd: number;
+	pigeonCostUsd: number;
+	recordedAt: Date;
+};
+
+export type SavingsSummary =
+	| { state: "no-baseline" }
+	| {
+			state: "ready";
+			netSavingsUsd: number;
+			grossSavingsUsd: number;
+			pigeonOverheadUsd: number;
+			briefMeCallCount: number;
+			baseline: {
+				measuredAt: string;
+				naiveBootstrapTokens: number;
+				briefMeTokens: number;
+			};
+			period: SavingsPeriod;
+			perSessionLog: SavingsSessionEntry[];
+	  };
+
+// Reads the persisted baseline blob, returning null when the project
+// hasn't been recalibrated yet OR when the blob exists but is missing the
+// fields the savings math depends on. Keeps "no-baseline" as a single
+// surface state — the UI doesn't need to distinguish "no metadata" from
+// "metadata but no baseline keys".
+function readTokenBaseline(metadataRaw: string | null | undefined): {
+	measuredAt: string;
+	naiveBootstrapTokens: number;
+	briefMeTokens: number;
+} | null {
+	if (!metadataRaw) return null;
+	const parsed = safeParseJson(metadataRaw);
+	const baseline = parsed.tokenBaseline;
+	if (!baseline || typeof baseline !== "object" || Array.isArray(baseline)) return null;
+	const b = baseline as Record<string, unknown>;
+	const measuredAt = typeof b.measuredAt === "string" ? b.measuredAt : null;
+	const naiveBootstrapTokens =
+		typeof b.naiveBootstrapTokens === "number" && Number.isFinite(b.naiveBootstrapTokens)
+			? b.naiveBootstrapTokens
+			: null;
+	const briefMeTokens =
+		typeof b.briefMeTokens === "number" && Number.isFinite(b.briefMeTokens)
+			? b.briefMeTokens
+			: null;
+	if (measuredAt === null || naiveBootstrapTokens === null || briefMeTokens === null) return null;
+	return { measuredAt, naiveBootstrapTokens, briefMeTokens };
+}
+
+function savingsCutoff(period: SavingsPeriod): Date | null {
+	if (period === "lifetime") return null;
+	const days = period === "7d" ? 7 : 30;
+	return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+}
+
+async function getSavingsSummary(
+	projectId: string,
+	period: SavingsPeriod
+): Promise<ServiceResult<SavingsSummary>> {
+	try {
+		// Step 1: baseline gate. Without `tokenBaseline.{naive,brief}Tokens`,
+		// the savings math has no input — surface the "no-baseline" state so
+		// the UI can render the Recalibrate CTA in place of fake numbers.
+		const project = await db.project.findUnique({
+			where: { id: projectId },
+			select: { metadata: true },
+		});
+		if (!project) {
+			return { success: false, error: { code: "NOT_FOUND", message: "Project not found." } };
+		}
+		const baseline = readTokenBaseline(project.metadata);
+		if (!baseline) {
+			return { success: true, data: { state: "no-baseline" } };
+		}
+
+		// Step 2: scope to the period via TokenUsageEvent — same convention
+		// used by `getPigeonOverhead`. A session counts as in-period when any
+		// of its events landed in the window.
+		const cutoff = savingsCutoff(period);
+		const eventRows = await db.tokenUsageEvent.findMany({
+			where: { projectId, ...(cutoff ? { recordedAt: { gte: cutoff } } : {}) },
+			select: { sessionId: true, model: true, recordedAt: true },
+			orderBy: { recordedAt: "desc" },
+		});
+
+		const sessionFirstModel = new Map<string, string>();
+		const sessionLatestEvent = new Map<string, Date>();
+		for (const row of eventRows) {
+			if (!sessionFirstModel.has(row.sessionId)) sessionFirstModel.set(row.sessionId, row.model);
+			const existing = sessionLatestEvent.get(row.sessionId);
+			if (!existing || row.recordedAt > existing) {
+				sessionLatestEvent.set(row.sessionId, row.recordedAt);
+			}
+		}
+		const sessionIds = Array.from(sessionFirstModel.keys());
+
+		// Pricing: prefer the most-recent session's model rate as "primary",
+		// falling back to `__default__` when no sessions exist in-window.
+		// This is honest about uncertainty — a project with one ancient opus
+		// session and a fresh sonnet session should price savings at sonnet.
+		const pricing = await loadPricing(db);
+		const primaryModel = eventRows.length > 0 ? (eventRows[0]?.model ?? null) : null;
+		const primaryRates =
+			(primaryModel && pricing[primaryModel]) || pricing.__default__ || DEFAULT_PRICING_DEFAULT;
+		const outputPerMTok = primaryRates.outputPerMTok;
+
+		// Step 3: count briefMe calls in this period (sessions in-window
+		// that called the briefMe MCP tool). One row per call.
+		const briefMeLogs =
+			sessionIds.length > 0
+				? await db.toolCallLog.findMany({
+						where: {
+							sessionId: { in: sessionIds },
+							toolName: "briefMe",
+						},
+						select: { sessionId: true, createdAt: true },
+					})
+				: [];
+		const briefMeCallCount = briefMeLogs.length;
+
+		// Step 4: gross savings — per-call delta × call count × project rate.
+		const perCallSavingsTokens = baseline.naiveBootstrapTokens - baseline.briefMeTokens;
+		const grossSavingsUsd =
+			(Math.max(0, perCallSavingsTokens) * outputPerMTok * briefMeCallCount) / 1_000_000;
+
+		// Step 5: Pigeon overhead over the same window — reuses the U2
+		// service so the numerator and denominator can never drift.
+		const overheadResult = await getPigeonOverhead(projectId, period);
+		const pigeonOverheadUsd = overheadResult.success ? overheadResult.data.totalCostUsd : 0;
+
+		const netSavingsUsd = grossSavingsUsd - pigeonOverheadUsd;
+
+		// Step 6: per-session log — last 10 sessions in-window, recordedAt
+		// desc. Each entry's `savingsUsd` is the per-session contribution
+		// (calls in this session × per-call dollar savings) and
+		// `pigeonCostUsd` is the session's overhead via
+		// `getSessionPigeonOverhead` for the trimmed top-10.
+		const briefMeBySession = new Map<string, number>();
+		for (const log of briefMeLogs) {
+			briefMeBySession.set(log.sessionId, (briefMeBySession.get(log.sessionId) ?? 0) + 1);
+		}
+
+		const orderedSessions = Array.from(sessionLatestEvent.entries())
+			.sort((a, b) => b[1].getTime() - a[1].getTime())
+			.slice(0, 10);
+
+		const perSessionLog: SavingsSessionEntry[] = [];
+		for (const [sessionId, recordedAt] of orderedSessions) {
+			const calls = briefMeBySession.get(sessionId) ?? 0;
+			const savingsUsd = (Math.max(0, perCallSavingsTokens) * outputPerMTok * calls) / 1_000_000;
+			const sessionOverhead = await getSessionPigeonOverhead(sessionId);
+			const pigeonCostUsd = sessionOverhead.success ? sessionOverhead.data.totalCostUsd : 0;
+			perSessionLog.push({
+				sessionId,
+				savingsUsd,
+				pigeonCostUsd,
+				recordedAt,
+			});
+		}
+
+		return {
+			success: true,
+			data: {
+				state: "ready",
+				netSavingsUsd,
+				grossSavingsUsd,
+				pigeonOverheadUsd,
+				briefMeCallCount,
+				baseline: {
+					measuredAt: baseline.measuredAt,
+					naiveBootstrapTokens: baseline.naiveBootstrapTokens,
+					briefMeTokens: baseline.briefMeTokens,
+				},
+				period,
+				perSessionLog,
+			},
+		};
+	} catch (error) {
+		console.error("[TOKEN_USAGE_SERVICE] getSavingsSummary error:", error);
+		return {
+			success: false,
+			error: { code: "QUERY_FAILED", message: "Failed to load savings summary." },
+		};
+	}
+}
+
 async function getSessionPigeonOverhead(
 	sessionId: string
 ): Promise<ServiceResult<{ totalCostUsd: number; callCount: number }>> {
@@ -1441,6 +1652,7 @@ export const tokenUsageService = {
 	getPigeonOverhead,
 	getSessionPigeonOverhead,
 	getCardPigeonOverhead,
+	getSavingsSummary,
 };
 
 /** Test seam: lets unit tests exercise the hook-detection logic without
