@@ -1618,7 +1618,7 @@ registerPromptTracked(
 			"",
 			"## Step 2: Bind the project to your local repo",
 			"",
-			"`registerRepo({ projectId, repoPath: \"/absolute/path/to/repo\" })` — once per project.",
+			'`registerRepo({ projectId, repoPath: "/absolute/path/to/repo" })` — once per project.',
 			"After binding, `briefMe()` auto-detects the right board from `cwd` inside that repo, and `saveHandoff` syncs commits to cards on every session close.",
 			"",
 			"## Step 3: Populate the board",
