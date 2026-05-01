@@ -805,6 +805,150 @@ function aggregateEvents(events: EventRow[], pricing: Record<string, ModelPricin
 	};
 }
 
+// ─── Recalibrate baseline (#192 F3) ────────────────────────────────
+//
+// Measures briefMe's payload size against a naive "load the whole board"
+// payload so the UI can render a "Pigeon paid for itself" surface with
+// real numbers instead of a hand-tuned constant. Persists the result on
+// `Project.metadata.tokenBaseline`. Same chars/4 estimator as
+// `src/mcp/utils.ts#ok` so the comparison is apples-to-apples.
+
+export type BaselineResult = {
+	briefMeTokens: number;
+	naiveBootstrapTokens: number;
+	latestHandoffTokens?: number;
+	savings: number;
+	savingsPct: number;
+	measuredAt: string;
+};
+
+function safeParseJson(raw: string): Record<string, unknown> {
+	try {
+		const parsed = JSON.parse(raw);
+		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+			? (parsed as Record<string, unknown>)
+			: {};
+	} catch {
+		return {};
+	}
+}
+
+function estimateTokens(payload: unknown): number {
+	return Math.ceil(JSON.stringify(payload).length / 4);
+}
+
+async function recalibrateBaseline(projectId: string): Promise<ServiceResult<BaselineResult>> {
+	try {
+		// Lazy-import to avoid a top-level cycle: brief-payload-service
+		// re-uses helpers that themselves live in this file would cause
+		// a require-cycle. The import here is hot once per call.
+		const { buildBriefPayload } = await import("@/server/services/brief-payload-service");
+
+		// Resolve the project's first board (oldest = canonical default).
+		const board = await db.board.findFirst({
+			where: { projectId },
+			orderBy: { createdAt: "asc" },
+		});
+		if (!board) {
+			return {
+				success: false,
+				error: { code: "BOARD_NOT_FOUND", message: "Project has no boards." },
+			};
+		}
+
+		// briefMe-equivalent payload measured at MCP-handler defaults — no
+		// brand/version/boot SHAs, since none of those are persisted.
+		const briefPayload = await buildBriefPayload(board.id, db);
+		const briefMeTokens = estimateTokens(briefPayload);
+
+		// Naive bootstrap: full getBoard payload — every column, every
+		// card with full descriptions and checklist items. Mirrors
+		// discovery-tools `getBoard` (summary=false, excludeDone=false) so
+		// the comparison reflects what an agent would pull in if briefMe
+		// didn't exist.
+		const fullBoard = await db.board.findUnique({
+			where: { id: board.id },
+			include: {
+				project: true,
+				columns: {
+					orderBy: { position: "asc" },
+					include: {
+						cards: {
+							orderBy: { position: "asc" },
+							include: {
+								checklists: { orderBy: { position: "asc" } },
+								milestone: { select: { id: true, name: true } },
+								_count: { select: { comments: true } },
+							},
+						},
+					},
+				},
+			},
+		});
+		const naiveBootstrapTokens = estimateTokens(fullBoard);
+
+		// Latest handoff body — only counted when one exists.
+		const latestHandoff = await db.handoff.findFirst({
+			where: { boardId: board.id },
+			orderBy: { createdAt: "desc" },
+		});
+		let latestHandoffTokens: number | null = null;
+		if (latestHandoff) {
+			const handoffSerialized = JSON.stringify({
+				summary: latestHandoff.summary,
+				workingOn: latestHandoff.workingOn,
+				nextSteps: latestHandoff.nextSteps,
+				findings: latestHandoff.findings,
+				blockers: latestHandoff.blockers,
+			});
+			latestHandoffTokens = Math.ceil(handoffSerialized.length / 4);
+		}
+
+		const measuredAt = new Date().toISOString();
+		const tokenBaseline: Record<string, unknown> = {
+			briefMeTokens,
+			naiveBootstrapTokens,
+			...(latestHandoffTokens !== null ? { latestHandoffTokens } : {}),
+			measuredAt,
+		};
+
+		// Merge into existing metadata so other agent-written keys survive.
+		const project = await db.project.findUnique({
+			where: { id: projectId },
+			select: { metadata: true },
+		});
+		const existing = safeParseJson(project?.metadata ?? "{}");
+		await db.project.update({
+			where: { id: projectId },
+			data: { metadata: JSON.stringify({ ...existing, tokenBaseline }) },
+		});
+
+		const savings = naiveBootstrapTokens - briefMeTokens;
+		const savingsPct = naiveBootstrapTokens > 0 ? savings / naiveBootstrapTokens : 0;
+
+		return {
+			success: true,
+			data: {
+				briefMeTokens,
+				naiveBootstrapTokens,
+				...(latestHandoffTokens !== null ? { latestHandoffTokens } : {}),
+				savings,
+				savingsPct,
+				measuredAt,
+			},
+		};
+	} catch (error) {
+		console.error("[TOKEN_USAGE_SERVICE] recalibrateBaseline error:", error);
+		return {
+			success: false,
+			error: {
+				code: "RECALIBRATE_FAILED",
+				message: error instanceof Error ? error.message : "Failed to recalibrate baseline.",
+			},
+		};
+	}
+}
+
 // ─── Service export ────────────────────────────────────────────────
 
 export const tokenUsageService = {
@@ -818,6 +962,7 @@ export const tokenUsageService = {
 	getDiagnostics,
 	getPricing,
 	updatePricing,
+	recalibrateBaseline,
 };
 
 /** Test seam: lets unit tests exercise the hook-detection logic without

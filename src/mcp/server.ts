@@ -5,16 +5,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { initFts5 } from "@/server/fts";
-import { findStaleInProgress } from "@/server/services/stale-cards";
-import { tokenUsageService } from "@/server/services/token-usage-service";
+import { buildBriefPayload } from "@/server/services/brief-payload-service";
 import { hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
-import { computeBoardDiff } from "../lib/services/board-diff.js";
-import { isRecentDecision } from "../lib/services/decisions.js";
 import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
-import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
-import { loadTrackerPolicy } from "../lib/services/tracker-policy.js";
-import { computeWorkNextScore } from "../lib/work-next-score.js";
 import { db } from "./db.js";
 import { syncGitActivityForProject } from "./git-sync.js";
 import { wrapEssentialHandler } from "./instrumentation.js";
@@ -77,17 +71,6 @@ function strictTagError(
 function isDoneColumnRow(column: { role?: string | null; name: string }): boolean {
 	if (column.role) return column.role === "done";
 	return column.name.toLowerCase() === "done";
-}
-
-function humanizeAge(date: Date): string {
-	const ms = Date.now() - date.getTime();
-	const minutes = Math.floor(ms / 60000);
-	if (minutes < 1) return "just now";
-	if (minutes < 60) return `${minutes}m`;
-	const hours = Math.floor(minutes / 60);
-	if (hours < 24) return `${hours}h`;
-	const days = Math.floor(hours / 24);
-	return `${days}d`;
 }
 
 const execFileAsync = promisify(execFile);
@@ -805,214 +788,31 @@ server.registerTool(
 				autoResolved = { projectName: resolved.projectName, boardName: resolved.boardName };
 			}
 
-			const board = await db.board.findUnique({
+			// Existence check first so we can return a structured error response
+			// — the shared service throws when the board can't be loaded. After
+			// this guard we delegate to buildBriefPayload for the actual
+			// composition.
+			const boardExists = await db.board.findUnique({
 				where: { id: boardId },
-				include: {
-					project: {
-						select: { id: true, name: true, repoPath: true },
-					},
-					columns: {
-						orderBy: { position: "asc" },
-						include: {
-							cards: {
-								orderBy: { position: "asc" },
-								select: {
-									id: true,
-									number: true,
-									title: true,
-									position: true,
-									priority: true,
-									updatedAt: true,
-									dueDate: true,
-									checklists: { select: { completed: true } },
-									relationsTo: { where: { type: "blocks" }, select: { id: true } },
-									relationsFrom: { where: { type: "blocks" }, select: { id: true } },
-								},
-							},
-						},
-					},
-				},
+				select: { id: true },
 			});
-
-			if (!board) return err("Board not found.", "Use checkOnboarding to discover boards.");
-
-			const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-			const [
-				lastHandoff,
-				decisionClaims,
-				stalenessWarnings,
-				blockerEntries,
-				recentAgentActivity,
-				staleInProgressMap,
-				policyResult,
-				tokenSummary,
-			] = await Promise.all([
-				getLatestHandoff(db, boardId),
-				db.claim.findMany({
-					where: { projectId: board.project.id, kind: "decision", status: "active" },
-					orderBy: { createdAt: "desc" },
-					take: 10,
-					select: {
-						id: true,
-						statement: true,
-						card: {
-							select: {
-								number: true,
-								column: { select: { role: true, name: true } },
-							},
-						},
-					},
-				}),
-				checkStaleness(board.project.id),
-				getBlockersShared(db, boardId),
-				db.activity.findMany({
-					where: {
-						actorType: "AGENT",
-						actorName: AGENT_NAME,
-						createdAt: { gte: twentyFourHoursAgo },
-						card: { column: { boardId } },
-					},
-					select: { id: true, intent: true },
-				}),
-				findStaleInProgress(db, boardId),
-				loadTrackerPolicy({
-					repoPath: board.project.repoPath,
-				}),
-				tokenUsageService.getProjectSummary(board.project.id),
-			]);
-
-			const allCards = board.columns.flatMap((col) =>
-				col.cards.map((card) => ({ card, column: col }))
-			);
-			const openCards = allCards.filter(
-				({ column }) => !hasRole(column, "done") && !hasRole(column, "parking")
-			);
-			const inProgressCount = allCards.filter(({ column }) => hasRole(column, "active")).length;
-
-			const handoffAge = lastHandoff ? humanizeAge(lastHandoff.createdAt) : null;
-			const pulseParts = [
-				`${openCards.length} open`,
-				`${inProgressCount} in progress`,
-				`${blockerEntries.length} blocked`,
-			];
-			if (handoffAge) pulseParts.push(`handoff ${handoffAge} ago`);
-			const pulse = `${board.project.name} / ${board.name} · ${pulseParts.join(" · ")}`;
-
-			const diff = lastHandoff ? await computeBoardDiff(db, boardId, lastHandoff.createdAt) : null;
-
-			// Top N positions in Backlog are treated as human-pinned and surface
-			// ahead of score-ranked Backlog cards. Replaces the old "Up Next"
-			// column tier (#97).
-			const PIN_THRESHOLD = 3;
-			const scoredCards = openCards
-				.map(({ card, column }) => ({
-					ref: `#${card.number}`,
-					title: card.title,
-					column: column.name,
-					priority: card.priority,
-					score: computeWorkNextScore({
-						priority: card.priority,
-						updatedAt: card.updatedAt,
-						dueDate: card.dueDate,
-						checklists: card.checklists,
-						_blockedByCount: card.relationsTo.length,
-						_blocksOtherCount: card.relationsFrom.length,
-					}),
-					source: hasRole(column, "active")
-						? ("active" as const)
-						: hasRole(column, "backlog") && card.position < PIN_THRESHOLD
-							? ("pinned" as const)
-							: ("scored" as const),
-				}))
-				.filter((c) => c.score >= 0);
-			const tierRank = { active: 0, pinned: 1, scored: 2 } as const;
-			const topWork = scoredCards
-				.sort((a, b) => tierRank[a.source] - tierRank[b.source] || b.score - a.score)
-				.slice(0, 3);
-
-			const parsedHandoff = lastHandoff ? parseHandoff(lastHandoff) : null;
-			const handoff = parsedHandoff
-				? {
-						agentName: parsedHandoff.agentName,
-						createdAt: parsedHandoff.createdAt,
-						summary: parsedHandoff.summary,
-						nextSteps: parsedHandoff.nextSteps,
-						blockers: parsedHandoff.blockers,
-					}
-				: null;
-
-			const blockers = blockerEntries.map((b) => ({
-				ref: `#${b.card.number}`,
-				title: b.card.title,
-				blockedBy: b.blockedBy.map((bb) => `#${bb.number}`),
-			}));
-
-			const recentDecisions = decisionClaims.filter(isRecentDecision).map((d) => ({
-				id: d.id,
-				title: d.statement,
-				card: d.card ? `#${d.card.number}` : null,
-			}));
-
-			const writesWithIntent = recentAgentActivity.filter((a) => a.intent !== null).length;
-			const totalAgentWrites = recentAgentActivity.length;
-			const intentReminder =
-				totalAgentWrites >= 3 && writesWithIntent === 0
-					? `No recent intent observed on ${totalAgentWrites} writes in the last 24h — pass a short \`intent\` on moveCard/updateCard so the human sees *why* live. See AGENTS.md § Intent on Writes.`
-					: null;
+			if (!boardExists) return err("Board not found.", "Use checkOnboarding to discover boards.");
 
 			const [bootSha, headSha] = await Promise.all([getCommitSha(), getCurrentHeadSha()]);
-			const versionMismatch =
-				bootSha && headSha && bootSha !== headSha
-					? `Server is running commit ${bootSha.slice(0, 7)} but repo HEAD is ${headSha.slice(0, 7)} — restart the MCP server to pick up newer code.`
-					: null;
 
-			const staleInProgress = allCards
-				.map(({ card }) => {
-					const info = staleInProgressMap.get(card.id);
-					if (!info) return null;
-					return {
-						ref: `#${card.number}`,
-						title: card.title,
-						days: info.days,
-						lastSignalAt: info.lastSignalAt.toISOString(),
-					};
-				})
-				.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-				.sort((a, b) => b.days - a.days);
+			const briefPayload = await buildBriefPayload(boardId, db, {
+				agentName: AGENT_NAME,
+				serverVersion: MCP_SERVER_VERSION,
+				isLegacyBrand: IS_LEGACY_BRAND,
+				legacyBrandDeprecation: LEGACY_BRAND_DEPRECATION,
+				bootSha,
+				headSha,
+				autoResolved,
+			});
 
-			// Token usage pulse — omitted when no events recorded so projects
-			// without the Stop hook configured don't see noise. (#96)
-			const tokenPulse =
-				tokenSummary.success && tokenSummary.data.trackingSince
-					? {
-							totalCostUsd: Number(tokenSummary.data.totalCostUsd.toFixed(6)),
-							sessionCount: tokenSummary.data.sessionCount,
-							trackingSince: tokenSummary.data.trackingSince.toISOString(),
-						}
-					: null;
-
-			const briefPayload = {
-				_serverVersion: MCP_SERVER_VERSION,
-				...(IS_LEGACY_BRAND ? { _brandDeprecation: LEGACY_BRAND_DEPRECATION } : {}),
-				...(versionMismatch ? { _versionMismatch: versionMismatch } : {}),
-				...(policyResult.warnings.length > 0 ? { _warnings: policyResult.warnings } : {}),
-				pulse,
-				...(autoResolved ? { resolvedFromCwd: { ...autoResolved, boardId } } : {}),
-				policy: policyResult.policy,
-				...(policyResult.policy_error ? { policy_error: policyResult.policy_error } : {}),
-				handoff,
-				diff,
-				topWork,
-				blockers,
-				recentDecisions,
-				...(tokenPulse ? { tokenPulse } : {}),
-				stale: formatStalenessWarnings(stalenessWarnings),
-				...(staleInProgress.length > 0 ? { staleInProgress } : {}),
-				...(intentReminder ? { intentReminder } : {}),
-				_hint: lastHandoff
-					? "Continue via handoff.nextSteps or pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
-					: "No prior handoff — pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Run `listWorkflows({ boardId })` for the full recipe set; call `saveHandoff` before wrapping to save context.",
-			};
+			// Side-effect boundary (post-topWork / post-touchedCards): F2 plugs in
+			// extra writes here. Keep this comment so the merge target stays
+			// obvious — the assembly itself lives in buildBriefPayload.
 
 			return ok(briefPayload, format as "json" | "toon");
 		});
