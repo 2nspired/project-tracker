@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { ActorDot } from "@/components/ui/actor-dot";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { getAccentBorderStyle, getActorIdentity } from "@/lib/actor-colors";
 import { formatActionVerb } from "@/lib/format-activity";
 import { formatRelativeCompact } from "@/lib/format-date";
@@ -56,6 +62,9 @@ export function ActivitySheet({ boardId, open, onOpenChange, onCardClick }: Acti
 							{activities?.length ?? 0}
 						</span>
 					</SheetTitle>
+					<SheetDescription className="sr-only">
+						Recent board activity — agent and human card moves, comments, and edits.
+					</SheetDescription>
 					<div className="mt-2 flex items-center gap-1">
 						<FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
 							All
