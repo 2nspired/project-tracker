@@ -821,6 +821,7 @@ export const tokenUsageService = {
 };
 
 /** Test seam: lets unit tests exercise the hook-detection logic without
- * spinning up the DB-backed `getDiagnostics` path. Not part of the public
- * service API. */
-export const __testing__ = { configHasTokenHook };
+ * spinning up the DB-backed `getDiagnostics` path, plus the JSONL
+ * aggregator so #190 can lock down the parser shape against synthetic
+ * transcripts. Not part of the public service API. */
+export const __testing__ = { configHasTokenHook, aggregateTranscript };
