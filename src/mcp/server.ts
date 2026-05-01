@@ -6,12 +6,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { initFts5 } from "@/server/fts";
 import { buildBriefPayload } from "@/server/services/brief-payload-service";
+import { tokenUsageService } from "@/server/services/token-usage-service";
 import { hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
 import { db } from "./db.js";
 import { syncGitActivityForProject } from "./git-sync.js";
-import { wrapEssentialHandler } from "./instrumentation.js";
+import { SESSION_ID, wrapEssentialHandler } from "./instrumentation.js";
 import {
 	ESSENTIAL_TOOLS,
 	getCommitSha,
@@ -810,9 +811,24 @@ server.registerTool(
 				autoResolved,
 			});
 
-			// Side-effect boundary (post-topWork / post-touchedCards): F2 plugs in
-			// extra writes here. Keep this comment so the merge target stays
-			// obvious — the assembly itself lives in buildBriefPayload.
+			// Side-effect boundary (post-topWork): when an active card is in the
+			// payload's topWork tier, attribute this MCP session's token rows to
+			// it so getCardSummary doesn't show $0. Fire-and-forget — token
+			// tracking should never block briefMe. (F2 / #191)
+			const topWork = briefPayload.topWork as Array<{ ref: string; source: string }>;
+			const activeCard = topWork.find((c) => c.source === "active");
+			if (activeCard) {
+				const cardNum = Number(activeCard.ref.replace("#", ""));
+				const card = await db.card.findFirst({
+					where: { number: cardNum, column: { boardId } },
+					select: { id: true },
+				});
+				if (card) {
+					tokenUsageService
+						.attributeSession(SESSION_ID, card.id)
+						.catch((e) => console.error("[MCP] attributeSession (briefMe) failed:", e));
+				}
+			}
 
 			return ok(briefPayload, format as "json" | "toon");
 		});
@@ -954,6 +970,25 @@ async function handleSaveHandoff({
 		const touchedCards = Array.from(touchedMap.values()).sort((a, b) =>
 			a.ref.localeCompare(b.ref, undefined, { numeric: true })
 		);
+
+		// Side-effect: when the agent touched exactly one card, attribute
+		// this MCP session's token rows to it so getCardSummary doesn't show
+		// $0. Skip on zero or multi-card sessions (ambiguous). Fire-and-
+		// forget — token tracking should never block saveHandoff. (F2 / #191)
+		if (touchedCards.length === 1) {
+			const singleCard = await db.card.findFirst({
+				where: {
+					number: Number(touchedCards[0].ref.replace("#", "")),
+					column: { boardId },
+				},
+				select: { id: true },
+			});
+			if (singleCard) {
+				tokenUsageService
+					.attributeSession(SESSION_ID, singleCard.id)
+					.catch((e) => console.error("[MCP] attributeSession (saveHandoff) failed:", e));
+			}
+		}
 
 		const handoff = await saveHandoff(db, {
 			boardId,
