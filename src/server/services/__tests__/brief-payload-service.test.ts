@@ -162,6 +162,56 @@ describe("buildBriefPayload (#192 F3 shape parity)", () => {
 		expect(drift).toHaveProperty("_versionMismatch");
 	});
 
+	describe("_upgrade field (#210 PR-A)", () => {
+		const checkedAt = new Date("2026-05-01T00:00:00.000Z").toISOString();
+
+		it("emits _upgrade with commands when upgradeInfo is outdated", async () => {
+			const payload = await buildBriefPayload(BOARD_ID, makeMockDb(), {
+				upgradeInfo: {
+					current: "6.0.0",
+					latest: "6.1.0",
+					isOutdated: true,
+					checkedAt,
+				},
+			});
+			expect(payload._upgrade).toEqual({
+				current: "6.0.0",
+				latest: "6.1.0",
+				isOutdated: true,
+				commands: ["git pull", "npm run service:update"],
+			});
+		});
+
+		it("omits _upgrade when upgradeInfo reports in-sync", async () => {
+			const payload = await buildBriefPayload(BOARD_ID, makeMockDb(), {
+				upgradeInfo: {
+					current: "6.1.0",
+					latest: "6.1.0",
+					isOutdated: false,
+					checkedAt,
+				},
+			});
+			expect(payload).not.toHaveProperty("_upgrade");
+		});
+
+		it("omits _upgrade when upgradeInfo is undefined", async () => {
+			const payload = await buildBriefPayload(BOARD_ID, makeMockDb(), {});
+			expect(payload).not.toHaveProperty("_upgrade");
+		});
+
+		it("omits _upgrade when latest is null (offline / opt-out)", async () => {
+			const payload = await buildBriefPayload(BOARD_ID, makeMockDb(), {
+				upgradeInfo: {
+					current: "6.0.0",
+					latest: null,
+					isOutdated: false,
+					checkedAt,
+				},
+			});
+			expect(payload).not.toHaveProperty("_upgrade");
+		});
+	});
+
 	it("throws when the board can't be loaded", async () => {
 		const db = {
 			board: { findUnique: vi.fn(async () => null) },

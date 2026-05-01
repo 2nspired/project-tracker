@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { runVersionCheck } from "@/server/api/routers/system";
 import { initFts5 } from "@/server/fts";
 import { buildBriefPayload } from "@/server/services/brief-payload-service";
 import { tokenUsageService } from "@/server/services/token-usage-service";
@@ -800,7 +801,11 @@ server.registerTool(
 			});
 			if (!boardExists) return err("Board not found.", "Use checkOnboarding to discover boards.");
 
-			const [bootSha, headSha] = await Promise.all([getCommitSha(), getCurrentHeadSha()]);
+			const [bootSha, headSha, upgradeInfo] = await Promise.all([
+				getCommitSha(),
+				getCurrentHeadSha(),
+				runVersionCheck(),
+			]);
 
 			const briefPayload = await buildBriefPayload(boardId, db, {
 				agentName: AGENT_NAME,
@@ -810,6 +815,7 @@ server.registerTool(
 				bootSha,
 				headSha,
 				autoResolved,
+				upgradeInfo,
 			});
 
 			// Side-effect boundary (post-topWork): when an active card is in the

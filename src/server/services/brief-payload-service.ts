@@ -22,6 +22,7 @@ import { getLatestHandoff, parseHandoff } from "@/lib/services/handoff";
 import { getBlockers as getBlockersShared } from "@/lib/services/relations";
 import { loadTrackerPolicy } from "@/lib/services/tracker-policy";
 import { computeWorkNextScore } from "@/lib/work-next-score";
+import type { VersionCheckResult } from "@/server/api/routers/system";
 // Re-using the staleness shape from the MCP layer would create a circular
 // import, so the helpers are duplicated here. Both copies stay in sync via
 // the shape: `formatStalenessWarnings` is pure formatting and
@@ -60,6 +61,12 @@ export type BriefPayloadOptions = {
 	headSha?: string | null;
 	/** Set when briefMe was auto-resolved from cwd; surfaces `resolvedFromCwd`. */
 	autoResolved?: { projectName: string; boardName: string } | null;
+	/**
+	 * Result of the GitHub Releases version check. When present and outdated,
+	 * surfaces `_upgrade` so the agent can prompt the human to upgrade.
+	 * @since 6.1.0
+	 */
+	upgradeInfo?: VersionCheckResult;
 };
 
 export type BriefPayload = Record<string, unknown>;
@@ -244,6 +251,21 @@ export async function buildBriefPayload(
 			? `Server is running commit ${bootSha.slice(0, 7)} but repo HEAD is ${headSha.slice(0, 7)} — restart the MCP server to pick up newer code.`
 			: null;
 
+	// Released-version drift signal. Distinct from `_versionMismatch` (which is
+	// boot-vs-HEAD inside one checkout): this fires when a *newer release* is
+	// published on GitHub. Field absent when in-sync, when offline / opt-out
+	// (`latest === null`), or when the caller skipped the version check.
+	const upgradeInfo = options.upgradeInfo;
+	const upgrade =
+		upgradeInfo && upgradeInfo.isOutdated && upgradeInfo.latest !== null
+			? {
+					current: upgradeInfo.current,
+					latest: upgradeInfo.latest,
+					isOutdated: true as const,
+					commands: ["git pull", "npm run service:update"],
+				}
+			: null;
+
 	const staleInProgress = allCards
 		.map(({ card }) => {
 			const info = staleInProgressMap.get(card.id);
@@ -275,6 +297,7 @@ export async function buildBriefPayload(
 			? { _brandDeprecation: options.legacyBrandDeprecation }
 			: {}),
 		...(versionMismatch ? { _versionMismatch: versionMismatch } : {}),
+		...(upgrade ? { _upgrade: upgrade } : {}),
 		...(policyResult.warnings.length > 0 ? { _warnings: policyResult.warnings } : {}),
 		pulse,
 		...(options.autoResolved ? { resolvedFromCwd: { ...options.autoResolved, boardId } } : {}),
