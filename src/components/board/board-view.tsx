@@ -38,6 +38,7 @@ import { type BoardFilters, BoardToolbar, type SortMode } from "./board-toolbar"
 import { CardDetailSheet } from "./card-detail-sheet";
 import { AddColumnButton } from "./column-header";
 import { IntentBannerProvider } from "./intent-banner-context";
+import { UpgradePanel } from "./upgrade-panel";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
 type BoardColumnType = FullBoard["columns"][number];
@@ -408,6 +409,7 @@ export function BoardView({
 						visibleCards={visibleCards}
 					/>
 
+					<UpgradePanel />
 					<BoardPulse boardId={board.id} projectId={board.projectId} />
 
 					{/* Columns — parking columns are pinned and not reorderable; the
