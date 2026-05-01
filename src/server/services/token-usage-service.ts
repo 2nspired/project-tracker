@@ -681,7 +681,7 @@ async function avgCostForWindow(
 	const cards = await db.card.findMany({
 		where: {
 			projectId,
-			completedAt: { gte: periodStart, lt: periodEnd, not: null },
+			completedAt: { gte: periodStart, lt: periodEnd },
 		},
 		select: { id: true },
 	});
