@@ -15,6 +15,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Fixed
 
 - **Markdown in handoff list items renders properly.** Items in `workingOn` / `findings` / `nextSteps` / `blockers` were emitting literal `**` / `` ` `` characters because only `summary` was wrapped in `<Markdown>`. New `HandoffItemContent` runs each item through ReactMarkdown and walks the rendered tree to swap plain-text `#N` for clickable `CardRefText`, preserving card-ref linkification across nested `strong`/`em`/`code`/`a`. (#188)
+- **Radix `DialogContent` a11y warnings on three sheets.** `HandoffsSheet`, `ActivitySheet`, and the card detail sheet now include an `sr-only` `<SheetDescription>` after `<SheetTitle>`, satisfying radix's screen-reader contract and clearing the "Missing `Description` or `aria-describedby={undefined}`" console warning. Visual layout unchanged. (#189)
 
 ## [6.0.0] — 2026-04-30
 

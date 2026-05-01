@@ -46,7 +46,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenCostChip } from "@/components/ui/token-cost-chip";
 import { getAccentBorderStyle, getActorIdentity } from "@/lib/actor-colors";
@@ -295,6 +301,7 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 							<SheetTitle>
 								<Skeleton className="h-6 w-48" />
 							</SheetTitle>
+							<SheetDescription className="sr-only">Loading card details.</SheetDescription>
 						</SheetHeader>
 						<div className="space-y-4">
 							<div className="flex gap-3">
@@ -349,6 +356,9 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 									)}
 								</div>
 							</SheetTitle>
+							<SheetDescription className="sr-only">
+								Card details, with editable title, description, checklists, comments, and activity.
+							</SheetDescription>
 							<p className="text-xs text-muted-foreground">
 								Created by {card.createdBy === "AGENT" ? "Agent" : "Human"}
 							</p>

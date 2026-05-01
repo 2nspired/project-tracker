@@ -7,7 +7,13 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { CardRefText, CollapsibleSection, FilterChip } from "@/components/board/session-shell";
 import { Markdown } from "@/components/ui/markdown";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { TokenCostChip } from "@/components/ui/token-cost-chip";
 import { formatRelativeCompact } from "@/lib/format-date";
 import { api } from "@/trpc/react";
@@ -90,6 +96,9 @@ export function HandoffsSheet({
 							/>
 						)}
 					</SheetTitle>
+					<SheetDescription className="sr-only">
+						Recent agent handoffs for this project. Filter by agent or blockers.
+					</SheetDescription>
 					<div className="mt-2 flex items-center gap-1">
 						<FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
 							All
