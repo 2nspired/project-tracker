@@ -258,6 +258,12 @@ async function recordManual(input: ManualRecordInput): Promise<ServiceResult<Rec
 // the same row count, not duplicates. Returns soft warnings for missing
 // transcripts / no-usage-found rather than throwing — the Stop hook should
 // never block a session from ending.
+//
+// Re-run safety vs. `attributeSession`: the snapshot-and-restore inside the
+// transaction below preserves any `cardId` that `attributeSession` wrote
+// between the original Stop-hook fire and a later re-run, so card
+// attribution survives a Stop-hook replay even when the transcript itself
+// has no card context.
 async function recordFromTranscript(
 	input: TranscriptRecordInput
 ): Promise<ServiceResult<RecordResult>> {
@@ -332,6 +338,22 @@ async function recordFromTranscript(
 		// Idempotent: same sessionId always replaces. If the user has multiple
 		// agents writing under the same sessionId (unusual), they'd overwrite
 		// each other — that's an acceptable trade for hook re-run safety.
+		//
+		// Cardid preservation across re-runs: `attributeSession` (called from
+		// briefMe / saveHandoff) writes a `cardId` onto these rows between the
+		// original Stop-hook fire and any re-run. The transcript itself only
+		// carries the cardId the hook had at write time (often null), so a
+		// naive delete-and-replace would silently wipe the attribution. We
+		// snapshot the existing non-null cardId for this session before the
+		// delete; if the new row set didn't carry one through, we restore it
+		// via a single `updateMany` after re-insert. One extra SELECT and a
+		// conditional UPDATE — cheaper than reworking the write strategy.
+		const existing = await db.tokenUsageEvent.findMany({
+			where: { sessionId: input.sessionId, cardId: { not: null } },
+			select: { cardId: true },
+		});
+		const preservedCardId = existing.find((row) => row.cardId !== null)?.cardId ?? null;
+
 		await db.$transaction([
 			db.tokenUsageEvent.deleteMany({ where: { sessionId: input.sessionId } }),
 			...rows.map((row) =>
@@ -351,6 +373,16 @@ async function recordFromTranscript(
 				})
 			),
 		]);
+
+		// Restore the prior attribution if the re-run didn't supply one. We
+		// only write when the new rows have null cardId — if the caller
+		// passed a fresh cardId we respect that as the new source of truth.
+		if (preservedCardId && !input.cardId) {
+			await db.tokenUsageEvent.updateMany({
+				where: { sessionId: input.sessionId, cardId: null },
+				data: { cardId: preservedCardId },
+			});
+		}
 	} catch (error) {
 		console.error("[TOKEN_USAGE_SERVICE] recordFromTranscript insert error:", error);
 		return {
