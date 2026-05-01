@@ -66,11 +66,6 @@ Full-text search across cards, comments, decisions, notes, handoffs, code facts,
 
 ## Where they live
 
-Slash command files are plain Markdown with a YAML frontmatter description. Claude Code reads them from two places — Pigeon ships them via the first by default:
+Slash command files are under `.claude/commands/` in the Pigeon repo. They're plain Markdown with a YAML frontmatter description. Claude Code loads them when you launch from a project that has them — they aren't user-global.
 
-- **Per-project (default)** — `<your-project>/.claude/commands/*.md`. `scripts/connect.sh` installs them into your project the first time you bind it, alongside writing `.mcp.json`. The install is idempotent: if a file already exists it's left untouched, so you can edit a command locally and re-run `connect.sh` without losing changes. Re-run `connect.sh` to pick up new commands when Pigeon ships them.
-- **User-global (optional)** — `~/.claude/commands/*.md` (or `$CLAUDE_CONFIG_DIR/commands/` if you've moved your Claude config). Copy the three files there once and they're available in every repo, including ones you haven't run `connect.sh` against. Useful if you bounce between unconnected sandboxes a lot. Trade-off: you have to refresh them yourself when Pigeon ships new commands.
-
-Both sources can coexist — Claude Code surfaces commands from both. Removing a slash command means deleting its `.md` file from wherever it lives.
-
-If you're adding a new slash command, mirror the pattern: a brief description in frontmatter, the MCP tool call, and a one-paragraph usage note. Drop the `.md` into `.claude/commands/` of the Pigeon repo so `connect.sh` ships it to every connected project. Then add a workflow entry in `src/mcp/workflows.ts` so it shows up in `listWorkflows`, the MCP catalog popover, and Cmd-K palette.
+If you're adding a new slash command, mirror the pattern: a brief description in frontmatter, the MCP tool call, and a one-paragraph usage note. Then add a workflow entry in `src/mcp/workflows.ts` so it shows up in `listWorkflows`, the MCP catalog popover, and Cmd-K palette.
