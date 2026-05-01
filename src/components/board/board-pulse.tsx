@@ -4,74 +4,12 @@ import { Activity, AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sparkline } from "@/components/ui/sparkline";
 import { formatCost } from "@/lib/format-cost";
 import { formatRelative } from "@/lib/format-date";
 import { STATUS_TEXT } from "@/lib/priority-colors";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
-
-type SparklineProps = {
-	data: number[];
-	strokeClassName?: string;
-	fillClassName?: string;
-	dotClassName?: string;
-	label: string;
-};
-
-function Sparkline({ data, strokeClassName, fillClassName, dotClassName, label }: SparklineProps) {
-	if (data.length === 0) return null;
-
-	const max = Math.max(...data, 1);
-	const w = 48;
-	const h = 18;
-	const padding = 2;
-	const innerW = w - padding * 2;
-	const innerH = h - padding * 2;
-
-	const points = data
-		.map((val, i) => {
-			const x = padding + (i / (data.length - 1)) * innerW;
-			const y = padding + innerH - (val / max) * innerH;
-			return `${x},${y}`;
-		})
-		.join(" ");
-
-	const firstX = padding;
-	const lastX = padding + innerW;
-	const fillPoints = `${firstX},${h - padding} ${points} ${lastX},${h - padding}`;
-
-	const stroke = strokeClassName ?? "stroke-emerald-500";
-	const fill = fillClassName ?? "fill-emerald-500/10";
-	const dot = dotClassName ?? "fill-emerald-500";
-
-	return (
-		<svg
-			width={w}
-			height={h}
-			className="shrink-0"
-			viewBox={`0 0 ${w} ${h}`}
-			role="img"
-			aria-label={label}
-		>
-			<title>{label}</title>
-			<polygon points={fillPoints} className={fill} />
-			<polyline
-				points={points}
-				fill="none"
-				className={stroke}
-				strokeWidth="1.5"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			/>
-			<circle
-				cx={padding + innerW}
-				cy={padding + innerH - (data[data.length - 1] / max) * innerH}
-				r="2"
-				className={dot}
-			/>
-		</svg>
-	);
-}
 
 function formatHours(hours: number): string {
 	if (hours < 1) return `${Math.round(hours * 60)}m`;

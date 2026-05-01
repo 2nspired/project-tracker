@@ -7,6 +7,7 @@ import {
 	Clock,
 	Columns3,
 	Copy,
+	DollarSign,
 	List,
 	Map as MapIcon,
 	NotebookPen,
@@ -361,6 +362,17 @@ export default function BoardPage({
 							</Link>
 						</TooltipTrigger>
 						<TooltipContent>View card timeline</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Link href={`/projects/${projectId}/costs`}>
+								<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+									<DollarSign className="h-3.5 w-3.5" />
+									Costs
+								</Button>
+							</Link>
+						</TooltipTrigger>
+						<TooltipContent>Token usage and spend</TooltipContent>
 					</Tooltip>
 					<Tooltip>
 						<TooltipTrigger asChild>
