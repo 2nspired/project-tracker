@@ -122,8 +122,22 @@ function ensureDeps() {
 	console.log("");
 }
 
+function ensureSchema() {
+	console.log("Syncing database schema...\n");
+	try {
+		execSync("npx prisma db push --skip-generate", { cwd: PROJECT_DIR, stdio: "inherit" });
+	} catch {
+		console.error(
+			"\nSchema sync failed. If the change is destructive (column rename, type narrow, drop), run `npx prisma db push` manually so Prisma can confirm the data-loss prompt.\n",
+		);
+		throw new Error("prisma db push failed");
+	}
+	console.log("");
+}
+
 function ensureBuild() {
 	ensureDeps();
+	ensureSchema();
 	console.log("Building project...\n");
 	execSync("npm run build", { cwd: PROJECT_DIR, stdio: "inherit" });
 	console.log("");
