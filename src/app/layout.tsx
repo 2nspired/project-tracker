@@ -15,6 +15,7 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
+	metadataBase: new URL("http://localhost:3100"),
 	title: {
 		template: "%s - Pigeon",
 		default: "Pigeon",
