@@ -39,9 +39,7 @@ export function extractSection(content: string, version: string): string | null 
 	// Slice to the next `## ` heading at start of line (or EOF).
 	const remainder = content.slice(sectionStart);
 	const nextHeading = /\n## /.exec(remainder);
-	const sectionBody = nextHeading
-		? remainder.slice(0, nextHeading.index)
-		: remainder;
+	const sectionBody = nextHeading ? remainder.slice(0, nextHeading.index) : remainder;
 
 	return sectionBody.trim();
 }

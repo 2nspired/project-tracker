@@ -34,11 +34,11 @@ import { api } from "@/trpc/react";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
 import { BoardPulse } from "./board-pulse";
-import { UpgradePanel } from "./upgrade-panel";
 import { type BoardFilters, BoardToolbar, type SortMode } from "./board-toolbar";
 import { CardDetailSheet } from "./card-detail-sheet";
 import { AddColumnButton } from "./column-header";
 import { IntentBannerProvider } from "./intent-banner-context";
+import { UpgradePanel } from "./upgrade-panel";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
 type BoardColumnType = FullBoard["columns"][number];
