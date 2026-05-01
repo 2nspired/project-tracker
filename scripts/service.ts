@@ -24,6 +24,8 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runDoctor } from "@/lib/doctor/index.js";
+import { writeUpgradeReport } from "@/lib/upgrade-report.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -348,7 +350,34 @@ function logs() {
 	execSync(`tail -f ${files}`, { stdio: "inherit" });
 }
 
-function update() {
+// After the service is back up, run the doctor pass and write
+// `data/last-upgrade.json`. The next briefMe surfaces failures via the
+// `_upgradeReport` field, then clears the file (one-shot). The
+// `serverVersionCheck` carries a 1.5s timeout (see
+// `src/lib/doctor/checks/server-version.ts`) so a still-booting service
+// degrades to `status: "skip"` rather than producing a false fail.
+async function postUpdateDoctor() {
+	console.log("Running post-update doctor checks...\n");
+	const targetVersion = (
+		JSON.parse(readFileSync(resolve(PROJECT_DIR, "package.json"), "utf-8")) as { version: string }
+	).version;
+	const doctor = await runDoctor();
+	await writeUpgradeReport({
+		completedAt: new Date().toISOString(),
+		targetVersion,
+		doctor,
+	});
+	const { fail, warn, pass, skip } = doctor.summary;
+	if (fail > 0 || warn > 0) {
+		console.warn(
+			`⚠ Post-update doctor: ${fail} fail / ${warn} warn / ${pass} pass / ${skip} skip — next briefMe will surface details, run \`npm run doctor\` for the full report.\n`
+		);
+	} else {
+		console.log(`✓ Post-update doctor: ${pass} pass / ${skip} skip — clean upgrade.\n`);
+	}
+}
+
+async function update() {
 	if (!isLoaded()) {
 		console.error("Service is not running. Run: npm run service:install");
 		process.exit(1);
@@ -358,7 +387,8 @@ function update() {
 	writePlist(); // Refresh in case paths changed
 	bootout();
 	bootstrap();
-	console.log(`Service rebuilt and restarted at http://localhost:${PORT}`);
+	console.log(`Service rebuilt and restarted at http://localhost:${PORT}\n`);
+	await postUpdateDoctor();
 }
 
 // ---------------------------------------------------------------------------
@@ -367,7 +397,7 @@ function update() {
 
 const command = process.argv[2];
 
-const commands: Record<string, () => void> = {
+const commands: Record<string, () => void | Promise<void>> = {
 	install,
 	uninstall,
 	start,
@@ -379,10 +409,15 @@ const commands: Record<string, () => void> = {
 	enable,
 };
 
-if (command && command in commands) {
-	commands[command]();
-} else {
-	console.log(`
+// IIFE wrapper: tsx transforms this script as CJS, which doesn't support
+// top-level await. The dispatch needs to await Promise-returning commands
+// (`update` runs the post-`service:update` doctor pass — see #215) so the
+// process doesn't exit before the file is written.
+(async () => {
+	if (command && command in commands) {
+		await commands[command]();
+	} else {
+		console.log(`
 Pigeon service manager
 
 Usage: npm run service:<command>
@@ -398,4 +433,5 @@ Commands:
   service:logs      Tail the service logs
   service:update    Rebuild and restart after code changes
 `);
-}
+	}
+})();

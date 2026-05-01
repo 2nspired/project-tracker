@@ -4,6 +4,11 @@ import { promisify } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import {
+	clearUpgradeReport,
+	readUpgradeReport,
+	UPGRADE_REPORT_STALE_MS,
+} from "@/lib/upgrade-report";
 import { runVersionCheck } from "@/server/api/routers/system";
 import { initFts5 } from "@/server/fts";
 import { buildBriefPayload } from "@/server/services/brief-payload-service";
@@ -801,11 +806,21 @@ server.registerTool(
 			});
 			if (!boardExists) return err("Board not found.", "Use checkOnboarding to discover boards.");
 
-			const [bootSha, headSha, upgradeInfo] = await Promise.all([
+			const [bootSha, headSha, upgradeInfo, upgradeReportRaw] = await Promise.all([
 				getCommitSha(),
 				getCurrentHeadSha(),
 				runVersionCheck(),
+				readUpgradeReport(),
 			]);
+
+			// Stale-guard: a `data/last-upgrade.json` older than 24h is treated
+			// as not-present. Protects against the file lingering forever if
+			// the user never ran briefMe after upgrading.
+			const upgradeReport =
+				upgradeReportRaw &&
+				Date.now() - new Date(upgradeReportRaw.completedAt).getTime() < UPGRADE_REPORT_STALE_MS
+					? upgradeReportRaw
+					: undefined;
 
 			const briefPayload = await buildBriefPayload(boardId, db, {
 				agentName: AGENT_NAME,
@@ -816,7 +831,18 @@ server.registerTool(
 				headSha,
 				autoResolved,
 				upgradeInfo,
+				upgradeReport,
 			});
+
+			// One-shot semantics: any time we *had* a report on disk (even one
+			// the parser decided was clean and didn't surface), clear it so the
+			// second briefMe in the session doesn't re-process a stale signal.
+			// Fire-and-forget — never block the response on file IO.
+			if (upgradeReportRaw) {
+				clearUpgradeReport().catch((e) =>
+					console.error("[MCP] clearUpgradeReport (briefMe) failed:", e)
+				);
+			}
 
 			// Side-effect boundary (post-topWork): when an active card is in the
 			// payload's topWork tier, attribute this MCP session's token rows to

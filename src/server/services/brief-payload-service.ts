@@ -21,11 +21,12 @@ import { isRecentDecision } from "@/lib/services/decisions";
 import { getLatestHandoff, parseHandoff } from "@/lib/services/handoff";
 import { getBlockers as getBlockersShared } from "@/lib/services/relations";
 import { loadTrackerPolicy } from "@/lib/services/tracker-policy";
-import { computeWorkNextScore } from "@/lib/work-next-score";
 // Re-using the staleness shape from the MCP layer would create a circular
 // import, so the helpers are duplicated here. Both copies stay in sync via
 // the shape: `formatStalenessWarnings` is pure formatting and
 // `checkStaleness` is a pure read; lifting them is out of scope.
+import type { UpgradeReport } from "@/lib/upgrade-report";
+import { computeWorkNextScore } from "@/lib/work-next-score";
 import { checkStaleness, formatStalenessWarnings } from "@/mcp/staleness";
 import type { VersionCheckResult } from "@/server/api/routers/system";
 import { findStaleInProgress } from "@/server/services/stale-cards";
@@ -67,6 +68,15 @@ export type BriefPayloadOptions = {
 	 * @since 6.1.0
 	 */
 	upgradeInfo?: VersionCheckResult;
+	/**
+	 * Disk-backed signal from the most recent `npm run service:update`. When
+	 * present and the doctor pass had any failure or warning, surfaces a
+	 * concise `_upgradeReport` so the agent sees post-upgrade health on the
+	 * next session start. The MCP handler is responsible for one-shot
+	 * clearing the source file after surfacing.
+	 * @since 6.1.0
+	 */
+	upgradeReport?: UpgradeReport;
 };
 
 export type BriefPayload = Record<string, unknown>;
@@ -266,6 +276,30 @@ export async function buildBriefPayload(
 				}
 			: null;
 
+	// Post-`service:update` doctor signal (#215). Surface only when a check
+	// actually failed or warned — clean upgrades produce no field so the
+	// agent never sees noise. The handler is responsible for stale-guard
+	// (>24h) and one-shot clearing of `data/last-upgrade.json` after
+	// briefMe returns.
+	const upgradeReport = options.upgradeReport;
+	const upgradeReportField =
+		upgradeReport &&
+		(upgradeReport.doctor.summary.fail > 0 || upgradeReport.doctor.summary.warn > 0)
+			? {
+					completedAt: upgradeReport.completedAt,
+					targetVersion: upgradeReport.targetVersion,
+					summary: upgradeReport.doctor.summary,
+					failed: upgradeReport.doctor.checks
+						.filter((c) => c.status === "fail" || c.status === "warn")
+						.map((c) => ({
+							name: c.name,
+							status: c.status,
+							message: c.message,
+							...(c.fix ? { fix: c.fix } : {}),
+						})),
+				}
+			: null;
+
 	const staleInProgress = allCards
 		.map(({ card }) => {
 			const info = staleInProgressMap.get(card.id);
@@ -298,6 +332,7 @@ export async function buildBriefPayload(
 			: {}),
 		...(versionMismatch ? { _versionMismatch: versionMismatch } : {}),
 		...(upgrade ? { _upgrade: upgrade } : {}),
+		...(upgradeReportField ? { _upgradeReport: upgradeReportField } : {}),
 		...(policyResult.warnings.length > 0 ? { _warnings: policyResult.warnings } : {}),
 		pulse,
 		...(options.autoResolved ? { resolvedFromCwd: { ...options.autoResolved, boardId } } : {}),

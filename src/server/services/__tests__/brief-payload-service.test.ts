@@ -212,6 +212,105 @@ describe("buildBriefPayload (#192 F3 shape parity)", () => {
 		});
 	});
 
+	describe("_upgradeReport field (#215)", () => {
+		const completedAt = new Date("2026-05-01T22:00:00.000Z").toISOString();
+
+		function makeReport(overrides: {
+			fail?: number;
+			warn?: number;
+			pass?: number;
+			skip?: number;
+			checks?: Array<{
+				name: string;
+				status: "pass" | "fail" | "warn" | "skip";
+				message: string;
+				fix?: string;
+			}>;
+		}) {
+			const summary = {
+				pass: overrides.pass ?? 0,
+				fail: overrides.fail ?? 0,
+				warn: overrides.warn ?? 0,
+				skip: overrides.skip ?? 0,
+			};
+			return {
+				completedAt,
+				targetVersion: "6.1.0",
+				doctor: {
+					summary,
+					checks: overrides.checks ?? [],
+				},
+			};
+		}
+
+		it("emits _upgradeReport with only failed/warn checks when there are failures", async () => {
+			const report = makeReport({
+				fail: 1,
+				pass: 7,
+				checks: [
+					{ name: "MCP registration", status: "pass", message: "ok" },
+					{
+						name: "Hook drift",
+						status: "fail",
+						message: "Stop hook missing.",
+						fix: "Re-run `npm run setup`.",
+					},
+				],
+			});
+			const payload = await buildBriefPayload(BOARD_ID, makeMockDb(), { upgradeReport: report });
+			expect(payload._upgradeReport).toEqual({
+				completedAt,
+				targetVersion: "6.1.0",
+				summary: { pass: 7, fail: 1, warn: 0, skip: 0 },
+				failed: [
+					{
+						name: "Hook drift",
+						status: "fail",
+						message: "Stop hook missing.",
+						fix: "Re-run `npm run setup`.",
+					},
+				],
+			});
+		});
+
+		it("includes warn-status checks alongside fail-status checks", async () => {
+			const report = makeReport({
+				warn: 1,
+				pass: 7,
+				checks: [
+					{ name: "WAL hygiene", status: "warn", message: "WAL >100MB." },
+					{ name: "Other", status: "pass", message: "ok" },
+				],
+			});
+			const payload = await buildBriefPayload(BOARD_ID, makeMockDb(), { upgradeReport: report });
+			expect((payload._upgradeReport as { failed: unknown[] }).failed).toHaveLength(1);
+		});
+
+		it("omits _upgradeReport when all checks pass", async () => {
+			const report = makeReport({
+				pass: 8,
+				checks: [{ name: "X", status: "pass", message: "ok" }],
+			});
+			const payload = await buildBriefPayload(BOARD_ID, makeMockDb(), { upgradeReport: report });
+			expect(payload).not.toHaveProperty("_upgradeReport");
+		});
+
+		it("omits _upgradeReport when upgradeReport is undefined", async () => {
+			const payload = await buildBriefPayload(BOARD_ID, makeMockDb(), {});
+			expect(payload).not.toHaveProperty("_upgradeReport");
+		});
+
+		it("omits the `fix` key when a check has none (no `fix: undefined` on the wire)", async () => {
+			const report = makeReport({
+				fail: 1,
+				checks: [{ name: "Some check", status: "fail", message: "broken" }],
+			});
+			const payload = await buildBriefPayload(BOARD_ID, makeMockDb(), { upgradeReport: report });
+			const failed = (payload._upgradeReport as { failed: Array<Record<string, unknown>> }).failed;
+			expect(failed[0]).not.toHaveProperty("fix");
+		});
+	});
+
 	it("throws when the board can't be loaded", async () => {
 		const db = {
 			board: { findUnique: vi.fn(async () => null) },
