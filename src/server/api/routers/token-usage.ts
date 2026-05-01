@@ -126,4 +126,51 @@ export const tokenUsageRouter = createTRPCRouter({
 			}
 			return result.data;
 		}),
+
+	// Pigeon overhead — total cost of MCP tool *responses* over a window,
+	// grouped by tool name. Drives the U2 "Pigeon overhead" section on the
+	// Costs page. #194
+	getPigeonOverhead: publicProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				period: z.enum(["7d", "30d", "lifetime"]).default("7d"),
+			})
+		)
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getPigeonOverhead(input.projectId, input.period);
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
+
+	// Per-session Pigeon overhead — used by `<PigeonOverheadChip>` on
+	// session-detail surfaces. Returns 0/0 (not an error) when the session
+	// has no `ToolCallLog` rows so the chip can self-hide. #194
+	getSessionPigeonOverhead: publicProcedure
+		.input(z.object({ sessionId: z.string() }))
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getSessionPigeonOverhead(input.sessionId);
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
+
+	// Card-scoped Pigeon overhead — backs `<CardPigeonOverheadChip>` on the
+	// card-detail sheet. Aggregates across every session that touched the
+	// card via the same session-expansion rule as `getCardSummary`. #194
+	getCardPigeonOverhead: publicProcedure
+		.input(z.object({ cardId: z.string().uuid() }))
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getCardPigeonOverhead(input.cardId);
+			if (!result.success) {
+				throw new TRPCError({
+					code: result.error.code === "NOT_FOUND" ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+					message: result.error.message,
+				});
+			}
+			return result.data;
+		}),
 });

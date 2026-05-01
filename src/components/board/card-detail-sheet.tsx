@@ -38,6 +38,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/ui/markdown";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
+import { CardPigeonOverheadChip } from "@/components/ui/pigeon-overhead-chip";
 import { SectionHeader } from "@/components/ui/section-header";
 import {
 	Select,
@@ -938,6 +939,7 @@ function CardCostSection({ cardId, projectId }: { cardId: string; projectId: str
 						costUsd={cardSummary.totalCostUsd}
 						sessionCount={cardSummary.sessionCount}
 					/>
+					<CardPigeonOverheadChip cardId={cardId} />
 					<span className="text-xs text-muted-foreground">
 						across {cardSummary.sessionCount} session{cardSummary.sessionCount === 1 ? "" : "s"}
 					</span>

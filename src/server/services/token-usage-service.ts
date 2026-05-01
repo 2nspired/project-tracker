@@ -1182,6 +1182,246 @@ async function recalibrateBaseline(projectId: string): Promise<ServiceResult<Bas
 	}
 }
 
+// ─── Pigeon overhead lens (#194 U2) ────────────────────────────────
+//
+// Surfaces the cost of Pigeon's own MCP tool *responses* — what the
+// agent paid in `outputPerMTok` to read tool results. F1 (#190) added
+// `responseTokens` (chars/4 of the result body) on `ToolCallLog`; this
+// section turns those bytes into a dollar number, grouped per tool.
+//
+// Pricing rule: a tool call's response is text the agent later reads as
+// model input on the next turn — but for the agent that *just produced*
+// that response (the assistant), the tokens were emitted as output.
+// Sticking to `outputPerMTok` matches how Anthropic bills the assistant
+// turn that emitted the tool result. Per-session pricing is resolved
+// from the `model` of any TokenUsageEvent for that session; sessions
+// with no token rows fall back to `__default__` (zero) so an unwired
+// project produces a clean $0 instead of an inflated estimate.
+
+export type PigeonOverheadByTool = {
+	toolName: string;
+	callCount: number;
+	avgResponseTokens: number;
+	totalCostUsd: number;
+};
+
+export type PigeonOverheadResult = {
+	totalResponseTokens: number;
+	totalCostUsd: number;
+	byTool: PigeonOverheadByTool[];
+	sessionCount: number;
+};
+
+export type PigeonOverheadPeriod = "7d" | "30d" | "lifetime";
+
+function periodCutoff(period: PigeonOverheadPeriod): Date | null {
+	if (period === "lifetime") return null;
+	const days = period === "7d" ? 7 : 30;
+	return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+}
+
+async function getPigeonOverhead(
+	projectId: string,
+	period: PigeonOverheadPeriod
+): Promise<ServiceResult<PigeonOverheadResult>> {
+	try {
+		const cutoff = periodCutoff(period);
+
+		// Resolve the session set the period applies to via TokenUsageEvent —
+		// the canonical source of "sessions in this project". A session
+		// counts as in-period when *any* event for it landed in the window.
+		// Lifetime: every distinct sessionId for this project.
+		const sessionRows = await db.tokenUsageEvent.findMany({
+			where: { projectId, ...(cutoff ? { recordedAt: { gte: cutoff } } : {}) },
+			select: { sessionId: true, model: true },
+		});
+		if (sessionRows.length === 0) {
+			return {
+				success: true,
+				data: { totalResponseTokens: 0, totalCostUsd: 0, byTool: [], sessionCount: 0 },
+			};
+		}
+
+		// Pick a representative model per session for pricing. Sessions can
+		// have multiple model rows (subagent or model switch); we take the
+		// first one — the cost contribution per tool call is small enough
+		// that mixing rates inside a session would overstate precision.
+		const sessionModel = new Map<string, string>();
+		for (const row of sessionRows) {
+			if (!sessionModel.has(row.sessionId)) sessionModel.set(row.sessionId, row.model);
+		}
+		const sessionIds = Array.from(sessionModel.keys());
+
+		const [logs, pricing] = await Promise.all([
+			db.toolCallLog.findMany({
+				where: { sessionId: { in: sessionIds } },
+				select: { toolName: true, sessionId: true, responseTokens: true },
+			}),
+			loadPricing(db),
+		]);
+
+		type ToolAcc = { callCount: number; totalResponseTokens: number; totalCostUsd: number };
+		const byToolMap = new Map<string, ToolAcc>();
+		let totalResponseTokens = 0;
+		let totalCostUsd = 0;
+
+		for (const log of logs) {
+			const model = sessionModel.get(log.sessionId);
+			if (!model) continue;
+			const rates = pricing[model] ?? pricing.__default__ ?? DEFAULT_PRICING_DEFAULT;
+			const cost = (log.responseTokens / 1_000_000) * rates.outputPerMTok;
+			totalResponseTokens += log.responseTokens;
+			totalCostUsd += cost;
+
+			const existing = byToolMap.get(log.toolName) ?? {
+				callCount: 0,
+				totalResponseTokens: 0,
+				totalCostUsd: 0,
+			};
+			existing.callCount += 1;
+			existing.totalResponseTokens += log.responseTokens;
+			existing.totalCostUsd += cost;
+			byToolMap.set(log.toolName, existing);
+		}
+
+		const byTool: PigeonOverheadByTool[] = Array.from(byToolMap.entries())
+			.map(([toolName, acc]) => ({
+				toolName,
+				callCount: acc.callCount,
+				avgResponseTokens:
+					acc.callCount === 0 ? 0 : Math.round(acc.totalResponseTokens / acc.callCount),
+				totalCostUsd: acc.totalCostUsd,
+			}))
+			.sort((a, b) => b.totalCostUsd - a.totalCostUsd);
+
+		return {
+			success: true,
+			data: {
+				totalResponseTokens,
+				totalCostUsd,
+				byTool,
+				sessionCount: sessionIds.length,
+			},
+		};
+	} catch (error) {
+		console.error("[TOKEN_USAGE_SERVICE] getPigeonOverhead error:", error);
+		return {
+			success: false,
+			error: { code: "QUERY_FAILED", message: "Failed to load Pigeon overhead." },
+		};
+	}
+}
+
+// Card-scoped variant of `getSessionPigeonOverhead` — aggregates Pigeon
+// tool overhead across every session that touched this card, using the
+// same session-expansion rule as `getCardSummary` (any session anchored
+// to the card via direct attribution counts; sessions with `cardId=null`
+// that share a sessionId with a direct attribution count too). Backs the
+// `<CardPigeonOverheadChip>` rendering on card-detail-sheet, since that
+// surface today shows card-aggregate (not per-session) cost. #194
+async function getCardPigeonOverhead(
+	cardId: string
+): Promise<ServiceResult<{ totalCostUsd: number; callCount: number }>> {
+	try {
+		const card = await db.card.findUnique({ where: { id: cardId }, select: { projectId: true } });
+		if (!card) {
+			return { success: false, error: { code: "NOT_FOUND", message: "Card not found." } };
+		}
+		const directRows = await db.tokenUsageEvent.findMany({
+			where: { cardId },
+			select: { sessionId: true },
+		});
+		const sessionIds = Array.from(new Set(directRows.map((r) => r.sessionId)));
+		if (sessionIds.length === 0) {
+			return { success: true, data: { totalCostUsd: 0, callCount: 0 } };
+		}
+
+		// Pick a representative model per session — same approach as
+		// `getPigeonOverhead`: first event's model wins. Scope to this card's
+		// project so a session-id collision across projects doesn't resolve
+		// pricing from the wrong project.
+		const eventRows = await db.tokenUsageEvent.findMany({
+			where: { sessionId: { in: sessionIds }, projectId: card.projectId },
+			select: { sessionId: true, model: true },
+			orderBy: { recordedAt: "asc" },
+		});
+		const sessionModel = new Map<string, string>();
+		for (const row of eventRows) {
+			if (!sessionModel.has(row.sessionId)) sessionModel.set(row.sessionId, row.model);
+		}
+
+		const [logs, pricing] = await Promise.all([
+			db.toolCallLog.findMany({
+				where: { sessionId: { in: sessionIds } },
+				select: { sessionId: true, responseTokens: true },
+			}),
+			loadPricing(db),
+		]);
+
+		let totalCostUsd = 0;
+		for (const log of logs) {
+			const model = sessionModel.get(log.sessionId);
+			if (!model) continue;
+			const rates = pricing[model] ?? pricing.__default__ ?? DEFAULT_PRICING_DEFAULT;
+			totalCostUsd += (log.responseTokens / 1_000_000) * rates.outputPerMTok;
+		}
+		return { success: true, data: { totalCostUsd, callCount: logs.length } };
+	} catch (error) {
+		console.error("[TOKEN_USAGE_SERVICE] getCardPigeonOverhead error:", error);
+		return {
+			success: false,
+			error: { code: "QUERY_FAILED", message: "Failed to load card overhead." },
+		};
+	}
+}
+
+async function getSessionPigeonOverhead(
+	sessionId: string
+): Promise<ServiceResult<{ totalCostUsd: number; callCount: number }>> {
+	try {
+		const [logs, eventForModel, pricing] = await Promise.all([
+			db.toolCallLog.findMany({
+				where: { sessionId },
+				select: { responseTokens: true },
+			}),
+			db.tokenUsageEvent.findFirst({
+				where: { sessionId },
+				select: { model: true },
+			}),
+			loadPricing(db),
+		]);
+
+		if (logs.length === 0) {
+			return { success: true, data: { totalCostUsd: 0, callCount: 0 } };
+		}
+
+		const model = eventForModel?.model;
+		const rates = (model && pricing[model]) || pricing.__default__ || DEFAULT_PRICING_DEFAULT;
+		let totalCostUsd = 0;
+		for (const log of logs) {
+			totalCostUsd += (log.responseTokens / 1_000_000) * rates.outputPerMTok;
+		}
+		return { success: true, data: { totalCostUsd, callCount: logs.length } };
+	} catch (error) {
+		console.error("[TOKEN_USAGE_SERVICE] getSessionPigeonOverhead error:", error);
+		return {
+			success: false,
+			error: { code: "QUERY_FAILED", message: "Failed to load session overhead." },
+		};
+	}
+}
+
+// Local fallback so we never index-into `undefined` when pricing's
+// `__default__` is absent (DEFAULT_PRICING always carries it, but a
+// future override that strips it shouldn't crash this path).
+const DEFAULT_PRICING_DEFAULT: ModelPricing = {
+	inputPerMTok: 0,
+	outputPerMTok: 0,
+	cacheReadPerMTok: 0,
+	cacheCreation1hPerMTok: 0,
+	cacheCreation5mPerMTok: 0,
+};
+
 // ─── Service export ────────────────────────────────────────────────
 
 export const tokenUsageService = {
@@ -1198,6 +1438,9 @@ export const tokenUsageService = {
 	getPricing,
 	updatePricing,
 	recalibrateBaseline,
+	getPigeonOverhead,
+	getSessionPigeonOverhead,
+	getCardPigeonOverhead,
 };
 
 /** Test seam: lets unit tests exercise the hook-detection logic without
