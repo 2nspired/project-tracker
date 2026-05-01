@@ -411,6 +411,13 @@ export const TOOL_CATALOG: {
 			"destructive": true
 		},
 		{
+			"name": "attributeSession",
+			"category": "session",
+			"description": "Attribute all TokenUsageEvent rows for a session to a specific card. Call automatically from briefMe when an active card is known, or from saveHandoff when the session was card-focused. Safe to call multiple times — last write wins. Returns the count of updated rows.",
+			"readOnly": false,
+			"destructive": false
+		},
+		{
 			"name": "listHandoffs",
 			"category": "session",
 			"description": "List recent handoff summaries for a board. Shows the trajectory of work across sessions.",
@@ -1546,6 +1553,28 @@ export const TOOL_CATALOG: {
 				"type": "Relation type to remove",
 				"required": true,
 				"description": "Relation type to remove"
+			}
+		},
+		"attributeSession": {
+			"sessionId": {
+				"type": "Session UUID (defaults to current MCP SESSION_ID)",
+				"required": false,
+				"description": "Session UUID (defaults to current MCP SESSION_ID)"
+			},
+			"cardId": {
+				"type": "Card UUID",
+				"required": false,
+				"description": "Card UUID"
+			},
+			"boardId": {
+				"type": "Board UUID — used to resolve #N refs",
+				"required": false,
+				"description": "Board UUID — used to resolve #N refs"
+			},
+			"cardRef": {
+				"type": "Card ref like '#7' — resolved within boardId's project",
+				"required": false,
+				"description": "Card ref like '#7' — resolved within boardId's project"
 			}
 		},
 		"listHandoffs": {
