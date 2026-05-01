@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Claim } from "prisma/generated/client";
-import { db } from "./db.js";
+import { db } from "@/mcp/db";
 
 const execFileAsync = promisify(execFile);
 
