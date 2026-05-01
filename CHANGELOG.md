@@ -8,6 +8,14 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [6.0.0] — 2026-04-30
+
+The major-version cut for the **handoff/note separation** and the **`endSession` alias removal**. Handoffs now live in their own typed `Handoff` table, briefs are pure derived state (no persisted snapshot rows), and calling `endSession` returns "tool not found" — only `saveHandoff` resolves. Closes the v5.x deprecation cycle announced in `docs/VERSIONING.md`.
+
+### Why now
+
+Phase 1 of #179 (note-list default filter, #108) and the `endSession` deprecation (#151 / #152, shipped in v5.2.0) both promised completion at the v6.0.0 cutoff. This release cashes those checks: the typed `Handoff` table makes `note.list` strictly human-authored, deleting the brief-snapshot persistence layer removes a whole class of agent-generated rows from the human Notes surface, and the alias cutoff lets docs and tooling consolidate around one verb.
+
 ### Added
 
 - **CI: CHANGELOG `[Unreleased]` enforcement workflow** (`.github/workflows/changelog.yml`). PRs that touch `src/`, `prisma/`, `scripts/`, `docs/`, `docs-site/`, or `package.json` must update the `## [Unreleased]` section or apply a `skip-changelog` label. Documented co-located with the cadence rule in `docs/VERSIONING.md`. (#177)
