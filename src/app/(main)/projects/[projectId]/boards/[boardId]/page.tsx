@@ -22,7 +22,7 @@ import { ActivitySheet } from "@/components/board/activity-sheet";
 import { BoardListView } from "@/components/board/board-list-view";
 import { type BoardFilters, emptyFilters, type SortMode } from "@/components/board/board-toolbar";
 import { BoardView } from "@/components/board/board-view";
-import { SessionsSheet } from "@/components/board/sessions-sheet";
+import { HandoffsSheet } from "@/components/board/handoffs-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -200,7 +200,7 @@ export default function BoardPage({
 	const { projectId, boardId } = use(params);
 
 	const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
-	const [sessionsOpen, setSessionsOpen] = useState(false);
+	const [handoffsOpen, setHandoffsOpen] = useState(false);
 	const [activityOpen, setActivityOpen] = useState(false);
 	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 	const refetchInterval = useBoardEvents(boardId);
@@ -365,16 +365,16 @@ export default function BoardPage({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
-								variant={sessionsOpen ? "secondary" : "outline"}
+								variant={handoffsOpen ? "secondary" : "outline"}
 								size="sm"
 								className="h-8 gap-1.5 text-xs"
-								onClick={() => setSessionsOpen((v) => !v)}
+								onClick={() => setHandoffsOpen((v) => !v)}
 							>
 								<Users className="h-3.5 w-3.5" />
-								Sessions
+								Handoffs
 							</Button>
 						</TooltipTrigger>
-						<TooltipContent>View agent work sessions</TooltipContent>
+						<TooltipContent>View agent handoffs</TooltipContent>
 					</Tooltip>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -397,11 +397,11 @@ export default function BoardPage({
 					onOpenChange={setActivityOpen}
 					onCardClick={setSelectedCardId}
 				/>
-				<SessionsSheet
+				<HandoffsSheet
 					boardId={board.id}
 					projectId={board.project.id}
-					open={sessionsOpen}
-					onOpenChange={setSessionsOpen}
+					open={handoffsOpen}
+					onOpenChange={setHandoffsOpen}
 					resolveCardRef={(number) => {
 						for (const col of board.columns) {
 							const match = col.cards.find((c) => c.number === number);
@@ -411,7 +411,7 @@ export default function BoardPage({
 					}}
 					onCardClick={(cardId) => {
 						setSelectedCardId(cardId);
-						setSessionsOpen(false);
+						setHandoffsOpen(false);
 					}}
 				/>
 				{viewMode === "kanban" ? (

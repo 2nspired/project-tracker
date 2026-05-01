@@ -1,7 +1,10 @@
 "use client";
 
 import { Bot } from "lucide-react";
-import { useMemo, useState } from "react";
+import { cloneElement, Fragment, isValidElement, type ReactNode, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 import { CardRefText, CollapsibleSection, FilterChip } from "@/components/board/session-shell";
 import { Markdown } from "@/components/ui/markdown";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -9,7 +12,7 @@ import { TokenCostChip } from "@/components/ui/token-cost-chip";
 import { formatRelativeCompact } from "@/lib/format-date";
 import { api } from "@/trpc/react";
 
-type SessionsSheetProps = {
+type HandoffsSheetProps = {
 	boardId: string;
 	projectId: string;
 	open: boolean;
@@ -35,14 +38,14 @@ type ParsedHandoff = {
 
 type Filter = "all" | "blockers";
 
-export function SessionsSheet({
+export function HandoffsSheet({
 	boardId,
 	projectId,
 	open,
 	onOpenChange,
 	resolveCardRef,
 	onCardClick,
-}: SessionsSheetProps) {
+}: HandoffsSheetProps) {
 	const [filter, setFilter] = useState<Filter>("all");
 	const [agentFilter, setAgentFilter] = useState<string | null>(null);
 
@@ -75,7 +78,7 @@ export function SessionsSheet({
 			<SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
 				<SheetHeader className="border-b px-5 py-4">
 					<SheetTitle className="flex items-baseline gap-2 text-base font-semibold tracking-tight">
-						Sessions
+						Handoffs
 						<span className="font-mono text-2xs tabular-nums text-muted-foreground/60">
 							{handoffs?.length ?? 0}
 						</span>
@@ -116,13 +119,13 @@ export function SessionsSheet({
 
 				<div className="flex-1 overflow-y-auto px-5 py-4">
 					{!handoffs ? (
-						<SessionsSkeleton />
+						<HandoffsSkeleton />
 					) : filtered.length === 0 ? (
 						<EmptyState hasAny={handoffs.length > 0} />
 					) : (
 						<ol className="space-y-3">
 							{filtered.map((h: ParsedHandoff) => (
-								<SessionRow
+								<HandoffRow
 									key={h.id}
 									handoff={h}
 									resolveCardRef={resolveCardRef}
@@ -137,9 +140,9 @@ export function SessionsSheet({
 	);
 }
 
-// ─── Per-session row ──────────────────────────────────────────────
+// ─── Per-handoff row ──────────────────────────────────────────────
 
-function SessionRow({
+function HandoffRow({
 	handoff,
 	resolveCardRef,
 	onCardClick,
@@ -242,11 +245,78 @@ function HandoffSection({
 			<ul className="space-y-1 text-xs leading-snug">
 				{items.map((item, i) => (
 					<li key={i} className="text-foreground/80">
-						<CardRefText text={item} resolveCardRef={resolveCardRef} onCardClick={onCardClick} />
+						<HandoffItemContent
+							text={item}
+							resolveCardRef={resolveCardRef}
+							onCardClick={onCardClick}
+						/>
 					</li>
 				))}
 			</ul>
 		</CollapsibleSection>
+	);
+}
+
+// Items written by agents routinely contain **bold**, `code`, [links](url),
+// and #123 card refs. Render through ReactMarkdown, then walk the rendered
+// children to swap plain-text #N occurrences for clickable CardRefText
+// buttons (covers strings nested inside strong/em/code/a too).
+function HandoffItemContent({
+	text,
+	resolveCardRef,
+	onCardClick,
+}: {
+	text: string;
+	resolveCardRef: (number: number) => string | null;
+	onCardClick: (cardId: string) => void;
+}) {
+	const linkify = (node: ReactNode): ReactNode => {
+		if (typeof node === "string") {
+			if (!node.includes("#")) return node;
+			return <CardRefText text={node} resolveCardRef={resolveCardRef} onCardClick={onCardClick} />;
+		}
+		if (Array.isArray(node)) {
+			return node.map((c, i) => <Fragment key={i}>{linkify(c)}</Fragment>);
+		}
+		if (isValidElement(node)) {
+			const children = (node.props as { children?: ReactNode }).children;
+			return cloneElement(node, {}, linkify(children));
+		}
+		return node;
+	};
+
+	return (
+		<ReactMarkdown
+			remarkPlugins={[remarkGfm, remarkBreaks]}
+			components={{
+				p: ({ children }) => <>{linkify(children)}</>,
+				strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+				em: ({ children }) => <em>{children}</em>,
+				code: ({ children, className }) => {
+					const isBlock = className?.includes("language-");
+					if (isBlock) {
+						return (
+							<code className="block overflow-x-auto rounded bg-muted p-1.5 text-2xs">
+								{children}
+							</code>
+						);
+					}
+					return <code className="rounded bg-muted px-1 py-0.5 text-2xs">{children}</code>;
+				},
+				a: ({ children, href }) => (
+					<a
+						href={href}
+						className="text-primary underline"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						{children}
+					</a>
+				),
+			}}
+		>
+			{text}
+		</ReactMarkdown>
 	);
 }
 
@@ -256,12 +326,12 @@ function EmptyState({ hasAny }: { hasAny: boolean }) {
 	return (
 		<div className="rounded-md border border-dashed bg-muted/20 px-4 py-8 text-center text-xs text-muted-foreground">
 			{hasAny ? (
-				<p>No sessions match this filter.</p>
+				<p>No handoffs match this filter.</p>
 			) : (
 				<>
-					<p className="font-medium">No sessions yet.</p>
+					<p className="font-medium">No handoffs yet.</p>
 					<p className="mt-1">
-						Sessions are saved when an agent runs <code>/handoff</code> or calls{" "}
+						Handoffs are saved when an agent runs <code>/handoff</code> or calls{" "}
 						<code>saveHandoff</code>.
 					</p>
 				</>
@@ -270,7 +340,7 @@ function EmptyState({ hasAny }: { hasAny: boolean }) {
 	);
 }
 
-function SessionsSkeleton() {
+function HandoffsSkeleton() {
 	return (
 		<div className="space-y-3">
 			{[0, 1, 2].map((i) => (
