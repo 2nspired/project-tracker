@@ -22,12 +22,12 @@ import { getLatestHandoff, parseHandoff } from "@/lib/services/handoff";
 import { getBlockers as getBlockersShared } from "@/lib/services/relations";
 import { loadTrackerPolicy } from "@/lib/services/tracker-policy";
 import { computeWorkNextScore } from "@/lib/work-next-score";
-import type { VersionCheckResult } from "@/server/api/routers/system";
 // Re-using the staleness shape from the MCP layer would create a circular
 // import, so the helpers are duplicated here. Both copies stay in sync via
 // the shape: `formatStalenessWarnings` is pure formatting and
 // `checkStaleness` is a pure read; lifting them is out of scope.
 import { checkStaleness, formatStalenessWarnings } from "@/mcp/staleness";
+import type { VersionCheckResult } from "@/server/api/routers/system";
 import { findStaleInProgress } from "@/server/services/stale-cards";
 import { tokenUsageService } from "@/server/services/token-usage-service";
 
@@ -257,7 +257,7 @@ export async function buildBriefPayload(
 	// (`latest === null`), or when the caller skipped the version check.
 	const upgradeInfo = options.upgradeInfo;
 	const upgrade =
-		upgradeInfo && upgradeInfo.isOutdated && upgradeInfo.latest !== null
+		upgradeInfo?.isOutdated && upgradeInfo.latest !== null
 			? {
 					current: upgradeInfo.current,
 					latest: upgradeInfo.latest,
