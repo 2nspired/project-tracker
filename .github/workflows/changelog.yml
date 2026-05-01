@@ -1,0 +1,49 @@
+name: CHANGELOG
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  unreleased-entry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Enforce [Unreleased] update on release-relevant PRs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+
+          if echo "$LABELS" | grep -q '"skip-changelog"'; then
+            echo "Found 'skip-changelog' label — bypassing check."
+            exit 0
+          fi
+
+          RELEVANT='^(src/|prisma/|scripts/|docs/|docs-site/|package\.json$)'
+
+          if ! git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -E "$RELEVANT" >/dev/null; then
+            echo "No release-relevant files changed — CHANGELOG entry not required."
+            exit 0
+          fi
+
+          extract_unreleased() {
+            awk '/^## \[Unreleased\]/{flag=1; next} /^## \[/{flag=0} flag'
+          }
+
+          BASE=$(git show "$BASE_SHA:CHANGELOG.md" 2>/dev/null | extract_unreleased || true)
+          HEAD=$(extract_unreleased < CHANGELOG.md)
+
+          if [ "$BASE" = "$HEAD" ]; then
+            echo "::error file=CHANGELOG.md::Release-relevant files changed but the [Unreleased] section was not updated."
+            echo "::error::Add a line under '## [Unreleased]' in the appropriate Keep-a-Changelog category (Added/Changed/Fixed/Deprecated/Chore), linking the tracker card ref."
+            echo "::error::Apply the 'skip-changelog' label to bypass for pure-infra/test-only PRs. See docs/VERSIONING.md for the cadence rule."
+            exit 1
+          fi
+
+          echo "CHANGELOG [Unreleased] section was updated."

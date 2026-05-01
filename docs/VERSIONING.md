@@ -77,6 +77,10 @@ The CHANGELOG only works as an async signal if it stays current between tags. Th
 
 Skip the entry only for: pure formatting/lint commits, CHANGELOG itself, dependency bumps without behavior change, internal refactors with no public-surface delta. When in doubt, add the line — a one-line entry is cheap.
 
+### CI enforcement
+
+`.github/workflows/changelog.yml` enforces the rule on every PR to `main`. If the PR diff touches `src/`, `prisma/`, `scripts/`, `docs/`, `docs-site/`, or `package.json` and the `## [Unreleased]` section in `CHANGELOG.md` is byte-identical to the base branch's, the check fails. Add the entry, or apply the `skip-changelog` label for the rare PR that genuinely warrants no line (CI-only, test-only, vendored config). The skip path is the escape valve, not the default — every use is visible on the PR.
+
 ## Release procedure (summary)
 
 Full walkthrough in `scripts/release.ts` comments. Short version:
