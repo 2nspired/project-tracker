@@ -22,6 +22,45 @@ TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
 
 MCP_FILE="$TARGET_DIR/.mcp.json"
 
+# Install Claude Code slash commands into the target project. Idempotent: a
+# pre-existing file with the same name is left untouched, so users can edit a
+# command locally and re-run connect.sh without losing their changes. Pigeon's
+# commands are thin wrappers around MCP tools, so they have no value without
+# the .mcp.json — that's why this lives here, not in a separate script.
+install_slash_commands() {
+  local src_dir="$TRACKER_ROOT/.claude/commands"
+  local dest_dir="$TARGET_DIR/.claude/commands"
+
+  [ -d "$src_dir" ] || return 0
+  shopt -s nullglob
+  local sources=("$src_dir"/*.md)
+  shopt -u nullglob
+  [ ${#sources[@]} -gt 0 ] || return 0
+
+  mkdir -p "$dest_dir"
+
+  local installed=() skipped=()
+  local src name
+  for src in "${sources[@]}"; do
+    name="$(basename "$src")"
+    if [ -e "$dest_dir/$name" ]; then
+      skipped+=("$name")
+    else
+      cp "$src" "$dest_dir/$name"
+      installed+=("$name")
+    fi
+  done
+
+  if [ ${#installed[@]} -gt 0 ]; then
+    echo "Installed ${#installed[@]} slash command(s) into $dest_dir:"
+    printf '  /%s\n' "${installed[@]%.md}"
+  fi
+  if [ ${#skipped[@]} -gt 0 ]; then
+    echo "Slash commands already present (left as-is):"
+    printf '  /%s\n' "${skipped[@]%.md}"
+  fi
+}
+
 # Sanity check: don't connect Pigeon to itself
 if [ "$TARGET_DIR" = "$TRACKER_ROOT" ]; then
   echo "Error: You're inside the Pigeon directory itself. Run this from a different project."
@@ -53,6 +92,7 @@ if [ -f "$MCP_FILE" ]; then
   # Check if Pigeon is already configured (under either the new or legacy key)
   if grep -qE '"(pigeon|project-tracker)"' "$MCP_FILE" 2>/dev/null; then
     echo "Pigeon is already configured in $MCP_FILE"
+    install_slash_commands
     exit 0
   fi
 
@@ -65,6 +105,7 @@ if [ -f "$MCP_FILE" ]; then
   echo "    \"command\": \"$TRACKER_ROOT/scripts/pigeon-start.sh\","
   echo "    \"args\": []"
   echo "  }"
+  install_slash_commands
   exit 0
 fi
 
@@ -97,6 +138,8 @@ EOF
 echo "Created $MCP_FILE"
 echo "Pigeon MCP is now available in this project."
 echo "Agent name: $AGENT_NAME (set AGENT_NAME env var to change)"
+echo ""
+install_slash_commands
 echo ""
 echo "Tip: Add this to your project's CLAUDE.md:"
 echo ""

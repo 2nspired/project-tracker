@@ -73,7 +73,7 @@ You need:
 	/path/to/pigeon/scripts/connect.sh
 	```
 
-	This writes a `.mcp.json` in the project root pointing at the tracker. Next time your agent starts a session in that directory, the tracker tools are available.
+	This writes a `.mcp.json` in the project root pointing at the tracker, and installs Pigeon's slash commands (`/brief-me`, `/handoff`, `/plan-card`) into `<project>/.claude/commands/` so they're available in your next session. The slash command install is idempotent — if you've edited one locally, it's left as-is on re-runs. Next time your agent starts a session in that directory, the tracker tools and slash commands are available.
 
 	Using a non-Claude agent?
 
