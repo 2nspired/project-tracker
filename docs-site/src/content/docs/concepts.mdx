@@ -52,7 +52,7 @@ The shape:
 }
 ```
 
-Handoffs are written by `saveHandoff` and read by `briefMe`. They live in the `note` table with `kind: "handoff"`, are scoped per board, and roll forward — every new handoff becomes the next session's primer.
+Handoffs are written by `saveHandoff` and read by `briefMe`. They live in their own `Handoff` table (Project + Board scoped, append-only, indexed by `createdAt`) and roll forward — every new handoff becomes the next session's primer.
 
 The blockers field is special: when a handoff has open blockers, `briefMe` opens that section first and surfaces it in the pulse line. If a session ended with a question, the next session sees the question.
 

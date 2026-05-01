@@ -111,6 +111,7 @@ flowchart LR
 	C --> CK[ChecklistItem]
 	C --> CR[CardRelation]
 	C --> CN[Note]
+	B --> H[Handoff]
 	P --> M[Milestone]
 	M --> C
 	P --> CL[Claim]
@@ -119,7 +120,7 @@ flowchart LR
 
 - **Cards** are the primary unit of work.
 - **Notes** + **Claims** are the two knowledge primitives — see `docs/RFC-NOTE-CLAIM-PRIMITIVES.md` for the shape.
-- Session handoffs are stored as `Note` rows with `kind=handoff`; `saveHandoff` writes them and `briefMe` reads the latest.
+- Session handoffs live in their own `Handoff` table (Project + Board scoped, append-only, indexed by `createdAt`); `saveHandoff` writes them and `briefMe` reads the latest. (Pre-v6.0.0 they rode on `Note(kind="handoff")`; the rows were migrated and the kind retired in #179 Phase 2.)
 - Architectural decisions are stored as `Claim` rows with `kind=decision`.
 - **GitLink** connects commits to cards via `#N` references.
 
