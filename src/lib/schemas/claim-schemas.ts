@@ -30,7 +30,7 @@ export const measurementPayloadSchema = z
 	.object({
 		value: z.number(),
 		unit: z.string().min(1).max(40),
-		env: z.record(z.string(), z.string()).default({}),
+		env: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
 	})
 	.strict();
 

@@ -16,6 +16,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 - Header "MCP" pill renamed to "Commands" (`Command` icon); popover/sheet title and copy lead with slash commands. Cmd-K search pill gains a tooltip pointing at `?` for the full catalog. (#156)
 
+### Fixed
+
+- **`saveClaim` `payload.env` schema asymmetry** — measurement-claim env values now accept `string | number | boolean` on write to match what reads return. Previously, updating an existing measurement claim whose env was written with numeric values (e.g. `{ cards: 84, rows: 50 }`) failed Zod validation on the way back in. (#178)
+
 ## [5.2.0] — 2026-04-30
 
 Bundles ~24 PRs of UI, governance, and infra work since v5.1.0. Headline change is the **`endSession` → `saveHandoff` rename** (closes the slash-command/tool naming gap that drove two adoption-friction reports). Other threads: Pigeon brand rollout (logo, favicons, OG cards), in-app token tracking setup + Pulse cost surfacing, MCP tool catalog (header popover + Cmd-K palette + slash commands), TagManager UI with governance hints, and a Done-column ship-date sort that finally matches user expectation.
