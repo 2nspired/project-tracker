@@ -149,7 +149,7 @@ registerExtendedTool("attributeSession", {
 
 			const result = await tokenUsageService.attributeSession(sessionId, cardId);
 			if (!result.success) {
-				return err(result.error.message);
+				return err(`${result.error.code}: ${result.error.message}`);
 			}
 			return ok({ attributed: true, updated: result.data.updated, sessionId, cardId });
 		});
