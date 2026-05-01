@@ -410,6 +410,14 @@ async function recordFromTranscript(
 // Aggregates all events for a project into a single summary. `byModel`
 // preserves per-model breakdown; the chip in the UI displays only
 // `totalCostUsd` but the settings page can expose the full table.
+//
+// Memory ceiling: this is an unbounded `findMany` over `TokenUsageEvent` for
+// the project's full lifetime — every row loads into Node memory before
+// `aggregateEvents` reduces it. Acceptable at current scale (a single
+// active project tops out in the low thousands of rows after months of
+// use). If we ever grow into the 100k+ range per project, switch to a SQL
+// `groupBy` on `model` so the aggregation runs in SQLite and only the
+// per-model totals cross the boundary.
 async function getProjectSummary(projectId: string): Promise<ServiceResult<UsageSummary>> {
 	try {
 		const [events, pricing] = await Promise.all([
@@ -902,8 +910,13 @@ function resolveConfigCandidates(): string[] {
 	}
 	candidates.push(path.join(home, ".claude", "settings.json"));
 	candidates.push(path.join(home, ".claude-alt", "settings.json"));
-	candidates.push(path.resolve(".claude", "settings.json"));
-	candidates.push(path.resolve(".claude", "settings.local.json"));
+	// NOTE: project-scoped `<repo>/.claude/settings*.json` lookups are
+	// intentionally NOT resolved here. `path.resolve(".claude", ...)` resolves
+	// against the *server's* cwd (the launchd install dir at runtime), not the
+	// user's repo, so it produced false negatives in the diagnostic. The user-
+	// scoped paths above cover ~95% of installs; for the remainder, surface
+	// the missing-config state and let the user paste manually rather than
+	// lying about a path we can't reliably reach.
 	// Dedupe in case env override resolves to one of the standards.
 	return Array.from(new Set(candidates));
 }
@@ -1318,6 +1331,13 @@ async function getPigeonOverhead(
 		const sessionIds = Array.from(sessionModel.keys());
 
 		const [logs, pricing] = await Promise.all([
+			// `ToolCallLog` has no `projectId` column — sessionId scoping is safe
+			// today because `sessionIds` is derived from this project's
+			// `TokenUsageEvent` rows (caller-provided sessionIds are
+			// project-scoped at write time), so a cross-project sessionId
+			// collision would have to be deliberate. If multi-project sessionId
+			// reuse becomes possible, add a JOIN through the corresponding
+			// token-usage rows here so we can't leak another project's overhead.
 			db.toolCallLog.findMany({
 				where: { sessionId: { in: sessionIds } },
 				select: { toolName: true, sessionId: true, responseTokens: true },
@@ -1568,12 +1588,13 @@ async function getSavingsSummary(
 
 		const sessionFirstModel = new Map<string, string>();
 		const sessionLatestEvent = new Map<string, Date>();
+		// `eventRows` is ordered by `recordedAt` desc (see query above), so the
+		// first row we see per `sessionId` is already the most recent — a plain
+		// `has()` guard is sufficient. No `> existing` comparison needed.
 		for (const row of eventRows) {
 			if (!sessionFirstModel.has(row.sessionId)) sessionFirstModel.set(row.sessionId, row.model);
-			const existing = sessionLatestEvent.get(row.sessionId);
-			if (!existing || row.recordedAt > existing) {
+			if (!sessionLatestEvent.has(row.sessionId))
 				sessionLatestEvent.set(row.sessionId, row.recordedAt);
-			}
 		}
 		const sessionIds = Array.from(sessionFirstModel.keys());
 
@@ -1630,19 +1651,27 @@ async function getSavingsSummary(
 			.sort((a, b) => b[1].getTime() - a[1].getTime())
 			.slice(0, 10);
 
-		const perSessionLog: SavingsSessionEntry[] = [];
-		for (const [sessionId, recordedAt] of orderedSessions) {
-			const calls = briefMeBySession.get(sessionId) ?? 0;
-			const savingsUsd = (Math.max(0, perCallSavingsTokens) * inputPerMTok * calls) / 1_000_000;
-			const sessionOverhead = await getSessionPigeonOverhead(sessionId);
-			const pigeonCostUsd = sessionOverhead.success ? sessionOverhead.data.totalCostUsd : 0;
-			perSessionLog.push({
-				sessionId,
-				savingsUsd,
-				pigeonCostUsd,
-				recordedAt,
-			});
-		}
+		// Pre-compute per-session overhead in parallel. Sequential awaits here
+		// fired up to 10 round-trips per Costs-page render; `Promise.all` keeps
+		// the math identical (results array is index-aligned with
+		// `orderedSessions`) while collapsing latency to a single batch.
+		const sessionOverheads = await Promise.all(
+			orderedSessions.map(([sessionId]) => getSessionPigeonOverhead(sessionId))
+		);
+		const perSessionLog: SavingsSessionEntry[] = orderedSessions.map(
+			([sessionId, recordedAt], i) => {
+				const calls = briefMeBySession.get(sessionId) ?? 0;
+				const savingsUsd = (Math.max(0, perCallSavingsTokens) * inputPerMTok * calls) / 1_000_000;
+				const sessionOverhead = sessionOverheads[i];
+				const pigeonCostUsd = sessionOverhead?.success ? sessionOverhead.data.totalCostUsd : 0;
+				return {
+					sessionId,
+					savingsUsd,
+					pigeonCostUsd,
+					recordedAt,
+				};
+			}
+		);
 
 		return {
 			success: true,
