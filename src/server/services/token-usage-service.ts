@@ -579,20 +579,43 @@ async function getMilestoneSummary(milestoneId: string): Promise<ServiceResult<U
 }
 
 export type DailyCostSeries = {
-	/** Daily cost USD over the last 7 days (index 0 = 6 days ago, index 6 = today). */
+	/**
+	 * Daily cost USD over the last 7 calendar days, bucketed by **UTC** day.
+	 * `index 0` = the UTC day starting 6 days before today's UTC day;
+	 * `index 6` = today's UTC day (00:00 UTC → 24:00 UTC).
+	 *
+	 * Buckets are anchored to UTC midnight (not a rolling 168-hour window) so
+	 * the rightmost bar always represents a stable calendar day instead of
+	 * shifting with the time of page load. UTC is chosen because there is no
+	 * project-wide timezone configured; using UTC keeps bucket math identical
+	 * across hosts and across server/client renders.
+	 */
 	dailyCostUsd: number[];
 	/** Sum of `dailyCostUsd` — the headline number for the Pulse strip. */
 	weekTotalCostUsd: number;
 };
 
-// 7-day rolling cost series, indexed identically to `activityService.getFlowMetrics`'s
-// `throughput`, so the Pulse UI can render both sparklines on aligned x-axes.
+// 7-day calendar cost series (UTC), indexed identically to
+// `activityService.getFlowMetrics`'s `throughput`, so the Pulse UI can render
+// both sparklines on aligned x-axes.
+//
+// Bucketing rule: each event lands in `floor((event.recordedAt - windowStart) / 1d)`,
+// where `windowStart` is **UTC midnight at the start of the day 6 days before
+// today's UTC day**. That means index 6 = today (UTC) regardless of the
+// time-of-day at which the request fires; the rightmost sparkline bar is a
+// full calendar day, not a "last 24h" smear.
 async function getDailyCostSeries(projectId: string): Promise<ServiceResult<DailyCostSeries>> {
 	try {
-		const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+		// Anchor the 7-day window at UTC midnight so buckets line up with
+		// calendar days. `Date.UTC` returns ms since epoch for midnight UTC of
+		// the given y/m/d, so this is independent of the host's local TZ.
+		const now = new Date();
+		const todayUtcMidnightMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+		const windowStart = new Date(todayUtcMidnightMs - 6 * 24 * 60 * 60 * 1000);
+
 		const [events, pricing] = await Promise.all([
 			db.tokenUsageEvent.findMany({
-				where: { projectId, recordedAt: { gte: sevenDaysAgo } },
+				where: { projectId, recordedAt: { gte: windowStart } },
 				select: {
 					sessionId: true,
 					model: true,
@@ -611,7 +634,7 @@ async function getDailyCostSeries(projectId: string): Promise<ServiceResult<Dail
 		let weekTotalCostUsd = 0;
 		for (const event of events) {
 			const dayIndex = Math.floor(
-				(event.recordedAt.getTime() - sevenDaysAgo.getTime()) / (24 * 60 * 60 * 1000)
+				(event.recordedAt.getTime() - windowStart.getTime()) / (24 * 60 * 60 * 1000)
 			);
 			if (dayIndex < 0 || dayIndex >= 7) continue;
 			const cost = computeCost(event, pricing);
