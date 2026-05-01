@@ -37,7 +37,7 @@ type SetupState = "loading" | "not-configured" | "no-events" | "stale" | "workin
 // Aesthetic vocabulary for this dialog: developer-tool ledger. Dense
 // monospace, status as colored left strips and tiny mono badges, code
 // snippet treated as an editor block with a "tab" header showing the
-// destination path. Matches briefings-sheet.tsx's existing patterns.
+// destination path.
 
 // All inline mentions go through `<InlineCode>` so paths, JSON keys, and
 // hint anchors render at one consistent weight instead of inheriting the
@@ -57,8 +57,7 @@ function StepLabel({ n }: { n: string }) {
 }
 
 // Section frame. Border-top + inset padding gives each step a clear band
-// that scans top-to-bottom, mirroring the section dividers in
-// briefings-sheet.tsx without introducing a new card style.
+// that scans top-to-bottom.
 function Section({
 	step,
 	title,

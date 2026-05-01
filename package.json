@@ -1,6 +1,6 @@
 {
 	"name": "pigeon-mcp",
-	"version": "5.2.0",
+	"version": "6.0.0",
 	"private": true,
 	"scripts": {
 		"dev": "tsx scripts/dev.ts",
@@ -20,6 +20,7 @@
 		"mcp:dev": "MCP_SERVER_BRAND=pigeon tsx src/mcp/server.ts",
 		"doctor": "tsx scripts/doctor.ts",
 		"migrate-rebrand": "tsx scripts/migrate-rebrand.ts",
+		"migrate:handoffs": "tsx scripts/migrate-handoffs-from-notes.ts",
 		"backfill-completed-at": "tsx scripts/backfill-completed-at.ts",
 		"docs:sync": "tsx scripts/sync-tool-docs.ts",
 		"docs:check": "tsx scripts/sync-tool-docs.ts --check",

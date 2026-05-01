@@ -1,8 +1,8 @@
 /**
  * Prisma client extension that keeps the FTS5 knowledge index live.
  *
- * Hooks `create / update / upsert / delete` on Note, Claim, Card, and Comment
- * models. After each write, the relevant per-source indexer is called so
+ * Hooks `create / update / upsert / delete` on Note, Handoff, Claim, Card,
+ * and Comment models. After each write, the relevant per-source indexer is called so
  * `knowledge_fts` reflects the new state without manual rebuild.
  *
  * ─── Design notes ─────────────────────────────────────────────────
@@ -22,7 +22,7 @@
  */
 
 import { Prisma, type PrismaClient } from "prisma/generated/client";
-import { indexCard, indexClaim, indexComment, indexNote, removeFromIndex } from ".";
+import { indexCard, indexClaim, indexComment, indexHandoff, indexNote, removeFromIndex } from ".";
 
 function logFtsError(op: string, err: unknown): void {
 	console.warn(`[fts] live-sync ${op} failed (write succeeded):`, err);
@@ -51,6 +51,27 @@ export function ftsExtension(rawClient: PrismaClient) {
 				async delete({ args, query }) {
 					const result = (await query(args)) as { id: string };
 					removeFromIndex(rawClient, "note", result.id).catch((e) => logFtsError("note.delete", e));
+					return result;
+				},
+			},
+			handoff: {
+				async create({ args, query }) {
+					const result = (await query(args)) as { id: string };
+					indexHandoff(rawClient, result.id).catch((e) => logFtsError("handoff.create", e));
+					return result;
+				},
+				async update({ args, query }) {
+					const result = (await query(args)) as { id: string };
+					indexHandoff(rawClient, result.id).catch((e) => logFtsError("handoff.update", e));
+					return result;
+				},
+				async upsert({ args, query }) {
+					const result = (await query(args)) as { id: string };
+					indexHandoff(rawClient, result.id).catch((e) => logFtsError("handoff.upsert", e));
+					return result;
+				},
+				async delete({ args, query }) {
+					const result = (await query(args)) as { id: string };
 					removeFromIndex(rawClient, "handoff", result.id).catch((e) =>
 						logFtsError("handoff.delete", e)
 					);

@@ -7,7 +7,6 @@ import {
 	Clock,
 	Columns3,
 	Copy,
-	History,
 	List,
 	Map as MapIcon,
 	NotebookPen,
@@ -23,7 +22,6 @@ import { ActivitySheet } from "@/components/board/activity-sheet";
 import { BoardListView } from "@/components/board/board-list-view";
 import { type BoardFilters, emptyFilters, type SortMode } from "@/components/board/board-toolbar";
 import { BoardView } from "@/components/board/board-view";
-import { BriefingsSheet } from "@/components/board/briefings-sheet";
 import { SessionsSheet } from "@/components/board/sessions-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -203,7 +201,6 @@ export default function BoardPage({
 
 	const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 	const [sessionsOpen, setSessionsOpen] = useState(false);
-	const [briefingsOpen, setBriefingsOpen] = useState(false);
 	const [activityOpen, setActivityOpen] = useState(false);
 	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 	const refetchInterval = useBoardEvents(boardId);
@@ -382,20 +379,6 @@ export default function BoardPage({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
-								variant={briefingsOpen ? "secondary" : "outline"}
-								size="sm"
-								className="h-8 gap-1.5 text-xs"
-								onClick={() => setBriefingsOpen((v) => !v)}
-							>
-								<History className="h-3.5 w-3.5" />
-								Briefings
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Rolling history of briefMe snapshots</TooltipContent>
-					</Tooltip>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
 								variant={activityOpen ? "secondary" : "outline"}
 								size="sm"
 								className="h-8 gap-1.5 text-xs"
@@ -429,22 +412,6 @@ export default function BoardPage({
 					onCardClick={(cardId) => {
 						setSelectedCardId(cardId);
 						setSessionsOpen(false);
-					}}
-				/>
-				<BriefingsSheet
-					boardId={board.id}
-					open={briefingsOpen}
-					onOpenChange={setBriefingsOpen}
-					resolveCardRef={(number) => {
-						for (const col of board.columns) {
-							const match = col.cards.find((c) => c.number === number);
-							if (match) return match.id;
-						}
-						return null;
-					}}
-					onCardClick={(cardId) => {
-						setSelectedCardId(cardId);
-						setBriefingsOpen(false);
 					}}
 				/>
 				{viewMode === "kanban" ? (

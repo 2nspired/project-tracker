@@ -174,23 +174,18 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 		},
 	});
 
-	// Create session handoff as a Note(kind="handoff")
+	// Create session handoff in the dedicated Handoff table (#179 Phase 2)
 	const hoff = teachingProject.handoff;
-	await db.note.create({
+	await db.handoff.create({
 		data: {
 			boardId: board.id,
 			projectId: project.id,
-			kind: "handoff",
-			title: `Handoff by ${hoff.agentName}`,
-			content: hoff.summary,
-			author: hoff.agentName,
-			tags: "[]",
-			metadata: JSON.stringify({
-				workingOn: hoff.workingOn,
-				findings: hoff.findings,
-				nextSteps: hoff.nextSteps,
-				blockers: hoff.blockers,
-			}),
+			agentName: hoff.agentName,
+			summary: hoff.summary,
+			workingOn: JSON.stringify(hoff.workingOn),
+			findings: JSON.stringify(hoff.findings),
+			nextSteps: JSON.stringify(hoff.nextSteps),
+			blockers: JSON.stringify(hoff.blockers),
 		},
 	});
 

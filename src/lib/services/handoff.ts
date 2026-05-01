@@ -1,16 +1,17 @@
 /**
  * Shared handoff (session continuity) logic.
  *
- * Post-cutover (commits 5–6 of docs/IMPL-NOTE-CLAIM-CUTOVER.md)
- * handoffs round-trip through Note(kind="handoff"). The legacy
- * SessionHandoff table is left in place until commit 8 drops it.
+ * Handoffs live in their own `Handoff` table (#179 Phase 2, v6.0.0).
+ * Append-only: saveHandoff inserts; readers query by board ordered by
+ * createdAt DESC.
  */
 
-import type { Note, PrismaClient } from "prisma/generated/client";
+import type { Handoff, PrismaClient } from "prisma/generated/client";
 
 export type ParsedHandoff = {
 	id: string;
-	boardId: string | null;
+	boardId: string;
+	projectId: string;
 	agentName: string;
 	summary: string;
 	workingOn: string[];
@@ -18,29 +19,29 @@ export type ParsedHandoff = {
 	nextSteps: string[];
 	blockers: string[];
 	createdAt: Date;
-	updatedAt: Date;
 };
 
-type HandoffMetadata = {
-	workingOn?: string[];
-	findings?: string[];
-	nextSteps?: string[];
-	blockers?: string[];
-};
+function parseJsonArray(raw: string): string[] {
+	try {
+		const v = JSON.parse(raw);
+		return Array.isArray(v) ? (v as string[]) : [];
+	} catch {
+		return [];
+	}
+}
 
-export function parseHandoff(note: Note): ParsedHandoff {
-	const metadata = JSON.parse(note.metadata || "{}") as HandoffMetadata;
+export function parseHandoff(row: Handoff): ParsedHandoff {
 	return {
-		id: note.id,
-		boardId: note.boardId,
-		agentName: note.author,
-		summary: note.content,
-		workingOn: metadata.workingOn ?? [],
-		findings: metadata.findings ?? [],
-		nextSteps: metadata.nextSteps ?? [],
-		blockers: metadata.blockers ?? [],
-		createdAt: note.createdAt,
-		updatedAt: note.updatedAt,
+		id: row.id,
+		boardId: row.boardId,
+		projectId: row.projectId,
+		agentName: row.agentName,
+		summary: row.summary,
+		workingOn: parseJsonArray(row.workingOn),
+		findings: parseJsonArray(row.findings),
+		nextSteps: parseJsonArray(row.nextSteps),
+		blockers: parseJsonArray(row.blockers),
+		createdAt: row.createdAt,
 	};
 }
 
@@ -55,40 +56,42 @@ export async function saveHandoff(
 		blockers: string[];
 		summary: string;
 	}
-): Promise<Note> {
+): Promise<Handoff> {
 	const board = await db.board.findUnique({
 		where: { id: input.boardId },
 		select: { projectId: true },
 	});
-	return db.note.create({
+	if (!board) {
+		throw new Error(`saveHandoff: board ${input.boardId} not found`);
+	}
+	return db.handoff.create({
 		data: {
-			kind: "handoff",
-			title: `Handoff by ${input.agentName}`,
-			content: input.summary,
-			author: input.agentName,
 			boardId: input.boardId,
-			projectId: board?.projectId ?? null,
-			tags: "[]",
-			metadata: JSON.stringify({
-				workingOn: input.workingOn,
-				findings: input.findings,
-				nextSteps: input.nextSteps,
-				blockers: input.blockers,
-			}),
+			projectId: board.projectId,
+			agentName: input.agentName,
+			summary: input.summary,
+			workingOn: JSON.stringify(input.workingOn),
+			findings: JSON.stringify(input.findings),
+			nextSteps: JSON.stringify(input.nextSteps),
+			blockers: JSON.stringify(input.blockers),
 		},
 	});
 }
 
-export async function getLatestHandoff(db: PrismaClient, boardId: string): Promise<Note | null> {
-	return db.note.findFirst({
-		where: { kind: "handoff", boardId },
+export async function getLatestHandoff(db: PrismaClient, boardId: string): Promise<Handoff | null> {
+	return db.handoff.findFirst({
+		where: { boardId },
 		orderBy: { createdAt: "desc" },
 	});
 }
 
-export async function listHandoffs(db: PrismaClient, boardId: string, limit = 10): Promise<Note[]> {
-	return db.note.findMany({
-		where: { kind: "handoff", boardId },
+export async function listHandoffs(
+	db: PrismaClient,
+	boardId: string,
+	limit = 10
+): Promise<Handoff[]> {
+	return db.handoff.findMany({
+		where: { boardId },
 		orderBy: { createdAt: "desc" },
 		take: limit,
 	});

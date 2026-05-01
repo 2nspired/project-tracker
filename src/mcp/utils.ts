@@ -37,7 +37,7 @@ export function getAgentNameSource(): AgentNameSource {
  * Increment when schema changes require `db:push`.
  * Feature map tells agents what capabilities are available.
  */
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 export type FeatureAvailability = {
 	version: number;
@@ -64,7 +64,7 @@ export async function detectFeatures(): Promise<FeatureAvailability> {
 	const [relations, decisions, handoffs, gitLinks] = await Promise.all([
 		probe(() => db.cardRelation.count()),
 		probe(() => db.claim.count({ where: { kind: "decision" } })),
-		probe(() => db.note.count({ where: { kind: "handoff" } })),
+		probe(() => db.handoff.count()),
 		probe(() => db.gitLink.count()),
 	]);
 

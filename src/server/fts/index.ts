@@ -125,34 +125,50 @@ export async function indexNote(client: FtsClient, noteId: string): Promise<void
 		select: {
 			id: true,
 			projectId: true,
-			kind: true,
 			title: true,
 			content: true,
-			author: true,
-			metadata: true,
-			createdAt: true,
 		},
 	});
 	if (!note?.projectId) return; // Notes without a project aren't indexed.
 
-	if (note.kind === "handoff") {
-		const metadata = JSON.parse(note.metadata || "{}") as { findings?: string[] };
-		await upsertRow(client, {
-			source_type: "handoff",
-			source_id: note.id,
-			project_id: note.projectId,
-			title: `Handoff by ${note.author} (${note.createdAt.toISOString().slice(0, 10)})`,
-			content: [note.content, ...(metadata.findings ?? [])].filter(Boolean).join("\n"),
-		});
-	} else {
-		await upsertRow(client, {
-			source_type: "note",
-			source_id: note.id,
-			project_id: note.projectId,
-			title: note.title,
-			content: note.content,
-		});
+	await upsertRow(client, {
+		source_type: "note",
+		source_id: note.id,
+		project_id: note.projectId,
+		title: note.title,
+		content: note.content,
+	});
+}
+
+export async function indexHandoff(client: FtsClient, handoffId: string): Promise<void> {
+	const handoff = await client.handoff.findUnique({
+		where: { id: handoffId },
+		select: {
+			id: true,
+			projectId: true,
+			agentName: true,
+			summary: true,
+			findings: true,
+			createdAt: true,
+		},
+	});
+	if (!handoff) return;
+
+	let findings: string[] = [];
+	try {
+		const parsed = JSON.parse(handoff.findings) as unknown;
+		if (Array.isArray(parsed)) findings = parsed as string[];
+	} catch {
+		/* malformed — index summary only */
 	}
+
+	await upsertRow(client, {
+		source_type: "handoff",
+		source_id: handoff.id,
+		project_id: handoff.projectId,
+		title: `Handoff by ${handoff.agentName} (${handoff.createdAt.toISOString().slice(0, 10)})`,
+		content: [handoff.summary, ...findings].filter(Boolean).join("\n"),
+	});
 }
 
 export async function indexClaim(client: FtsClient, claimId: string): Promise<void> {
@@ -329,38 +345,41 @@ export async function rebuildIndex(
 		});
 	}
 
-	// Source: Notes (general + handoff)
+	// Source: Notes (human-authored scratch layer — single kind: general)
 	const notes = await client.note.findMany({
 		where: { projectId },
-		select: {
-			id: true,
-			kind: true,
-			title: true,
-			content: true,
-			author: true,
-			metadata: true,
-			createdAt: true,
-		},
+		select: { id: true, title: true, content: true },
 	});
 	for (const note of notes) {
-		if (note.kind === "handoff") {
-			const metadata = JSON.parse(note.metadata || "{}") as { findings?: string[] };
-			rows.push({
-				source_type: "handoff",
-				source_id: note.id,
-				project_id: projectId,
-				title: `Handoff by ${note.author} (${note.createdAt.toISOString().slice(0, 10)})`,
-				content: [note.content, ...(metadata.findings ?? [])].filter(Boolean).join("\n"),
-			});
-		} else {
-			rows.push({
-				source_type: "note",
-				source_id: note.id,
-				project_id: projectId,
-				title: note.title,
-				content: note.content,
-			});
+		rows.push({
+			source_type: "note",
+			source_id: note.id,
+			project_id: projectId,
+			title: note.title,
+			content: note.content,
+		});
+	}
+
+	// Source: Handoffs (agent session continuity)
+	const handoffs = await client.handoff.findMany({
+		where: { projectId },
+		select: { id: true, agentName: true, summary: true, findings: true, createdAt: true },
+	});
+	for (const h of handoffs) {
+		let findings: string[] = [];
+		try {
+			const parsed = JSON.parse(h.findings) as unknown;
+			if (Array.isArray(parsed)) findings = parsed as string[];
+		} catch {
+			/* tolerate */
 		}
+		rows.push({
+			source_type: "handoff",
+			source_id: h.id,
+			project_id: projectId,
+			title: `Handoff by ${h.agentName} (${h.createdAt.toISOString().slice(0, 10)})`,
+			content: [h.summary, ...findings].filter(Boolean).join("\n"),
+		});
 	}
 
 	// Source: indexed repo markdown files

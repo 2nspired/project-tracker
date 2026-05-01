@@ -26,6 +26,7 @@ model Project {
   tags           Tag[]
   cards          Card[]
   notes          Note[]
+  handoffs       Handoff[]
   milestones     Milestone[]
   gitLinks       GitLink[]
   claims         Claim[]
@@ -115,6 +116,7 @@ model Board {
   project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   columns           Column[]
   notes             Note[]
+  handoffs          Handoff[]
   defaultForProject Project? @relation("DefaultBoard")
 
   @@index([projectId])
@@ -291,6 +293,31 @@ model Note {
   @@index([expiresAt])
   @@index([updatedAt])
   @@map("note")
+}
+
+// Agent session handoffs (#179 v6.0.0). Extracted from Note(kind="handoff")
+// — append-only narrative of "what this agent did, what's next, what's
+// blocked" for the next agent to pick up via briefMe. Lives separately
+// from Note so the human-facing Notes surface stays uncluttered and the
+// Handoff entity gets typed columns instead of generic JSON metadata.
+model Handoff {
+  id        String   @id @default(uuid())
+  boardId   String   @map("board_id")
+  projectId String   @map("project_id")
+  agentName String   @map("agent_name")
+  summary   String                                // body prose
+  workingOn String   @default("[]") @map("working_on")  // JSON string array
+  findings  String   @default("[]")
+  nextSteps String   @default("[]") @map("next_steps")
+  blockers  String   @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  board   Board   @relation(fields: [boardId],   references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([boardId, createdAt])
+  @@index([projectId, createdAt])
+  @@map("handoff")
 }
 
 // ─── AI Context Engine Models ─────────────────────────────────────
