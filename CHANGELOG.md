@@ -8,6 +8,14 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Changed
+
+- **Sessions sheet renamed to Handoffs** — header button, tooltip, sheet title, and empty-state copy all use "Handoffs" vocabulary now that the data sources from the dedicated `Handoff` table (post-#110). Component, state, and import names follow. (#188)
+
+### Fixed
+
+- **Markdown in handoff list items renders properly.** Items in `workingOn` / `findings` / `nextSteps` / `blockers` were emitting literal `**` / `` ` `` characters because only `summary` was wrapped in `<Markdown>`. New `HandoffItemContent` runs each item through ReactMarkdown and walks the rendered tree to swap plain-text `#N` for clickable `CardRefText`, preserving card-ref linkification across nested `strong`/`em`/`code`/`a`. (#188)
+
 ## [6.0.0] — 2026-04-30
 
 The major-version cut for the **handoff/note separation** and the **`endSession` alias removal**. Handoffs now live in their own typed `Handoff` table, briefs are pure derived state (no persisted snapshot rows), and calling `endSession` returns "tool not found" — only `saveHandoff` resolves. Closes the v5.x deprecation cycle announced in `docs/VERSIONING.md`.
