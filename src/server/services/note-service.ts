@@ -1,10 +1,11 @@
-import type { Note } from "prisma/generated/client";
+import type { Card, Note } from "prisma/generated/client";
 import type { z } from "zod";
 import {
 	type CreateNoteInput,
 	type ListNoteFilter,
 	type NoteKind,
 	noteMetadataByKind,
+	type PromoteNoteToCardInput,
 	type UpdateNoteInput,
 } from "@/lib/schemas/note-schemas";
 import { db } from "@/server/db";
@@ -119,6 +120,83 @@ async function update(
 	}
 }
 
+// Promote a note to a card with link-and-keep semantics (#185). One Prisma
+// transaction stamps the new card with `metadata.sourceNoteId`, sets the
+// source note's `cardId` back-reference, and writes a "promoted_from_note"
+// activity row. The note row stays around as the rough-draft history that
+// Notes is meant to preserve.
+async function promoteToCard(input: PromoteNoteToCardInput): Promise<ServiceResult<Card>> {
+	try {
+		const note = await db.note.findUnique({ where: { id: input.noteId } });
+		if (!note) {
+			return { success: false, error: { code: "NOT_FOUND", message: "Note not found." } };
+		}
+
+		const column = await db.column.findUnique({
+			where: { id: input.columnId },
+			include: { board: { select: { projectId: true } } },
+		});
+		if (!column) {
+			return { success: false, error: { code: "NOT_FOUND", message: "Column not found." } };
+		}
+		const projectId = column.board.projectId;
+
+		const cardTitle = (input.title ?? note.title).trim() || note.title;
+
+		const card = await db.$transaction(async (tx) => {
+			const maxPosition = await tx.card.aggregate({
+				where: { columnId: input.columnId },
+				_max: { position: true },
+			});
+			const position = (maxPosition._max.position ?? -1) + 1;
+
+			const project = await tx.project.update({
+				where: { id: projectId },
+				data: { nextCardNumber: { increment: 1 } },
+			});
+			const cardNumber = project.nextCardNumber - 1;
+
+			const created = await tx.card.create({
+				data: {
+					columnId: input.columnId,
+					projectId,
+					number: cardNumber,
+					title: cardTitle,
+					description: note.content || undefined,
+					priority: input.priority,
+					position,
+					createdBy: "HUMAN",
+					metadata: JSON.stringify({ sourceNoteId: note.id }),
+				},
+			});
+
+			await tx.note.update({
+				where: { id: note.id },
+				data: { cardId: created.id },
+			});
+
+			await tx.activity.create({
+				data: {
+					cardId: created.id,
+					action: "promoted_from_note",
+					details: `Promoted from note "${note.title}"`,
+					actorType: "HUMAN",
+				},
+			});
+
+			return created;
+		});
+
+		return { success: true, data: card };
+	} catch (error) {
+		console.error("[NOTE_SERVICE] promoteToCard error:", error);
+		return {
+			success: false,
+			error: { code: "PROMOTE_FAILED", message: "Failed to promote note." },
+		};
+	}
+}
+
 async function deleteNote(noteId: string): Promise<ServiceResult<Note>> {
 	try {
 		const existing = await db.note.findUnique({ where: { id: noteId } });
@@ -137,5 +215,6 @@ export const noteService = {
 	list,
 	create,
 	update,
+	promoteToCard,
 	delete: deleteNote,
 };

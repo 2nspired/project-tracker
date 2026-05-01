@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Added
+
+- **`note.promoteToCard` tRPC procedure** — single transactional call that creates a card with `metadata.sourceNoteId`, sets the source note's `cardId` back-reference, and writes a `promoted_from_note` activity row. Replaces the previous two-step `card.create` + `note.delete` chain. The Promote modal in `/notes` and the project Notes tab now offers an editable title (pre-filled from the note) and a priority selector, and the source note is **kept** in the scratch space rather than deleted — closes #179 with link-and-keep semantics. (#185)
+
 ### Changed
 
 - **Sessions sheet renamed to Handoffs** — header button, tooltip, sheet title, and empty-state copy all use "Handoffs" vocabulary now that the data sources from the dedicated `Handoff` table (post-#110). Component, state, and import names follow. (#188)

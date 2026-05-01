@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
 	createNoteSchema,
 	listNoteFilterSchema,
+	promoteNoteToCardSchema,
 	updateNoteSchema,
 } from "@/lib/schemas/note-schemas";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
@@ -52,6 +53,15 @@ export const noteRouter = createTRPCRouter({
 		const result = await noteService.delete(input.id);
 		if (!result.success) {
 			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+		}
+		return result.data;
+	}),
+
+	promoteToCard: publicProcedure.input(promoteNoteToCardSchema).mutation(async ({ input }) => {
+		const result = await noteService.promoteToCard(input);
+		if (!result.success) {
+			const code = result.error.code === "NOT_FOUND" ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR";
+			throw new TRPCError({ code, message: result.error.message });
 		}
 		return result.data;
 	}),

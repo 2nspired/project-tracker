@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format-date";
+import { type Priority, priorityValues } from "@/lib/schemas/card-schemas";
 import { api } from "@/trpc/react";
 
 // ─── Page ──────────────────────────────────────────────────────────
@@ -63,6 +64,8 @@ export default function NotesPage() {
 	const [promoteProjectId, setPromoteProjectId] = useState("");
 	const [promoteBoardId, setPromoteBoardId] = useState("");
 	const [promoteColumnId, setPromoteColumnId] = useState("");
+	const [promoteTitle, setPromoteTitle] = useState("");
+	const [promotePriority, setPromotePriority] = useState<Priority>("NONE");
 
 	const utils = api.useUtils();
 
@@ -110,15 +113,30 @@ export default function NotesPage() {
 		onError: (e) => toast.error(e.message),
 	});
 
-	const createCard = api.card.create.useMutation({
+	const closePromote = () => {
+		setPromoteId(null);
+		setPromoteProjectId("");
+		setPromoteBoardId("");
+		setPromoteColumnId("");
+		setPromoteTitle("");
+		setPromotePriority("NONE");
+	};
+
+	const openPromote = (id: string) => {
+		const note = notes?.find((n) => n.id === id);
+		setPromoteId(id);
+		setPromoteTitle(note?.title ?? "");
+		setPromotePriority("NONE");
+		setPromoteProjectId(note?.project?.id ?? "");
+		setPromoteBoardId("");
+		setPromoteColumnId("");
+	};
+
+	const promoteToCard = api.note.promoteToCard.useMutation({
 		onSuccess: () => {
-			if (promoteId) {
-				deleteNote.mutate({ id: promoteId });
-			}
-			setPromoteId(null);
-			setPromoteProjectId("");
-			setPromoteBoardId("");
-			setPromoteColumnId("");
+			utils.note.list.invalidate();
+			utils.board.getFull.invalidate();
+			closePromote();
 			toast.success("Note promoted to card");
 		},
 		onError: (e) => toast.error(e.message),
@@ -154,12 +172,12 @@ export default function NotesPage() {
 	};
 
 	const handlePromote = () => {
-		const note = notes?.find((n) => n.id === promoteId);
-		if (!note || !promoteColumnId) return;
-		createCard.mutate({
+		if (!promoteId || !promoteColumnId || !promoteTitle.trim()) return;
+		promoteToCard.mutate({
+			noteId: promoteId,
 			columnId: promoteColumnId,
-			title: note.title,
-			description: note.content || undefined,
+			title: promoteTitle.trim(),
+			priority: promotePriority,
 		});
 	};
 
@@ -241,7 +259,7 @@ export default function NotesPage() {
 						actions={{
 							onView: (id) => setViewingId(id),
 							onEdit: (note) => startEdit(note as NoteItem & { projectId: string | null }),
-							onPromote: (id) => setPromoteId(id),
+							onPromote: openPromote,
 							onDelete: (id) => deleteNote.mutate({ id }),
 						}}
 					/>
@@ -288,7 +306,7 @@ export default function NotesPage() {
 									size="sm"
 									onClick={() => {
 										setViewingId(null);
-										setPromoteId(viewNote.id);
+										openPromote(viewNote.id);
 									}}
 								>
 									<ArrowUpRight className="mr-2 h-3.5 w-3.5" />
@@ -444,15 +462,42 @@ export default function NotesPage() {
 			</Dialog>
 
 			{/* Promote to card dialog */}
-			<Dialog open={!!promoteId} onOpenChange={() => setPromoteId(null)}>
+			<Dialog open={!!promoteId} onOpenChange={(open) => !open && closePromote()}>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Promote to Card</DialogTitle>
 						<DialogDescription>
-							Choose where to create the card. The note will be deleted after promotion.
+							The note stays in your scratch space and is linked to the new card.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="mt-4 space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="promote-title">Card title</Label>
+							<Input
+								id="promote-title"
+								value={promoteTitle}
+								onChange={(e) => setPromoteTitle(e.target.value)}
+								placeholder="Card title"
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label>Priority</Label>
+							<Select
+								value={promotePriority}
+								onValueChange={(v) => setPromotePriority(v as Priority)}
+							>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{priorityValues.map((p) => (
+										<SelectItem key={p} value={p}>
+											{p}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
 						<div className="space-y-2">
 							<Label>Project</Label>
 							<Select
@@ -517,8 +562,11 @@ export default function NotesPage() {
 						)}
 					</div>
 					<DialogFooter className="mt-6">
-						<Button onClick={handlePromote} disabled={!promoteColumnId || createCard.isPending}>
-							{createCard.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+						<Button
+							onClick={handlePromote}
+							disabled={!promoteColumnId || !promoteTitle.trim() || promoteToCard.isPending}
+						>
+							{promoteToCard.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
 							Promote to Card
 						</Button>
 					</DialogFooter>
