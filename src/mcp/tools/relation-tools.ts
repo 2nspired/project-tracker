@@ -12,7 +12,8 @@ import { AGENT_NAME, err, ok, resolveCardRef, safeExecute } from "../utils.js";
 
 registerExtendedTool("linkCards", {
 	category: "relations",
-	description: "Create a dependency between two cards.",
+	description:
+		"Create a typed dependency between two cards. Use `blocks` when card A cannot start until card B is done — blocked cards drop out of `briefMe.topWork` until cleared. Use `related` for loose thematic linkage (no ranking effect). Use `parent` for epic decomposition (the parent card aggregates child progress).",
 	parameters: z.object({
 		cardId: z.string().describe("Card UUID or #number"),
 		targetCardId: z.string().describe("Card UUID or #number"),
@@ -50,7 +51,8 @@ registerExtendedTool("linkCards", {
 
 registerExtendedTool("unlinkCards", {
 	category: "relations",
-	description: "Remove a dependency between two cards.",
+	description:
+		"Remove a previously created relation between two cards. Use when a block has resolved (the blocker shipped) or the relation was created in error. Pass the same `type` you used in `linkCards`.",
 	parameters: z.object({
 		cardId: z.string().describe("Card UUID or #number"),
 		targetCardId: z.string().describe("Card UUID or #number"),
@@ -85,7 +87,8 @@ registerExtendedTool("unlinkCards", {
 
 registerExtendedTool("getBlockers", {
 	category: "relations",
-	description: "List cards that are blocked and what blocks them.",
+	description:
+		"List every card with active blocking relations and what blocks each one. Use when `briefMe` shows a `blockers` count and you want the full picture, or before sprint planning to surface dependency chains across the board.",
 	parameters: z.object({
 		boardId: z.string().optional().describe("Board UUID — omit to search all boards"),
 	}),

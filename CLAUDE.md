@@ -1,6 +1,6 @@
 # Pigeon
 
-Local-first kanban board with MCP integration for AI-assisted development. Pigeon carries context between AI sessions — `briefMe` at session start, `saveHandoff` at session end. Humans trigger the wrap-up with the `/handoff` slash command (unchanged); under the hood it calls the `saveHandoff` MCP tool. (`endSession` is a deprecated alias for `saveHandoff` through v5.x; removed in v6.0.0.)
+Local-first kanban board with MCP integration for AI-assisted development. Pigeon carries context between AI sessions — `briefMe` at session start, `saveHandoff` at session end. Humans trigger the wrap-up with the `/handoff` slash command; under the hood it calls the `saveHandoff` MCP tool.
 
 ## Tech Stack
 
@@ -46,4 +46,4 @@ The web UI can run as a persistent background service via macOS launchd on port 
 
 See [AGENTS.md](AGENTS.md) for board usage guidelines, column definitions, workflow conventions, and connection instructions. Those guidelines apply to all agents (Claude, Codex, etc.).
 
-If the user asks you to plan a card, call `planCard({ boardId, cardId: "#N" })` (or use the `/plan-card` slash command). It returns the card context, tracker.md policy, investigation hints, and a fixed protocol that produces the four locked plan sections.
+If the user asks you to plan a card, call `runTool({ tool: "planCard", params: { boardId, cardId: "#N" } })` (or use the `/plan-card` slash command). `planCard` is an extended tool, so it goes through `runTool` — calling it as an essential will fail with "tool not found." It returns the card context, tracker.md policy, investigation hints, and a fixed protocol that produces the four locked plan sections.

@@ -296,7 +296,7 @@ registerExtendedTool("deleteCard", {
 registerExtendedTool("bulkCreateCards", {
 	category: "cards",
 	description:
-		"Create multiple cards in one call. v4.2: prefer `tagSlugs` and `milestoneId`; legacy `tags` and `milestoneName` still work with `_deprecated` warnings.",
+		"Create multiple cards in one call. Prefer `tagSlugs` (strict) and `milestoneId` (strict). Legacy `tags` and `milestoneName` still work but emit `_deprecated` warnings; slated for removal in the next major version.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		cards: z.array(
@@ -674,7 +674,7 @@ registerExtendedTool("bulkMoveCards", {
 registerExtendedTool("bulkUpdateCards", {
 	category: "cards",
 	description:
-		"Update multiple cards in one call. Each entry can set priority, tags, and/or milestone. Omitted fields are unchanged. v4.2: prefer `tagSlugs` and `milestoneId`; legacy params still accepted with `_deprecated` warnings.",
+		"Update multiple cards in one call. Each entry can set priority, tags, and/or milestone. Omitted fields are unchanged. Prefer `tagSlugs` (strict) and `milestoneId` (strict). Legacy params still accepted but emit `_deprecated` warnings; slated for removal in the next major version.",
 	parameters: z.object({
 		cards: z.array(
 			z
@@ -878,7 +878,8 @@ registerExtendedTool("addChecklistItem", {
 
 registerExtendedTool("toggleChecklistItem", {
 	category: "checklist",
-	description: "Toggle a checklist item complete or incomplete.",
+	description:
+		"Mark a checklist item complete or incomplete. Use after verifying a subtask is done, or to reverse an accidental check. Get the `checklistItemId` from `getCardContext` or `getBoard`. Toggling produces an activity row visible on the card.",
 	parameters: z.object({
 		checklistItemId: z
 			.string()
@@ -989,7 +990,7 @@ registerExtendedTool("updateMilestone", {
 		state: z
 			.enum(["active", "archived"])
 			.optional()
-			.describe("v4.2: 'archived' hides from picker (cards keep their assignment)."),
+			.describe("'archived' hides the milestone from the picker; cards keep their assignment."),
 	}),
 	annotations: { idempotentHint: true },
 	handler: ({ milestoneId, name, description, targetDate, state }) =>

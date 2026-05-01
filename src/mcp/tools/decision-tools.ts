@@ -28,7 +28,8 @@ const STATUS_LEGACY_TO_CLAIM: Record<string, string> = {
 
 registerExtendedTool("recordDecision", {
 	category: "decisions",
-	description: "Record an architectural decision.",
+	description:
+		"Record an architectural decision so the rationale survives session boundaries. Use when you've chosen an approach (framework, pattern, tradeoff) and the next agent or human needs the reasoning. Pass `supersedesId` to chain a replacement when a later decision overrides this one. For new code, prefer `saveClaim({ kind: \"decision\", ... })` — `recordDecision` is a thin alias kept for back-compat.",
 	parameters: z.object({
 		projectId: z.string().describe("Project UUID"),
 		cardId: z.string().optional().describe("Card UUID or #number"),

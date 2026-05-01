@@ -76,15 +76,6 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 		columnMap.set(col.name, created.id);
 	}
 
-	// Create milestone
-	const milestone = await db.milestone.create({
-		data: {
-			projectId: project.id,
-			name: teachingProject.milestone.name,
-			description: teachingProject.milestone.description,
-		},
-	});
-
 	// Create cards with proper numbering and per-column positioning
 	const numberToId = new Map<number, string>();
 	const positionCounters = new Map<string, number>();
@@ -107,25 +98,13 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 				priority: def.priority,
 				tags: JSON.stringify(def.tags),
 				createdBy: def.createdBy,
-				milestoneId: teachingProject.milestoneCards.includes(cardNumber) ? milestone.id : null,
 			},
 		});
 
 		numberToId.set(cardNumber, card.id);
 	}
 
-	// Create card relations (#8 blocks #7)
-	for (const rel of teachingProject.relations) {
-		await db.cardRelation.create({
-			data: {
-				fromCardId: expectMapHit(numberToId, rel.fromCardNumber, "card"),
-				toCardId: expectMapHit(numberToId, rel.toCardNumber, "card"),
-				type: rel.type,
-			},
-		});
-	}
-
-	// Create checklists (partial checklist on card #6)
+	// Create checklists (partial on card #4 — Cards 101)
 	for (const checklist of teachingProject.checklists) {
 		const cardId = expectMapHit(numberToId, checklist.cardNumber, "card");
 		for (let i = 0; i < checklist.items.length; i++) {
@@ -140,7 +119,7 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 		}
 	}
 
-	// Create comments
+	// Create comments (welcome on #1, human→agent example on #5)
 	for (const comment of teachingProject.comments) {
 		await db.comment.create({
 			data: {
@@ -151,28 +130,6 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 			},
 		});
 	}
-
-	// Create decision claim (attached to card #13)
-	const dec = teachingProject.decision;
-	const decisionStatusMap: Record<string, string> = {
-		proposed: "active",
-		accepted: "active",
-		superseded: "superseded",
-		rejected: "retired",
-	};
-	await db.claim.create({
-		data: {
-			projectId: project.id,
-			cardId: expectMapHit(numberToId, dec.cardNumber, "card"),
-			kind: "decision",
-			statement: dec.title,
-			body: dec.rationale ? `${dec.decision}\n\n${dec.rationale}` : dec.decision,
-			evidence: JSON.stringify({}),
-			payload: JSON.stringify({ alternatives: dec.alternatives }),
-			author: dec.author,
-			status: decisionStatusMap[dec.status] ?? "active",
-		},
-	});
 
 	// Create session handoff in the dedicated Handoff table (#179 Phase 2)
 	const hoff = teachingProject.handoff;

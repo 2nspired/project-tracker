@@ -40,7 +40,7 @@ export const TOOL_CATALOG: {
 		},
 		{
 			"name": "addComment",
-			"description": "Add a comment to a card."
+			"description": "Add a markdown comment to a card. Surfaces in `getCardContext` for future agents."
 		},
 		{
 			"name": "registerRepo",
@@ -70,7 +70,7 @@ export const TOOL_CATALOG: {
 		{
 			"name": "bulkCreateCards",
 			"category": "cards",
-			"description": "Create multiple cards in one call. v4.2: prefer `tagSlugs` and `milestoneId`; legacy `tags` and `milestoneName` still work with `_deprecated` warnings.",
+			"description": "Create multiple cards in one call. Prefer `tagSlugs` (strict) and `milestoneId` (strict). Legacy `tags` and `milestoneName` still work but emit `_deprecated` warnings; slated for removal in the next major version.",
 			"readOnly": false,
 			"destructive": false
 		},
@@ -84,7 +84,7 @@ export const TOOL_CATALOG: {
 		{
 			"name": "bulkUpdateCards",
 			"category": "cards",
-			"description": "Update multiple cards in one call. Each entry can set priority, tags, and/or milestone. Omitted fields are unchanged. v4.2: prefer `tagSlugs` and `milestoneId`; legacy params still accepted with `_deprecated` warnings.",
+			"description": "Update multiple cards in one call. Each entry can set priority, tags, and/or milestone. Omitted fields are unchanged. Prefer `tagSlugs` (strict) and `milestoneId` (strict). Legacy params still accepted but emit `_deprecated` warnings; slated for removal in the next major version.",
 			"readOnly": false,
 			"destructive": false
 		},
@@ -119,7 +119,7 @@ export const TOOL_CATALOG: {
 		{
 			"name": "toggleChecklistItem",
 			"category": "checklist",
-			"description": "Toggle a checklist item complete or incomplete.",
+			"description": "Mark a checklist item complete or incomplete. Use after verifying a subtask is done, or to reverse an accidental check. Get the `checklistItemId` from `getCardContext` or `getBoard`. Toggling produces an activity row visible on the card.",
 			"readOnly": false,
 			"destructive": false
 		},
@@ -196,7 +196,7 @@ export const TOOL_CATALOG: {
 		{
 			"name": "saveFact",
 			"category": "context",
-			"description": "Create or update a persistent fact. Pass factId to update.\n\nTypes:\n- **context**: Project-level knowledge claim (content = the claim, plus rationale/application/details)\n- **code**: Assertion about a file or symbol (content = the fact, path required)\n- **measurement**: Numeric value like latency or bundle size (content = description, value + unit required)",
+			"description": "Create or update a persistent fact. Pass factId to update. Legacy alias for `saveClaim` — prefer `saveClaim` for new writes (unified statement + body + evidence + payload shape). `saveFact`/`listFacts` are slated for removal in the next minor MCP version.\n\nTypes:\n- **context**: Project-level knowledge claim (content = the claim, plus rationale/application/details)\n- **code**: Assertion about a file or symbol (content = the fact, path required)\n- **measurement**: Numeric value like latency or bundle size (content = description, value + unit required)",
 			"readOnly": false,
 			"destructive": false
 		},
@@ -210,7 +210,7 @@ export const TOOL_CATALOG: {
 		{
 			"name": "recordDecision",
 			"category": "decisions",
-			"description": "Record an architectural decision.",
+			"description": "Record an architectural decision so the rationale survives session boundaries. Use when you've chosen an approach (framework, pattern, tradeoff) and the next agent or human needs the reasoning. Pass `supersedesId` to chain a replacement when a later decision overrides this one. For new code, prefer `saveClaim({ kind: \"decision\", ... })` — `recordDecision` is a thin alias kept for back-compat.",
 			"readOnly": false,
 			"destructive": false
 		},
@@ -392,21 +392,21 @@ export const TOOL_CATALOG: {
 		{
 			"name": "getBlockers",
 			"category": "relations",
-			"description": "List cards that are blocked and what blocks them.",
+			"description": "List every card with active blocking relations and what blocks each one. Use when `briefMe` shows a `blockers` count and you want the full picture, or before sprint planning to surface dependency chains across the board.",
 			"readOnly": true,
 			"destructive": false
 		},
 		{
 			"name": "linkCards",
 			"category": "relations",
-			"description": "Create a dependency between two cards.",
+			"description": "Create a typed dependency between two cards. Use `blocks` when card A cannot start until card B is done — blocked cards drop out of `briefMe.topWork` until cleared. Use `related` for loose thematic linkage (no ranking effect). Use `parent` for epic decomposition (the parent card aggregates child progress).",
 			"readOnly": false,
 			"destructive": false
 		},
 		{
 			"name": "unlinkCards",
 			"category": "relations",
-			"description": "Remove a dependency between two cards.",
+			"description": "Remove a previously created relation between two cards. Use when a block has resolved (the blocker shipped) or the relation was created in error. Pass the same `type` you used in `linkCards`.",
 			"readOnly": false,
 			"destructive": true
 		},
@@ -476,7 +476,7 @@ export const TOOL_CATALOG: {
 		{
 			"name": "setRepoPath",
 			"category": "setup",
-			"description": "Set the local git repository path for a project.",
+			"description": "Persist the absolute local repo path for a project so `syncGitActivity` and `getGitLog` can find commits. Prefer the essential `registerRepo` tool for first-time binding — it also handles the `needsRegistration` signal from `briefMe`. Reach for `setRepoPath` when the repo has moved on disk and you want to update the bind without going through onboarding.",
 			"readOnly": false,
 			"destructive": false
 		},
@@ -1373,9 +1373,9 @@ export const TOOL_CATALOG: {
 				"description": "ISO 8601, null to clear"
 			},
 			"state": {
-				"type": "v4.2: 'archived' hides from picker (cards keep their assignment).",
+				"type": "'archived' hides the milestone from the picker; cards keep their assignment.",
 				"required": false,
-				"description": "v4.2: 'archived' hides from picker (cards keep their assignment)."
+				"description": "'archived' hides the milestone from the picker; cards keep their assignment."
 			}
 		},
 		"createNote": {

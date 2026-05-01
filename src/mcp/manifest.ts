@@ -29,7 +29,10 @@ export const ESSENTIAL_TOOLS: Array<{ name: string; description: string }> = [
 	{ name: "createCard", description: "Create a card in a column (by name)." },
 	{ name: "updateCard", description: "Update card fields; optional `intent`." },
 	{ name: "moveCard", description: "Move a card to a column. Requires `intent`." },
-	{ name: "addComment", description: "Add a comment to a card." },
+	{
+		name: "addComment",
+		description: "Add a markdown comment to a card. Surfaces in `getCardContext` for future agents.",
+	},
 	{
 		name: "registerRepo",
 		description:

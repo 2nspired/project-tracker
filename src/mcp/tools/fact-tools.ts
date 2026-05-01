@@ -92,7 +92,7 @@ type LegacyFact = ReturnType<typeof claimToFact>;
 
 registerExtendedTool("saveFact", {
 	category: "context",
-	description: `Create or update a persistent fact. Pass factId to update.
+	description: `Create or update a persistent fact. Pass factId to update. Legacy alias for \`saveClaim\` — prefer \`saveClaim\` for new writes (unified statement + body + evidence + payload shape). \`saveFact\`/\`listFacts\` are slated for removal in the next minor MCP version.
 
 Types:
 - **context**: Project-level knowledge claim (content = the claim, plus rationale/application/details)

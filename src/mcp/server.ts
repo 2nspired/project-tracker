@@ -203,7 +203,7 @@ server.registerTool(
 	{
 		title: "Create Card",
 		description:
-			"Create a card. Uses column name (not ID). v4.2: pass `tagSlugs` (strict) and `milestoneId` (strict); legacy `tags` and `milestoneName` still work with auto-create + normalization, and surface a `_deprecated` warning. Both removed in v5.0.0.",
+			"Create a card. Uses column name (not ID). Prefer `tagSlugs` (strict; slugs must already exist — use `createTag` first for new vocabulary) and `milestoneId` (strict UUID). Legacy `tags` and `milestoneName` still work with auto-create + normalization but emit `_deprecated` warnings; slated for removal in the next major version.",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
 			columnName: z.string().describe("Column name (e.g. 'Backlog', 'In Progress')"),
@@ -346,7 +346,7 @@ server.registerTool(
 	{
 		title: "Update Card",
 		description:
-			"Update card fields. Omitted fields unchanged. v4.2: prefer `tagSlugs` (strict) and `milestoneId` (strict); legacy `tags` and `milestoneName` still work with `_deprecated` warnings.",
+			"Update card fields. Omitted fields unchanged. Prefer `tagSlugs` (strict — slugs must already exist) and `milestoneId` (strict UUID, null to unassign). Legacy `tags` and `milestoneName` still work but emit `_deprecated` warnings; slated for removal in the next major version.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
 			boardId: z
@@ -612,7 +612,8 @@ server.registerTool(
 	"addComment",
 	{
 		title: "Add Comment",
-		description: "Add a comment to a card.",
+		description:
+			"Add a markdown comment to a card. Use for observations, findings, or guidance left for the next agent — comments flow into `getCardContext` so future sessions see them. Prefer `updateCard({ description })` for scope changes; reach for `addComment` when the note is contextual rather than structural.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
 			boardId: z
@@ -695,7 +696,7 @@ server.registerTool(
 			options.push(
 				{
 					action: "runTool({ tool: 'seedTutorial' })",
-					description: "Create tutorial project with 17 example cards",
+					description: "Create tutorial project with 10 example cards",
 				},
 				{ action: "onboarding prompt (quickstart)", description: "Set up your own project" },
 				{ action: "onboarding prompt (tutorial)", description: "Step-by-step guided walkthrough" }
@@ -1615,23 +1616,43 @@ registerPromptTracked(
 
 		instructions.push(
 			"",
-			"## Step 2: Populate the board",
+			"## Step 2: Bind the project to your local repo",
+			"",
+			"`registerRepo({ projectId, repoPath: \"/absolute/path/to/repo\" })` — once per project.",
+			"After binding, `briefMe()` auto-detects the right board from `cwd` inside that repo, and `saveHandoff` syncs commits to cards on every session close.",
+			"",
+			"## Step 3: Populate the board",
 			"",
 			"Read the project's README, CLAUDE.md, and `git log --oneline -20` to understand state.",
 			"Then create cards: Completed→Done, Active→In Progress, Next/Future→Backlog (drag the most important to the top), Ideas→Parking Lot.",
 			"Use `runTool('bulkCreateCards', {...})` to batch-create.",
 			"",
-			"## Step 3: Add to the project's CLAUDE.md",
+			"## Step 4: Drop a tracker.md at the repo root",
+			"",
+			"`tracker.md` is project policy that travels with the code: YAML front matter for machine-parsed rules (`intent_required_on`, per-column prompts), Markdown body for the agent prompt. `briefMe` exposes it to every session; `planCard` reads it when planning.",
+			"",
+			"Minimal example:",
+			"```markdown",
+			"---",
+			"schema_version: 1",
+			"intent_required_on:",
+			"  - moveCard",
+			"---",
+			"",
+			"# Project policy",
+			"Start every session with briefMe. End every session with saveHandoff.",
+			"```",
+			"",
+			"## Step 5: Add to the project's CLAUDE.md",
 			"",
 			"```",
 			"## Project Tracking",
 			"This project uses the `pigeon` MCP tools.",
-			"Use the `resume-session` prompt with the board ID at the start of each conversation.",
-			"Call `saveHandoff` before wrapping up to save handoff for the next session.",
+			"Run `briefMe` at the start of every conversation; run `saveHandoff` before wrapping up.",
 			'Reference cards by #number (e.g. "working on #7").',
 			"```",
 			"",
-			"Keep cards PR-sized. Use tags (`feature:X`, `bug`, `debt`). Use `getTools()` to discover all tools."
+			"**Tag convention:** one **type** per card (`bug | feature | chore | docs | epic | spike`) plus an optional **area** (`mcp`, `ui`, `cli`, `schema`, etc.). Group cross-card initiatives with a *milestone*, not a tag prefix. Keep cards PR-sized. Press `?` in the UI for the Commands catalog, or call `getTools()` from an agent."
 		);
 
 		return {
@@ -1765,29 +1786,28 @@ registerPromptTracked(
 				const text = [
 					"# Welcome to Pigeon! 🎓",
 					"",
-					`I've created a tutorial project for you to explore. Use the **resume-session** prompt with boardId \`${result.boardId}\` to see the board.`,
+					`I've created the Learn Pigeon tutorial project for you. Use the **resume-session** prompt with boardId \`${result.boardId}\` to load the board.`,
 					"",
 					"## What's inside",
 					"",
-					'The "Learn Pigeon" project has **17 cards** across all 6 columns, each teaching a different feature:',
+					'The "Learn Pigeon" project has **10 cards** across 4 columns. Each card teaches one capability with both a **Try it (UI)** step and a **Try it (agent)** MCP call:',
 					"",
-					"- **Cards & columns** — how tasks flow from Backlog → Done",
-					"- **Checklists** — break cards into subtasks (card #6 has a partial checklist)",
-					"- **Milestones** — group related cards (cards #10, #11)",
-					"- **Card relations** — blocking dependencies (#8 blocks #7)",
-					"- **Comments** — discussion threads on cards",
-					"- **Decision records** — document architectural choices",
-					"- **Session handoffs** — continuity between agent sessions",
-					"- **Notes** — project-level knowledge base",
-					"- **Tags & priorities** — organize and filter cards",
-					"- **Parking Lot** — ideas you're not ready to work on",
+					"- **Cards 1–2 (Done)** — what cards are; how columns work + WIP discipline",
+					"- **Card 3 (In Progress)** — `briefMe`, the session primer (your first call)",
+					"- **Card 4** — Cards 101: priority, description, checklists",
+					"- **Card 5** — `saveHandoff`, the session loop closer",
+					"- **Card 6** — `planCard` + `tracker.md`, the planning protocol",
+					"- **Card 7** — `registerRepo`, binding a project to a local repo",
+					"- **Card 8** — the Costs page (token tracking + savings lens)",
+					"- **Card 9** — discovering tools (`?` hotkey + `getTools`)",
+					"- **Card 10 (Parking Lot)** — graduating: delete the tutorial, start your own",
 					"",
 					"## Try these",
 					"",
-					`1. \`resume-session\` with boardId \`${result.boardId}\` to see the full board`,
-					"2. Open a card to read its description — each one explains the feature",
-					"3. Try moving a card, adding a checklist item, or creating a comment",
-					"4. Use `getTools` to discover all available tools",
+					`1. \`resume-session\` with boardId \`${result.boardId}\` to load the full board`,
+					"2. Drag card #3 (briefMe) to Done, then pull #4 from Backlog into In Progress",
+					"3. Work cards 4 → 9 top-to-bottom — each one's Try it (agent) call works against this board",
+					"4. When you're done, follow card #10 to graduate",
 				].join("\n");
 				return { messages: [{ role: "user" as const, content: { type: "text" as const, text } }] };
 			}

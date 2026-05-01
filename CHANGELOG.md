@@ -203,7 +203,7 @@ The tool is renamed to **Pigeon** — local-first kanban that carries context be
 
 #### Migration — required after pulling v5.0
 
-Full walkthrough: [docs/MIGRATING-TO-PIGEON.md](docs/MIGRATING-TO-PIGEON.md). TL;DR:
+Full walkthrough: [docs/archive/MIGRATING-TO-PIGEON.md](docs/archive/MIGRATING-TO-PIGEON.md). TL;DR:
 
 ```bash
 npm install
@@ -246,7 +246,7 @@ Then it prints a final checklist for steps it deliberately doesn't auto-execute:
 
 ### Migration — required before pulling v5.0
 
-For each project that still has content in the `projectPrompt` column, follow the v4.1 → v5.0 migration path documented in [docs/MIGRATING-TO-PIGEON.md](docs/MIGRATING-TO-PIGEON.md). TL;DR:
+For each project that still has content in the `projectPrompt` column, follow the v4.1 → v5.0 migration path documented in [docs/archive/MIGRATING-TO-PIGEON.md](docs/archive/MIGRATING-TO-PIGEON.md). TL;DR:
 
 1. Run `briefMe()` — if the response includes a `_warnings[]` entry mentioning `projectPrompt`, **stop and migrate first.**
 2. `runTool({ tool: "migrateProjectPrompt", params: { projectId } })` (on v4.x — the tool is gone in v5.0).

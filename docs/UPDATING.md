@@ -13,11 +13,11 @@ npm run service:update   # rebuild + restart the launchd service
 
 That's it for MINOR and PATCH updates. For MAJOR updates, keep reading.
 
-## Upgrading from v4.x to v5.0 (Pigeon rebrand)
+## Upgrading from v4.x or v5.x (Pigeon rebrand)
 
-v5.0 renames the tool from "project-tracker" to "Pigeon". The MCP server still answers under the legacy `project-tracker` config key during v5.x (deprecation warning logged on connect); v6.0 drops the alias.
+The v5.0 rebrand renamed the tool from "project-tracker" to "Pigeon" and added a legacy `project-tracker` config alias. **v6.0 dropped the alias** — any `.mcp.json` still referencing `project-tracker` will fail to connect on v6+ servers.
 
-After `git pull` to v5.0:
+If you're updating from v4.x or v5.x, run the rebrand migration once before doing anything else:
 
 ```bash
 npm install
@@ -25,7 +25,7 @@ npm run migrate-rebrand    # one-shot: tutorial DB rename + .mcp.json key rewrit
 npm run service:update
 ```
 
-`migrate-rebrand` is idempotent — safe to re-run. It prints a final checklist for the manual steps it deliberately doesn't auto-execute (e.g. renaming the launchd service label from `com.2nspired.project-tracker` to `com.2nspired.pigeon`).
+`migrate-rebrand` is idempotent — safe to re-run. It prints a final checklist for the manual steps it deliberately doesn't auto-execute (e.g. renaming the launchd service label from `com.2nspired.project-tracker` to `com.2nspired.pigeon`). The full v4 → v5 walkthrough (including agent-side `.mcp.json` updates and what changed in tool names) is archived at [`archive/MIGRATING-TO-PIGEON.md`](archive/MIGRATING-TO-PIGEON.md).
 
 ## Checking the CHANGELOG first
 

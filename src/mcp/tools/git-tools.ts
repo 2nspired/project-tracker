@@ -9,7 +9,8 @@ import { err, errWithToolHint, ok, safeExecute } from "../utils.js";
 
 registerExtendedTool("setRepoPath", {
 	category: "setup",
-	description: "Set the local git repository path for a project.",
+	description:
+		"Persist the absolute local repo path for a project so `syncGitActivity` and `getGitLog` can find commits. Prefer the essential `registerRepo` tool for first-time binding — it also handles the `needsRegistration` signal from `briefMe`. Reach for `setRepoPath` when the repo has moved on disk and you want to update the bind without going through onboarding.",
 	parameters: z.object({
 		projectId: z.string().describe("Project UUID"),
 		repoPath: z.string().min(1).describe("Absolute path to local git repo"),

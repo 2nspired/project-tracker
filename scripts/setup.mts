@@ -142,13 +142,18 @@ async function main() {
 
 	// ─── Done ─────────────────────────────────────────────────────────
 
-	console.log("┌─────────────────────────────────────────┐");
-	console.log("│  ✓ Setup complete!                      │");
-	console.log("│                                         │");
-	console.log("│  Next steps:                            │");
-	console.log("│    npm run dev      — start the app     │");
-	console.log("│    open localhost:3000                   │");
-	console.log("└─────────────────────────────────────────┘");
+	console.log("┌──────────────────────────────────────────────────────┐");
+	console.log("│  ✓ Setup complete!                                   │");
+	console.log("│                                                      │");
+	console.log("│  Run it now (foreground):                            │");
+	console.log("│    npm run dev          → http://localhost:3000      │");
+	console.log("│                                                      │");
+	console.log("│  Run it always (macOS launchd background service):   │");
+	console.log("│    npm run service:install                           │");
+	console.log("│                         → http://localhost:3100      │");
+	console.log("│    npm run service:status                            │");
+	console.log("│    npm run service:logs                              │");
+	console.log("└──────────────────────────────────────────────────────┘");
 	console.log("");
 
 	await db.$disconnect();
