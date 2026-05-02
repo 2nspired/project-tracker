@@ -23,7 +23,6 @@ model Project {
 
   boards           Board[]
   defaultBoard     Board?            @relation("DefaultBoard", fields: [defaultBoardId], references: [id], onDelete: SetNull)
-  labels           Label[]
   tags             Tag[]
   cards            Card[]
   notes            Note[]
@@ -57,21 +56,6 @@ model Milestone {
   @@unique([projectId, name])
   @@index([projectId])
   @@map("milestone")
-}
-
-model Label {
-  id        String   @id @default(uuid())
-  projectId String   @map("project_id")
-  name      String
-  color     String   @default("#6b7280")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  cardLabels CardLabel[]
-
-  @@unique([projectId, name])
-  @@index([projectId])
-  @@map("label")
 }
 
 // Project-scoped, normalized tag entity introduced in v4.2.
@@ -169,7 +153,6 @@ model Card {
   checklists       ChecklistItem[]
   comments         Comment[]
   activities       Activity[]
-  cardLabels       CardLabel[]
   cardTags         CardTag[]
   relationsFrom    CardRelation[]    @relation("RelationFrom")
   relationsTo      CardRelation[]    @relation("RelationTo")
@@ -236,18 +219,6 @@ model Activity {
   @@index([cardId])
   @@index([cardId, createdAt])
   @@map("activity")
-}
-
-model CardLabel {
-  cardId  String @map("card_id")
-  labelId String @map("label_id")
-
-  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
-
-  @@id([cardId, labelId])
-  @@index([labelId])
-  @@map("card_label")
 }
 
 // Junction between Card and Tag (v4.2). Composite PK on (cardId, tagId)
