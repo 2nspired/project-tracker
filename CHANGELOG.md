@@ -25,6 +25,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Refactor
 
 - **Internal: swap last surviving `isDoneColumnLike` helper in `src/mcp/tools/card-tools.ts` for the canonical `hasRole(col, "done")`** — flagged in #194's PR body as the trailing leftover from #229's helper consolidation that didn't survive #235's split. No behavior change; locked by the existing `column-roles` test block from #233.
+- **Move `tag-service` to `src/lib/services/tag.ts`; reduce `src/server/services/tag-service.ts` to a thin shim** (closes part of #260, cluster 1 of 6). MCP-side imports in `src/mcp/taxonomy-utils.ts` and `src/mcp/tools/tag-tools.ts` now point at `@/lib/services/tag`; web-side callers (tRPC tag router, `src/server/services/card-service.ts`) keep their existing import surface via the shim, which re-exports the factory + types and binds the `tagService` singleton to the FTS-extended Next.js db. Mirrors the `staleness.ts` shim pattern from #228. Boundary-lint baseline drops from 18 → 16 grandfathered violations.
 
 ### Docs
 

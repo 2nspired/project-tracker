@@ -13,9 +13,9 @@
 // v5.0.0 will remove the legacy params and shrink these helpers.
 
 import type { PrismaClient } from "prisma/generated/client";
+import { createTagService } from "@/lib/services/tag";
 import { editDistance, slugify } from "@/lib/slugify";
 import { resolveOrCreateMilestone as resolveOrCreateMilestoneSvc } from "@/server/services/milestone-service";
-import { createTagService } from "@/server/services/tag-service";
 
 export type TagSuggestion = { id: string; slug: string; label: string; distance: number };
 
