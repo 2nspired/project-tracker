@@ -4,7 +4,7 @@
 // to createCard/updateCard via `tagSlugs`.
 
 import { z } from "zod";
-import { createTagService } from "@/server/services/tag-service";
+import { createTagService } from "@/lib/services/tag";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { err, ok, safeExecute } from "../utils.js";
