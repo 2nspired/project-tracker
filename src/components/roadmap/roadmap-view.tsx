@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { CardDetailSheet } from "@/components/board/card-detail-sheet";
 import { Button } from "@/components/ui/button";
 import { useCardNavigation } from "@/hooks/use-card-navigation";
-import { getHorizon, type Horizon } from "@/lib/column-roles";
+import { getHorizon, HORIZON_ORDER, type Horizon } from "@/lib/column-roles";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
 import { HorizonBand } from "./horizon-band";
@@ -219,7 +219,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 
 					// Reconstruct full order: iterate through horizons in order
 					const fullOrder: string[] = [];
-					for (const h of ["now", "later", "done"] as Horizon[]) {
+					for (const h of HORIZON_ORDER) {
 						const milestones = h === horizon ? reordered : horizonGroups[h];
 						for (const m of milestones) {
 							if (m.id) fullOrder.push(m.id);
@@ -242,7 +242,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 
 	const flatCardIds = useMemo(() => {
 		const ids: string[] = [];
-		for (const h of ["now", "next", "later", "done"] as Horizon[]) {
+		for (const h of HORIZON_ORDER) {
 			for (const group of horizonGroups[h]) {
 				for (const card of group.cards) ids.push(card.id);
 			}

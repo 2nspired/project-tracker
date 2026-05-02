@@ -13,6 +13,8 @@
 
 export type Horizon = "now" | "later" | "done";
 
+export const HORIZON_ORDER = ["now", "later", "done"] as const satisfies readonly Horizon[];
+
 const ROLE_TO_HORIZON: Record<string, Horizon> = {
 	active: "now",
 	review: "now",
