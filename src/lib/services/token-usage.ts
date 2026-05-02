@@ -28,6 +28,8 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { Prisma, PrismaClient } from "prisma/generated/client";
+import { attribute } from "@/lib/services/attribution";
+import { buildAttributionSnapshot } from "@/lib/services/attribution-snapshot";
 import { computeCost, type ModelPricing, resolvePricing } from "@/lib/token-pricing-defaults";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
@@ -144,6 +146,8 @@ type InsertRow = {
 	cacheReadTokens: number;
 	cacheCreation1hTokens: number;
 	cacheCreation5mTokens: number;
+	signal: string | null;
+	signalConfidence: string | null;
 };
 
 // ─── Internal: transcript JSONL streaming aggregator ───────────────
@@ -525,10 +529,17 @@ export function createTokenUsageService(prisma: PrismaClient) {
 	// one-function read-then-write keeps the fix scoped and migration-free.
 	async function recordManual(input: ManualRecordInput): Promise<ServiceResult<RecordResult>> {
 		try {
+			// Attribution Engine (#269): one snapshot read per write, then a
+			// pure decision via `attribute()`. Explicit input.cardId always
+			// wins (signal=`explicit`); falls through to single-In-Progress,
+			// then `unattributed` for multi-In-Progress / no-signal.
+			const snapshot = await buildAttributionSnapshot(prisma, input.projectId);
+			const attribution = attribute({ cardId: input.cardId }, snapshot);
+
 			const data = {
 				sessionId: input.sessionId,
 				projectId: input.projectId,
-				cardId: input.cardId ?? null,
+				cardId: attribution.cardId,
 				agentName: input.agentName ?? "unknown",
 				model: input.model,
 				inputTokens: Math.max(0, Math.floor(input.inputTokens)),
@@ -536,6 +547,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 				cacheReadTokens: Math.max(0, Math.floor(input.cacheReadTokens ?? 0)),
 				cacheCreation1hTokens: Math.max(0, Math.floor(input.cacheCreation1hTokens ?? 0)),
 				cacheCreation5mTokens: Math.max(0, Math.floor(input.cacheCreation5mTokens ?? 0)),
+				signal: attribution.signal,
+				signalConfidence: attribution.confidence,
 			};
 			const existing = await prisma.tokenUsageEvent.findFirst({
 				where: { sessionId: data.sessionId, model: data.model },
@@ -553,6 +566,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 						cacheReadTokens: data.cacheReadTokens,
 						cacheCreation1hTokens: data.cacheCreation1hTokens,
 						cacheCreation5mTokens: data.cacheCreation5mTokens,
+						signal: data.signal,
+						signalConfidence: data.signalConfidence,
 					},
 				});
 			} else {
@@ -640,14 +655,22 @@ export function createTokenUsageService(prisma: PrismaClient) {
 			};
 		}
 
+		// Attribution Engine (#269): one snapshot per call (not per row), one
+		// pure decision shared by every model row in this session. Explicit
+		// input.cardId still wins via attribution's signal=`explicit` branch.
+		const snapshot = await buildAttributionSnapshot(prisma, input.projectId);
+		const attribution = attribute({ cardId: input.cardId }, snapshot);
+
 		const rows: InsertRow[] = [];
 		for (const [model, acc] of totals.entries()) {
 			rows.push({
 				sessionId: input.sessionId,
 				projectId: input.projectId,
-				cardId: input.cardId ?? null,
+				cardId: attribution.cardId,
 				agentName: input.agentName ?? "claude-code",
 				model,
+				signal: attribution.signal,
+				signalConfidence: attribution.confidence,
 				...acc,
 			});
 		}
@@ -687,15 +710,21 @@ export function createTokenUsageService(prisma: PrismaClient) {
 							cacheReadTokens: row.cacheReadTokens,
 							cacheCreation1hTokens: row.cacheCreation1hTokens,
 							cacheCreation5mTokens: row.cacheCreation5mTokens,
+							signal: row.signal,
+							signalConfidence: row.signalConfidence,
 						},
 					})
 				),
 			]);
 
-			// Restore the prior attribution if the re-run didn't supply one. We
-			// only write when the new rows have null cardId — if the caller
-			// passed a fresh cardId we respect that as the new source of truth.
-			if (preservedCardId && !input.cardId) {
+			// Restore the prior attribution if neither the caller nor the
+			// engine produced one. Gate on `attribution.cardId` (not
+			// `input.cardId`) so a fresh `single-in-progress` decision wins
+			// over a stale `attributeSession` write — which is the whole
+			// point of #269. Pre-#269 rows can have a non-null cardId from
+			// the manual `attributeSession` MCP tool; we still preserve those
+			// when the engine has no signal so the row doesn't regress to null.
+			if (preservedCardId && !attribution.cardId) {
 				await prisma.tokenUsageEvent.updateMany({
 					where: { sessionId: input.sessionId, cardId: null },
 					data: { cardId: preservedCardId },

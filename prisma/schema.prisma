@@ -419,6 +419,16 @@ model TokenUsageEvent {
   cacheCreation1hTokens Int      @default(0) @map("cache_creation_1h_tokens")
   cacheCreation5mTokens Int      @default(0) @map("cache_creation_5m_tokens")
   recordedAt            DateTime @default(now()) @map("recorded_at")
+  // Which Attribution-Engine heuristic produced this row's `cardId` (#269).
+  // Values: 'explicit' | 'single-in-progress' | 'session-recent-touch' |
+  // 'session-commit' | 'unattributed'. Nullable for pre-#269 rows; #270
+  // backfills historical rows. Surfaced by #213's unattributed-gap counter.
+  signal                String?
+  // Confidence label paired with `signal` ('high' | 'medium' | 'medium-low').
+  // Null when `signal = 'unattributed'`. Stored as a column rather than
+  // derived from `signal` so future heuristic tuning can change confidence
+  // labels without requiring a re-attribution pass.
+  signalConfidence      String?  @map("signal_confidence")
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   card    Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
@@ -427,5 +437,6 @@ model TokenUsageEvent {
   @@index([projectId])
   @@index([projectId, recordedAt])
   @@index([cardId])
+  @@index([signal])
   @@map("token_usage_event")
 }
