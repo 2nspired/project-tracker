@@ -26,6 +26,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 - **Internal: swap last surviving `isDoneColumnLike` helper in `src/mcp/tools/card-tools.ts` for the canonical `hasRole(col, "done")`** — flagged in #194's PR body as the trailing leftover from #229's helper consolidation that didn't survive #235's split. No behavior change; locked by the existing `column-roles` test block from #233.
 
+### Docs
+
+- **`docs/AGENT-GUIDE.md` adds a "Worktrees" section** (#261). Documents that worktrees under `.claude/worktrees/agent-*` are for git isolation only — branch / commit / push / type-check / test all work, but `npm run dev` doesn't because Next.js's Turbopack workspace-root inference picks the parent repo and silently 404s new routes (or hard-fails if `turbopack.root` is pinned because worktrees lack their own `node_modules`). Adopts Option D from the #261 architect's matrix (cheapest fix; doesn't require changing worktree provisioning). Use the launchd service on port 3100 against the main checkout for dev. Closes #261.
+
 ## [6.2.0] — 2026-05-02
 
 Consolidation sprint cut under a feature freeze. v6.2 was scoped from a project audit (#253) that ran the codebase + docs against the Pigeon ICP (Rudy: indie dev running parallel projects, plus Product Owners) and surfaced the friction points that survived v6.1.0 — duplicated docs, drifting prose-level tool counts, dead Costs sub-components, the un-executed `AGENTS.md` / `AGENT-GUIDE.md` split, scope-creep on the Costs page, and a handful of small Costs-surface bugs that contradicted each other across BoardPulse / Costs page / setup dialog. The release theme is **Quality, Consistency & Architecture**: no headline new feature, just every audit-flagged adoption blocker resolved or explicitly deferred with a documented reason. Audit healthScore moved 62% → 80% (#256).

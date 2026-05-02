@@ -133,6 +133,15 @@ Do this as part of your end-of-work flow, not after every small commit. `saveHan
 | Bug or issue found during work | New card with priority set |
 | What changed in code | Git commit (referenced by `#N`), not the board |
 
+## Worktrees
+
+For parallel-safe work across branches, agents may use git worktrees (typically under `.claude/worktrees/agent-*`). A worktree is a checkout of a different branch sharing the parent repo's `.git`. Two rules:
+
+- **Worktrees are for git isolation, not runtime.** Branch, edit, commit, push, open PR — all work. `npx tsc --noEmit` and `npm test` work too (they read from the worktree but resolve `node_modules` from the parent — same node binary, same dependencies).
+- **Don't run `npm run dev` from a worktree.** Next.js's Turbopack workspace-root inference walks up looking for the *uppermost* lockfile and picks the parent repo as the root, then can't resolve `next/package.json` from the worktree. Symptom: silent route-registration 404s on new pages, or a hard "couldn't find next/package.json" error if you try to pin `turbopack.root`. Use the launchd service on port 3100 (which runs against the main checkout) for dev — pull a worktree branch into the parent repo for visual checks.
+
+When you're done with a worktree (PR merged or work abandoned), the orchestrator removes it via `git worktree remove --force` so locked-and-stale worktrees don't accumulate.
+
 ## Tool architecture in one paragraph
 
 10 essential tools are always visible: `briefMe`, `saveHandoff`, `createCard`, `updateCard`, `moveCard`, `addComment`, `registerRepo`, `checkOnboarding`, `getTools`, `runTool`. Everything else lives behind `getTools`/`runTool` — call `getTools()` with no args to browse categories, then `runTool({ tool, params })` to execute. `briefMe` composes the common session-start views (board, search, roadmap) internally so you rarely need to call them by hand.
