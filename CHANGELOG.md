@@ -8,6 +8,27 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [6.1.0] — 2026-05-01
+
+Bundles ~43 commits across two coherent threads since v6.0.0.
+
+The headline user-visible feature is the **per-project Costs page lens stack** (`/projects/:projectId/costs`) — summary strip with sparkline (#193), Pigeon-overhead breakdown by tool (#194), the "Pigeon paid for itself" savings lens (#195), cost-per-shipped-card delivery view (#196), per-model pricing override table (#160 / #193), board-scoped filtering (#200 phases 1a / 2a / 2c / 3), and a long-form how-it-works docs page at `/costs/` (#207). First user-visible surface that cashes the token-tracking foundation.
+
+The headline infra thread is the **upgrade-comms pipeline** that closes the loop on update-flow communication: server-status pill now shows host:port (#181), polls GitHub Releases for a new-version indicator (#182), surfaces the same outdated-install signal to agents via `briefMe._upgrade` (#210 PR-A), renders a "What's new in v{version}" panel sourced from the matching CHANGELOG section after each upgrade (#210 PR-B), backs up `data/tracker.db` before `prisma db push` on `service:update` (#214), and runs the 8-check doctor pass after restart with failures surfaced via briefMe `_upgradeReport` (#215). Plus `scripts/connect.sh` now installs slash commands (#147) and the Stop hook (#217) into target projects so per-machine setup is idempotent.
+
+Underneath: token-tracking instrumentation upgrade (`ToolCallLog.responseTokens` for overhead math (#190), `attributeSession` MCP tool back-fills `cardId` on Stop-hook rows (#191), `recalibrateBaseline` + `Project.metadata` baseline persistence (#192)), four correctness fixes (#202–#205), one housekeeping bundle (#206), and a long-form `docs/token-tracking.md` reference (#197). Plus milestone Archive/Unarchive/Merge actions in `MilestoneManager` (#171), a project-agnostic agent best-practices guide at `docs/AGENT-GUIDE.md` + the `tracker://server/agent-guide` MCP resource (#164), `note.promoteToCard` (#185), the `endSession` → `saveHandoff` essential-tool rename's followup polish (Sessions sheet renamed to Handoffs, #188), and a roadmap-page crash fix (#218).
+
+### Schema
+
+`SCHEMA_VERSION` 13 → 14. Two additive columns landed under `[Unreleased]` without bumping the counter:
+
+- `ToolCallLog.responseTokens` (`Int @default(0) @map("response_tokens")`) plus a new `@@index([sessionId, toolName])` (#190).
+- `Project.metadata` (`String @default("{}")`) for `tokenBaseline` and other agent-writable JSON (#192).
+
+Both are non-destructive — `prisma db push` applies cleanly. `service:update` covers this automatically (`ensureSchema()` from #134 runs `prisma db push` before build) and now also writes a pre-push DB backup (#214) to `data/backups/tracker-pre-v6.1.0.db`.
+
 ### Added
 
 - **MilestoneManager surfaces v4.2 governance primitives in the UI** (#171). Per-row dropdown menu adds **Merge into…**, **Archive / Unarchive**, and **Delete** actions on `MilestoneManager.tsx`, surfacing `mergeMilestones` and `updateMilestone({ state: "archived" })` — previously MCP-only — to humans running the same triage pass agents do. **Show archived** toggle hides archived rows by default; revealed rows render with a muted Archived badge and an Unarchive action. Merge dialog reuses the destructive-confirm pattern from TagManager and surfaces `rewroteCount` in the success toast. Governance hints (`singletonAfterDays`, near-name `possibleMerge` pairs via Levenshtein ≤ 2) compute on the server in `milestoneService.list` (mirroring the MCP `listMilestones` tool so UI and agent see identical signals) and render inline as muted badges on flagged rows; clicking a near-miss badge preselects that peer in the merge dialog. New `milestone.merge` tRPC mutation wraps the existing `milestoneService.merge` (the same service path the MCP `mergeMilestones` tool already used — single source of truth, no MCP surface change). Unblocks human-driven cleanup so a board audit no longer requires dropping into MCP/Prisma Studio. Closes #171, spin-off from the #163 board audit. (#171)
@@ -75,6 +96,17 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 - **Markdown in handoff list items renders properly.** Items in `workingOn` / `findings` / `nextSteps` / `blockers` were emitting literal `**` / `` ` `` characters because only `summary` was wrapped in `<Markdown>`. New `HandoffItemContent` runs each item through ReactMarkdown and walks the rendered tree to swap plain-text `#N` for clickable `CardRefText`, preserving card-ref linkification across nested `strong`/`em`/`code`/`a`. (#188)
 - **Radix `DialogContent` a11y warnings on three sheets.** `HandoffsSheet`, `ActivitySheet`, and the card detail sheet now include an `sr-only` `<SheetDescription>` after `<SheetTitle>`, satisfying radix's screen-reader contract and clearing the "Missing `Description` or `aria-describedby={undefined}`" console warning. Visual layout unchanged. (#189)
+
+### Migration
+
+No required action beyond `git pull && npm run service:update`.
+
+```bash
+git pull
+npm run service:update   # backs up data/tracker.db (#214) → ensureDeps → ensureSchema (#134) → build → restart → doctor (#215)
+```
+
+`service:update` runs the 8-check doctor pass after restart and writes `data/last-upgrade.json`. The next `briefMe` call surfaces the result via `_upgradeReport` when there are warns or fails; clean upgrades produce no payload noise. The "What's new in v6.1.0" panel renders above `<BoardPulse>` until dismissed; clicking the pre-existing version pill in the header confirms the new version is live.
 
 ## [6.0.0] — 2026-04-30
 
