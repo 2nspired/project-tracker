@@ -152,6 +152,16 @@ When a new architectural decision replaces an old one, use `supersedesId` when c
 
 Don't manually set `status: "superseded"` without linking — use `supersedesId` so the chain is traceable.
 
+### When to reach for `supersedesId` vs. a fresh decision
+
+Reach for `supersedesId` when the new decision **replaces** an earlier one on the same question. Agents tend to default to "new decision" even when the prior one already covers the topic — the chain matters more than another row.
+
+- ✅ "JSON is canonical" supersedes "Default tool output is JSON, not TOON" — same question (response format), refined answer.
+- ✅ "Module boundary: src/server/ ↔ src/mcp/ are isolated" supersedes "Helpers consolidated into hasRole" — narrow `hasRole` decision rolls into the broader boundary rule.
+- ❌ "Drop optimistic locking" alongside "Note + Claim consolidation" — different questions; record both as fresh decisions.
+
+If you're unsure whether a new decision overlaps an existing one, query first: `queryKnowledge({ projectId, topic: "<area>" })` will surface prior decisions on the same surface.
+
 ## Knowledge Search
 
 `queryKnowledge(projectId, topic)` searches across all project knowledge: cards, comments, decisions, notes, handoffs, code facts, context entries, and indexed repo markdown files. Uses SQLite FTS5 with Porter stemming for relevance-ranked results.

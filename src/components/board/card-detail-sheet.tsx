@@ -871,10 +871,11 @@ function DependenciesSection({ cardId, boardId }: { cardId: string; boardId: str
 
 // ─── Decisions Section ─────────────────────────────────────────────
 
+// Post-#86 the Claim status enum is `active` | `superseded` only. The legacy
+// proposed/accepted/rejected values collapsed into `active` during the v5.0
+// cutover, so only these two branches can ever fire here.
 const STATUS_COLORS: Record<string, string> = {
-	proposed: "bg-warning/10 text-warning border-warning/20",
-	accepted: "bg-success/10 text-success border-success/20",
-	rejected: "bg-danger/10 text-danger border-danger/20",
+	active: "bg-success/10 text-success border-success/20",
 	superseded: "bg-muted text-muted-foreground border-muted-foreground/20",
 };
 
