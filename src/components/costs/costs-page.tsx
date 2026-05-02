@@ -4,6 +4,7 @@ import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setu
 import { CostsBreadcrumb } from "@/components/costs/breadcrumb";
 import { PricingOverrideTable } from "@/components/costs/pricing-override-table";
 import { SummaryStrip } from "@/components/costs/summary-strip";
+import { UnattributedGapCard } from "@/components/costs/unattributed-gap-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -107,6 +108,7 @@ export function CostsPage({
 			) : projectSummary && dailyCost ? (
 				<>
 					<SummaryStrip projectSummary={projectSummary} dailyCost={dailyCost} />
+					<UnattributedGapCard projectSummary={projectSummary} />
 					<PricingOverrideTable projectId={projectId} projectSummary={projectSummary} />
 				</>
 			) : null}

@@ -80,12 +80,44 @@ export type ModelTotals = {
 	costUsd: number;
 };
 
+/**
+ * Per-session breakdown of attribution state — backs #213's unattributed
+ * gap counter. Three architecturally distinct buckets (a single opaque
+ * "unattributed" number conflates them):
+ *
+ * - `attributed` — at least one row in the session has `cardId` set
+ *   (either `signal=explicit`, `single-in-progress`, or restored from a
+ *   prior `attributeSession` write).
+ * - `unattributed` — every row has `cardId IS NULL` AND at least one row
+ *   has a `signal` value. The Attribution Engine ran and decided null
+ *   (multi-In-Progress orchestrator session, or no signal at all).
+ *   Action implied: review workflow, this is what the engine sees.
+ * - `preEngine` — every row has `cardId IS NULL` AND `signal IS NULL`.
+ *   These are pre-#269 rows; #270 (deferred) would backfill them.
+ *   Action implied: wait for backfill, or accept the historical drag.
+ *
+ * Counts are session-distinct, not event-distinct, since the Costs UI
+ * surfaces the user-meaningful unit. Costs are summed across all events
+ * in each bucket's sessions — same scan as `aggregateEvents` already does.
+ */
+export type AttributionBucket = {
+	sessionCount: number;
+	costUsd: number;
+};
+
+export type AttributionBreakdown = {
+	attributed: AttributionBucket;
+	unattributed: AttributionBucket;
+	preEngine: AttributionBucket;
+};
+
 export type UsageSummary = {
 	totalCostUsd: number;
 	sessionCount: number;
 	eventCount: number;
 	trackingSince: Date | null;
 	byModel: ModelTotals[];
+	attributionBreakdown: AttributionBreakdown;
 };
 
 export type DailyCostSeries = {
@@ -362,11 +394,24 @@ type EventRow = {
 	cacheCreation1hTokens: number;
 	cacheCreation5mTokens: number;
 	recordedAt: Date;
+	cardId: string | null;
+	signal: string | null;
+};
+
+// Per-session attribution state collected during the aggregation pass.
+// `hasCardId` and `hasSignal` are sticky-true: once any row in a session
+// flips them, they stay flipped. Combined at the end into the three
+// AttributionBucket categories.
+type SessionAttrState = {
+	hasCardId: boolean;
+	hasSignal: boolean;
+	costUsd: number;
 };
 
 function aggregateEvents(events: EventRow[], pricing: Record<string, ModelPricing>): UsageSummary {
 	const sessions = new Set<string>();
 	const byModelMap = new Map<string, ModelTotals>();
+	const sessionAttr = new Map<string, SessionAttrState>();
 	let totalCost = 0;
 	let earliest: Date | null = null;
 
@@ -375,6 +420,16 @@ function aggregateEvents(events: EventRow[], pricing: Record<string, ModelPricin
 		const cost = computeCost(event, pricing);
 		totalCost += cost;
 		if (!earliest || event.recordedAt < earliest) earliest = event.recordedAt;
+
+		const attr = sessionAttr.get(event.sessionId) ?? {
+			hasCardId: false,
+			hasSignal: false,
+			costUsd: 0,
+		};
+		if (event.cardId !== null) attr.hasCardId = true;
+		if (event.signal !== null) attr.hasSignal = true;
+		attr.costUsd += cost;
+		sessionAttr.set(event.sessionId, attr);
 
 		const existing = byModelMap.get(event.model) ?? {
 			model: event.model,
@@ -394,12 +449,28 @@ function aggregateEvents(events: EventRow[], pricing: Record<string, ModelPricin
 		byModelMap.set(event.model, existing);
 	}
 
+	const attributionBreakdown: AttributionBreakdown = {
+		attributed: { sessionCount: 0, costUsd: 0 },
+		unattributed: { sessionCount: 0, costUsd: 0 },
+		preEngine: { sessionCount: 0, costUsd: 0 },
+	};
+	for (const attr of sessionAttr.values()) {
+		const bucket = attr.hasCardId
+			? attributionBreakdown.attributed
+			: attr.hasSignal
+				? attributionBreakdown.unattributed
+				: attributionBreakdown.preEngine;
+		bucket.sessionCount += 1;
+		bucket.costUsd += attr.costUsd;
+	}
+
 	return {
 		totalCostUsd: totalCost,
 		sessionCount: sessions.size,
 		eventCount: events.length,
 		trackingSince: earliest,
 		byModel: Array.from(byModelMap.values()).sort((a, b) => b.costUsd - a.costUsd),
+		attributionBreakdown,
 	};
 }
 
@@ -778,6 +849,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 						cacheCreation1hTokens: true,
 						cacheCreation5mTokens: true,
 						recordedAt: true,
+						cardId: true,
+						signal: true,
 					},
 				}),
 				loadPricing(),
@@ -810,6 +883,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 						cacheCreation1hTokens: true,
 						cacheCreation5mTokens: true,
 						recordedAt: true,
+						cardId: true,
+						signal: true,
 					},
 				}),
 				loadPricing(),
@@ -861,6 +936,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 						cacheCreation1hTokens: true,
 						cacheCreation5mTokens: true,
 						recordedAt: true,
+						cardId: true,
+						signal: true,
 					},
 				}),
 				loadPricing(),
@@ -921,6 +998,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 						cacheCreation1hTokens: true,
 						cacheCreation5mTokens: true,
 						recordedAt: true,
+						cardId: true,
+						signal: true,
 					},
 				}),
 				loadPricing(),
@@ -977,6 +1056,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 						cacheCreation1hTokens: true,
 						cacheCreation5mTokens: true,
 						recordedAt: true,
+						cardId: true,
+						signal: true,
 					},
 				}),
 				loadPricing(),
