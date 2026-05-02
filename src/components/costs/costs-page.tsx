@@ -76,12 +76,25 @@ export function CostsPage({
 		{ staleTime: 60_000, enabled: !!boardId }
 	);
 
-	const isLoading = summaryLoading || dailyLoading;
-	const hasNoData =
-		projectSummary &&
-		dailyCost &&
-		projectSummary.totalCostUsd === 0 &&
-		projectSummary.eventCount === 0;
+	// In board mode wait for projectWideSummary too — otherwise hasNoData
+	// briefly evaluates against board-scoped zeros before the project-wide
+	// query lands, flickering the "Set up tracking" CTA on top of pages that
+	// actually have data.
+	const isLoading = summaryLoading || dailyLoading || (!!boardId && !projectWideSummary);
+
+	// The page-level "no data" empty state advertises hook setup, so it only
+	// fires when the *project as a whole* has no token data. In board mode
+	// with a populated project but zero board-attributed events, render the
+	// regular sections — each has its own board-mode empty-state branch
+	// ("no board-attributed sessions yet") that links out to project totals.
+	// Telling the user to "Set up token tracking" when events are already
+	// flowing is misleading and contradicts the dialog's own status pill.
+	const projectHasAnyData = boardId
+		? !!projectWideSummary &&
+			(projectWideSummary.eventCount > 0 || projectWideSummary.totalCostUsd > 0)
+		: !!projectSummary && (projectSummary.eventCount > 0 || projectSummary.totalCostUsd > 0);
+
+	const hasNoData = !!projectSummary && !!dailyCost && !projectHasAnyData;
 
 	return (
 		<div className="mx-auto max-w-3xl space-y-8 px-4 py-6 sm:px-6">
