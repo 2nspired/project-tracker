@@ -1,4 +1,5 @@
 import type { Card, PrismaClient } from "prisma/generated/client";
+import { hasRole } from "@/lib/column-roles";
 import type { CreateCardInput, MoveCardInput, UpdateCardInput } from "@/lib/schemas/card-schemas";
 import { slugify as slugifyTag } from "@/lib/slugify";
 import { db } from "@/server/db";
@@ -294,8 +295,8 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 			};
 		}
 
-		const sourceIsDone = isDoneColumn(existing.column);
-		const targetIsDone = isDoneColumn(targetColumnRow);
+		const sourceIsDone = hasRole(existing.column, "done");
+		const targetIsDone = hasRole(targetColumnRow, "done");
 		const enteringDone = targetIsDone && !sourceIsDone;
 		const leavingDone = sourceIsDone && !targetIsDone;
 
@@ -366,11 +367,6 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 		console.error("[CARD_SERVICE] move error:", error);
 		return { success: false, error: { code: "MOVE_FAILED", message: "Failed to move card." } };
 	}
-}
-
-function isDoneColumn(column: { role?: string | null; name: string }): boolean {
-	if (column.role) return column.role === "done";
-	return column.name.toLowerCase() === "done";
 }
 
 async function deleteCard(cardId: string): Promise<ServiceResult<Card>> {
