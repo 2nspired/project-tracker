@@ -4,7 +4,7 @@ import { getLatestHandoff } from "../../lib/services/handoff.js";
 import { slugify } from "../../lib/slugify.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { err, ok, safeExecute } from "../utils.js";
+import { err, ok, resolveCardRef, safeExecute } from "../utils.js";
 import { WORKFLOWS, type Workflow } from "../workflows.js";
 
 // ─── Discovery tools (extended) ─────────────────────────────────────
@@ -406,4 +406,345 @@ registerExtendedTool("listWorkflows", {
 			});
 		});
 	},
+});
+
+// ─── Discovery (basics) ─────────────────────────────────────────────
+
+registerExtendedTool("listProjects", {
+	category: "discovery",
+	description: "List all projects with board and card counts.",
+	parameters: z.object({}),
+	annotations: { readOnlyHint: true },
+	handler: () =>
+		safeExecute(async () => {
+			const projects = await db.project.findMany({
+				orderBy: { createdAt: "desc" },
+				include: { _count: { select: { boards: true, cards: true } } },
+			});
+			return ok(
+				projects.map((p) => ({
+					id: p.id,
+					name: p.name,
+					slug: p.slug,
+					description: p.description,
+					boardCount: p._count.boards,
+					cardCount: p._count.cards,
+				}))
+			);
+		}),
+});
+
+registerExtendedTool("listBoards", {
+	category: "discovery",
+	description: "List boards for a project with column summaries.",
+	parameters: z.object({
+		projectId: z.string().describe("Project UUID"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: ({ projectId }) =>
+		safeExecute(async () => {
+			const boards = await db.board.findMany({
+				where: { projectId: projectId as string },
+				orderBy: { createdAt: "desc" },
+				include: {
+					columns: {
+						select: { name: true, _count: { select: { cards: true } } },
+						orderBy: { position: "asc" },
+					},
+				},
+			});
+			return ok(
+				boards.map((b) => ({
+					id: b.id,
+					name: b.name,
+					description: b.description,
+					columns: b.columns.map((c) => ({ name: c.name, cards: c._count.cards })),
+				}))
+			);
+		}),
+});
+
+registerExtendedTool("getCard", {
+	category: "discovery",
+	description: "Full card detail: description, checklist, comments, activity history.",
+	parameters: z.object({
+		cardId: z.string().describe("Card UUID or #number"),
+		format: z
+			.enum(["json", "toon"])
+			.default("json")
+			.describe("'json' (default) or 'toon' (flat tabular shapes only)"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: ({ cardId, format }) =>
+		safeExecute(async () => {
+			const resolved = await resolveCardRef(cardId as string);
+			if (!resolved.ok) return err(resolved.message);
+			const id = resolved.id;
+
+			const card = await db.card.findUnique({
+				where: { id },
+				include: {
+					checklists: { orderBy: { position: "asc" } },
+					comments: { orderBy: { createdAt: "asc" } },
+					activities: { orderBy: { createdAt: "desc" }, take: 20 },
+					milestone: { select: { id: true, name: true } },
+					column: { select: { name: true, board: { select: { id: true, name: true } } } },
+					relationsFrom: {
+						include: { toCard: { select: { id: true, number: true, title: true } } },
+					},
+					relationsTo: {
+						include: { fromCard: { select: { id: true, number: true, title: true } } },
+					},
+				},
+			});
+			if (!card) return err("Card not found.");
+
+			const decisions = await db.claim.findMany({
+				where: { cardId: card.id, kind: "decision" },
+				select: { id: true, statement: true, status: true },
+				orderBy: { createdAt: "desc" },
+			});
+
+			// Build relation groups
+			const blocks = card.relationsFrom
+				.filter((r) => r.type === "blocks")
+				.map((r) => ({
+					id: r.toCard.id,
+					number: r.toCard.number,
+					ref: `#${r.toCard.number}`,
+					title: r.toCard.title,
+				}));
+			const blockedBy = card.relationsTo
+				.filter((r) => r.type === "blocks")
+				.map((r) => ({
+					id: r.fromCard.id,
+					number: r.fromCard.number,
+					ref: `#${r.fromCard.number}`,
+					title: r.fromCard.title,
+				}));
+			const relatedTo = [
+				...card.relationsFrom
+					.filter((r) => r.type === "related")
+					.map((r) => ({
+						id: r.toCard.id,
+						number: r.toCard.number,
+						ref: `#${r.toCard.number}`,
+						title: r.toCard.title,
+					})),
+				...card.relationsTo
+					.filter((r) => r.type === "related")
+					.map((r) => ({
+						id: r.fromCard.id,
+						number: r.fromCard.number,
+						ref: `#${r.fromCard.number}`,
+						title: r.fromCard.title,
+					})),
+			];
+
+			return ok(
+				{
+					id: card.id,
+					number: card.number,
+					ref: `#${card.number}`,
+					title: card.title,
+					description: card.description,
+					priority: card.priority,
+					tags: JSON.parse(card.tags),
+					createdBy: card.createdBy,
+					milestone: card.milestone,
+					column: card.column.name,
+					board: card.column.board.name,
+					boardId: card.column.board.id,
+					dueDate: card.dueDate,
+					...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
+					createdAt: card.createdAt,
+					updatedAt: card.updatedAt,
+					lastEditedBy: card.lastEditedBy,
+					relations: { blocks, blockedBy, relatedTo },
+					decisions: decisions.map((d) => ({
+						id: d.id,
+						title: d.statement,
+						status: d.status,
+					})),
+					checklist: card.checklists.map((c) => ({
+						id: c.id,
+						text: c.text,
+						completed: c.completed,
+					})),
+					comments: card.comments.map((c) => ({
+						id: c.id,
+						content: c.content,
+						authorType: c.authorType,
+						authorName: c.authorName,
+						createdAt: c.createdAt,
+					})),
+					recentActivity: card.activities.map((a) => ({
+						action: a.action,
+						details: a.details,
+						actor: a.actorName ?? a.actorType,
+						createdAt: a.createdAt,
+					})),
+				},
+				format as "json" | "toon"
+			);
+		}),
+});
+
+registerExtendedTool("getStats", {
+	category: "discovery",
+	description:
+		"Board statistics: card counts per column, priority breakdown. Lighter than getBoard.",
+	parameters: z.object({
+		boardId: z.string().describe("Board UUID"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: ({ boardId }) =>
+		safeExecute(async () => {
+			const board = await db.board.findUnique({
+				where: { id: boardId as string },
+				include: {
+					project: { select: { id: true, name: true } },
+					columns: {
+						orderBy: { position: "asc" },
+						include: {
+							cards: {
+								select: { priority: true, milestoneId: true },
+							},
+						},
+					},
+				},
+			});
+			if (!board)
+				return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
+
+			const allCards = board.columns.flatMap((c) => c.cards);
+			const priorities: Record<string, number> = {};
+			for (const card of allCards) {
+				priorities[card.priority] = (priorities[card.priority] ?? 0) + 1;
+			}
+
+			return ok({
+				board: board.name,
+				project: { id: board.project.id, name: board.project.name },
+				totalCards: allCards.length,
+				columns: board.columns.map((c) => ({
+					name: c.name,
+					cards: c.cards.length,
+					isParking: c.isParking,
+				})),
+				byPriority: priorities,
+			});
+		}),
+});
+
+// ─── Smart Prioritization ───────────────────────────────────────────
+
+const PRIORITY_WEIGHT: Record<string, number> = {
+	URGENT: 5,
+	HIGH: 4,
+	MEDIUM: 3,
+	LOW: 2,
+	NONE: 0,
+};
+
+function computeScore(card: {
+	priority: string;
+	updatedAt: Date;
+	dueDate: Date | null;
+	checklists: Array<{ completed: boolean }>;
+	blockedByCount: number;
+	blocksOtherCount: number;
+}): number {
+	const ageDays = Math.floor(
+		(Date.now() - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24)
+	);
+
+	if (card.blockedByCount > 0) return -100 + (PRIORITY_WEIGHT[card.priority] ?? 0);
+
+	let score = (PRIORITY_WEIGHT[card.priority] ?? 0) * 30;
+	score += Math.min(ageDays, 14) * 2;
+	score += card.blocksOtherCount * 15;
+
+	if (card.dueDate) {
+		const daysUntilDue = Math.floor(
+			(new Date(card.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+		);
+		if (daysUntilDue < 0) score += 50;
+		else if (daysUntilDue <= 1) score += 40;
+		else if (daysUntilDue <= 3) score += 25;
+		else if (daysUntilDue <= 7) score += 10;
+	}
+
+	const total = card.checklists.length;
+	if (total > 0) {
+		const done = card.checklists.filter((c) => c.completed).length;
+		score += Math.round((done / total) * 10);
+	}
+
+	return score;
+}
+
+registerExtendedTool("getWorkNextSuggestion", {
+	category: "discovery",
+	description:
+		"Get top cards to work on next, ranked by a composite score of priority, age, blockers, due dates, and progress.",
+	parameters: z.object({
+		boardId: z.string().describe("Board UUID"),
+		limit: z
+			.number()
+			.int()
+			.min(1)
+			.max(20)
+			.default(5)
+			.describe("How many suggestions (1-20, default 5)"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: ({ boardId, limit }) =>
+		safeExecute(async () => {
+			const board = await db.board.findUnique({
+				where: { id: boardId as string },
+				include: {
+					columns: {
+						where: { role: { notIn: ["done", "parking"] } },
+						include: {
+							cards: {
+								include: {
+									checklists: { select: { completed: true } },
+									relationsTo: { where: { type: "blocks" }, select: { id: true } },
+									relationsFrom: { where: { type: "blocks" }, select: { id: true } },
+								},
+							},
+						},
+					},
+				},
+			});
+			if (!board)
+				return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
+
+			const scored = board.columns
+				.flatMap((col) =>
+					col.cards.map((card) => ({
+						ref: `#${card.number}`,
+						title: card.title,
+						priority: card.priority,
+						column: col.name,
+						score: computeScore({
+							priority: card.priority,
+							updatedAt: card.updatedAt,
+							dueDate: card.dueDate,
+							checklists: card.checklists,
+							blockedByCount: card.relationsTo.length,
+							blocksOtherCount: card.relationsFrom.length,
+						}),
+						isBlocked: card.relationsTo.length > 0,
+						tags: JSON.parse(card.tags) as string[],
+					}))
+				)
+				.sort((a, b) => b.score - a.score);
+
+			return ok({
+				suggestions: scored.slice(0, limit as number),
+				total: scored.length,
+			});
+		}),
 });

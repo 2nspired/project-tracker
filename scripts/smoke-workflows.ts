@@ -19,24 +19,10 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-// Side-effect imports: populate the extended tool registry. Mirrors the order
-// in src/mcp/server.ts so the registry sees the same surface the running
-// server does.
-import "../src/mcp/extended-tools.js";
-import "../src/mcp/tools/discovery-tools.js";
-import "../src/mcp/tools/relation-tools.js";
-import "../src/mcp/tools/session-tools.js";
-import "../src/mcp/tools/decision-tools.js";
-import "../src/mcp/tools/context-tools.js";
-import "../src/mcp/tools/query-tools.js";
-import "../src/mcp/tools/git-tools.js";
-import "../src/mcp/tools/summary-tools.js";
-import "../src/mcp/tools/onboarding-tools.js";
-import "../src/mcp/tools/status-tools.js";
-import "../src/mcp/tools/fact-tools.js";
-import "../src/mcp/tools/claim-tools.js";
-import "../src/mcp/tools/knowledge-tools.js";
-import "../src/mcp/tools/instrumentation-tools.js";
+// Side-effect import: populate the extended tool registry via the single
+// source of truth. register-all-tools.ts mirrors the order in src/mcp/server.ts
+// so the registry sees the same surface the running server does.
+import "../src/mcp/register-all-tools.js";
 
 import { ESSENTIAL_TOOLS } from "../src/mcp/manifest.js";
 import { getAllExtendedTools } from "../src/mcp/tool-registry.js";

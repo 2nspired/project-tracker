@@ -1,7 +1,7 @@
 // v4.2 tag tools — list/create/rename/merge. Pairs with the dual-track
-// MCP write paths in server.ts and extended-tools.ts: agents that want to
-// stay strict (no auto-create) call createTag here, then pass the slug to
-// createCard/updateCard via `tagSlugs`.
+// MCP write paths in server.ts and tools/card-tools.ts: agents that want
+// to stay strict (no auto-create) call createTag here, then pass the slug
+// to createCard/updateCard via `tagSlugs`.
 
 import { z } from "zod";
 import { createTagService } from "@/server/services/tag-service";
