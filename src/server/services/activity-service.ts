@@ -60,7 +60,19 @@ async function log(data: {
 }
 
 export type FlowMetrics = {
-	/** Cards completed per day over the last 7 days (index 0 = 6 days ago, index 6 = today) */
+	/**
+	 * Cards completed per day over the last 7 calendar days, bucketed by **UTC**
+	 * day. `index 0` = the UTC day starting 6 days before today's UTC day;
+	 * `index 6` = today's UTC day (00:00 UTC → 24:00 UTC).
+	 *
+	 * Buckets are anchored to UTC midnight (not a rolling 168-hour window) so
+	 * the rightmost bar always represents a stable calendar day instead of
+	 * shifting with the time of page load. UTC is chosen because there is no
+	 * project-wide timezone configured; using UTC keeps bucket math identical
+	 * across hosts and across server/client renders, and aligns this series
+	 * with `tokenUsageService.getDailyCostSeries` so the Pulse strip's two
+	 * sparklines render on identical x-axes.
+	 */
 	throughput: number[];
 	/** Cards moved rightward (progress) in the last 7 days */
 	forwardMoves: number;
@@ -74,7 +86,14 @@ export type FlowMetrics = {
 
 async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetrics>> {
 	try {
-		const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+		// Anchor the 7-day throughput window at UTC midnight so buckets line up
+		// with calendar days. Mirrors `tokenUsageService.getDailyCostSeries` (#203)
+		// so the Pulse strip's cost + throughput sparklines stay on the same
+		// x-axis. `Date.UTC` returns ms since epoch for midnight UTC of the
+		// given y/m/d, so this is independent of the host's local TZ.
+		const now = new Date();
+		const todayUtcMidnightMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+		const sevenDaysAgo = new Date(todayUtcMidnightMs - 6 * 24 * 60 * 60 * 1000);
 
 		// Get column positions for determining forward/backward moves
 		const columns = await db.column.findMany({
@@ -188,8 +207,10 @@ async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetric
 		// Previous-week completions for the WoW delta. Separate query to keep the
 		// 7-day throughput/dwell logic above unchanged — extending the main
 		// `activities` query to 14 days would shift dwell-time calculations by
-		// including older arrivals.
-		const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+		// including older arrivals. Anchor `fourteenDaysAgo` off `sevenDaysAgo`
+		// so the prior-week window is a clean calendar 7-day span (UTC midnight
+		// boundaries on both ends), matching the throughput series above.
+		const fourteenDaysAgo = new Date(sevenDaysAgo.getTime() - 7 * 24 * 60 * 60 * 1000);
 		const priorWeekActivities = await db.activity.findMany({
 			where: {
 				card: { column: { boardId } },
