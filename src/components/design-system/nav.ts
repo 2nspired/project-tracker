@@ -77,6 +77,11 @@ export const DESIGN_NAV: DesignNavSection[] = [
 		heading: "Patterns",
 		items: [
 			{
+				label: "Loading, Empty, Error",
+				href: "/dev/design/patterns/loading-empty-error",
+				built: true,
+			},
+			{
 				label: "Step Section",
 				href: "/dev/design/patterns/step-section",
 				built: false,

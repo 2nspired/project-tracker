@@ -10,6 +10,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { LoadingRow } from "@/components/ui/skeleton";
 import { getAccentBorderStyle, getActorIdentity } from "@/lib/actor-colors";
 import { formatActionVerb } from "@/lib/format-activity";
 import { formatRelativeCompact } from "@/lib/format-date";
@@ -82,7 +83,7 @@ export function ActivitySheet({ boardId, open, onOpenChange, onCardClick }: Acti
 
 				<div className="flex-1 overflow-y-auto px-5 py-4">
 					{!activities ? (
-						<p className="text-xs text-muted-foreground">Loading…</p>
+						<LoadingRow />
 					) : filtered.length === 0 ? (
 						<p className="text-xs text-muted-foreground">No activity matches this filter.</p>
 					) : (

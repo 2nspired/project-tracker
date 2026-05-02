@@ -8,6 +8,7 @@ import {
 	coerceRateValue,
 	validateNewModelName,
 } from "@/components/costs/pricing-override-validation";
+import { LoadingRow } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
 	DEFAULT_PRICING,
@@ -147,7 +148,7 @@ export function PricingOverrideTable({ projectId: _projectId, projectSummary }: 
 	if (isLoading || !pricing) {
 		return (
 			<Section step="01" title="Pricing">
-				<p className="text-xs text-muted-foreground">Loading pricing…</p>
+				<LoadingRow text="Loading pricing…" />
 			</Section>
 		);
 	}

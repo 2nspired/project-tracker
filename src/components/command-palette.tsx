@@ -87,12 +87,12 @@ export function CommandPalette() {
 			showCloseButton={false}
 		>
 			<CommandInput
-				placeholder="Search cards, pages, actions..."
+				placeholder="Search cards, pages, actions…"
 				value={search}
 				onValueChange={setSearch}
 			/>
 			<CommandList>
-				<CommandEmpty>{cardsLoading ? "Searching..." : "No results found."}</CommandEmpty>
+				<CommandEmpty>{cardsLoading ? "Searching…" : "No results found."}</CommandEmpty>
 
 				{/* Slash Commands — Claude Code slash commands users actually
 				    type at session boundaries. Surfaced above MCP tools

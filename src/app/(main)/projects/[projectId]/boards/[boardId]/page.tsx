@@ -241,6 +241,8 @@ export default function BoardPage({
 	}, [board, selectedCardId]);
 
 	if (isLoading) {
+		// Column width pinned to BoardColumn's w-84 so the skeleton doesn't
+		// pop +48px wider when data lands (#244 — was w-72 in the original).
 		return (
 			<div className="flex h-full flex-col">
 				<div className="border-b px-4 py-3">
@@ -248,7 +250,7 @@ export default function BoardPage({
 				</div>
 				<div className="flex flex-1 gap-4 p-4">
 					{Array.from({ length: 3 }).map((_, i) => (
-						<Skeleton key={i} className="h-96 w-72 shrink-0" />
+						<Skeleton key={i} className="h-96 w-84 shrink-0" />
 					))}
 				</div>
 			</div>
