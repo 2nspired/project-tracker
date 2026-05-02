@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { createTokenUsageService } from "@/lib/services/token-usage";
 import {
 	clearUpgradeReport,
 	readUpgradeReport,
@@ -12,7 +13,6 @@ import {
 import { runVersionCheck } from "@/server/api/routers/system";
 import { initFts5 } from "@/server/fts";
 import { buildBriefPayload } from "@/server/services/brief-payload-service";
-import { tokenUsageService } from "@/server/services/token-usage-service";
 import { hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
@@ -48,6 +48,11 @@ import {
 	SCHEMA_VERSION,
 	safeExecute,
 } from "./utils.js";
+
+// Bind the shared token-usage factory to the MCP-process Prisma client.
+// Same shape as the web shim, but scoped to the MCP db so this process
+// doesn't reach into the Next.js FTS-extended instance.
+const tokenUsageService = createTokenUsageService(db);
 
 // Format a strict-mode tag-resolution failure into a structured error
 // payload. The agent gets _didYouMean suggestions in the response so it

@@ -12,7 +12,7 @@
 
 import { z } from "zod";
 import { resolveProjectIdFromCwd } from "@/lib/services/resolve-project";
-import { tokenUsageService } from "@/server/services/token-usage-service";
+import { createTokenUsageService } from "@/lib/services/token-usage";
 import { db } from "../db.js";
 import { SESSION_ID } from "../instrumentation.js";
 import { registerExtendedTool } from "../tool-registry.js";
@@ -24,6 +24,12 @@ import {
 	resolveCardRef,
 	safeExecute,
 } from "../utils.js";
+
+// Bind the shared factory to the MCP-process Prisma client. Constructed
+// once at module load (singleton) — same shape as the web shim, but
+// scoped to the MCP db so cross-process callers don't share the
+// Next.js-FTS-extended instance.
+const tokenUsageService = createTokenUsageService(db);
 
 registerExtendedTool("recordTokenUsage", {
 	category: "session",
