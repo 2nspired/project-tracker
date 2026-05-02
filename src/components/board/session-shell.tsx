@@ -107,27 +107,3 @@ export function CollapsibleSection({
 		</details>
 	);
 }
-
-// ─── Filter chip ──────────────────────────────────────────────────
-
-export function FilterChip({
-	active,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={`rounded-full px-2 py-0.5 text-2xs transition-colors ${
-				active ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted/60"
-			}`}
-		>
-			{children}
-		</button>
-	);
-}

@@ -16,7 +16,7 @@ import { Maximize2, Minimize2, Target } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CardDetailSheet } from "@/components/board/card-detail-sheet";
-import { Button } from "@/components/ui/button";
+import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmented-control";
 import { useCardNavigation } from "@/hooks/use-card-navigation";
 import { getHorizon, HORIZON_ORDER, type Horizon } from "@/lib/column-roles";
 import type { RouterOutputs } from "@/trpc/react";
@@ -289,35 +289,31 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 						/>
 					</div>
 				</div>
-				<div className="flex items-center gap-1 rounded-md border p-0.5">
-					<Button
-						variant={density === "expanded" ? "secondary" : "ghost"}
-						size="sm"
-						className="h-6 gap-1 px-2 text-xs"
-						onClick={() => setDensity("expanded")}
+				<SegmentedControl
+					type="single"
+					size="icon"
+					value={density}
+					onValueChange={(v) => v && setDensity(v as DensityMode)}
+					aria-label="Roadmap density"
+				>
+					<SegmentedControlItem
+						value="expanded"
+						aria-label="Expanded"
 						title="Expanded — show all cards"
 					>
-						<Maximize2 className="h-3 w-3" />
-					</Button>
-					<Button
-						variant={density === "focus" ? "secondary" : "ghost"}
-						size="sm"
-						className="h-6 gap-1 px-2 text-xs"
-						onClick={() => setDensity("focus")}
-						title="Focus — expand Now only"
-					>
-						<Target className="h-3 w-3" />
-					</Button>
-					<Button
-						variant={density === "compact" ? "secondary" : "ghost"}
-						size="sm"
-						className="h-6 gap-1 px-2 text-xs"
-						onClick={() => setDensity("compact")}
+						<Maximize2 />
+					</SegmentedControlItem>
+					<SegmentedControlItem value="focus" aria-label="Focus" title="Focus — expand Now only">
+						<Target />
+					</SegmentedControlItem>
+					<SegmentedControlItem
+						value="compact"
+						aria-label="Compact"
 						title="Compact — milestones only"
 					>
-						<Minimize2 className="h-3 w-3" />
-					</Button>
-				</div>
+						<Minimize2 />
+					</SegmentedControlItem>
+				</SegmentedControl>
 			</div>
 
 			{/* Horizon landscape */}

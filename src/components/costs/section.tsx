@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/utils";
 
 // Shared Section frame for the Costs page (#200 Phase 3 — extracted from
@@ -58,48 +59,23 @@ export function StepLabel({ n }: { n: string }) {
 	return <span className="font-mono text-2xs text-muted-foreground/60 tabular-nums">{n}</span>;
 }
 
-// ─── Period pill selector ─────────────────────────────────────────
+// ─── Period selector ──────────────────────────────────────────────
 
 export type Period = "7d" | "30d" | "lifetime";
 
 export function PeriodPills({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
 	return (
-		<div className="inline-flex items-center gap-1">
-			<PeriodPill active={value === "7d"} onClick={() => onChange("7d")}>
-				7d
-			</PeriodPill>
-			<PeriodPill active={value === "30d"} onClick={() => onChange("30d")}>
-				30d
-			</PeriodPill>
-			<PeriodPill active={value === "lifetime"} onClick={() => onChange("lifetime")}>
-				Lifetime
-			</PeriodPill>
-		</div>
-	);
-}
-
-function PeriodPill({
-	active,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	onClick: () => void;
-	children: ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={cn(
-				"inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors",
-				active
-					? "border-foreground/20 bg-muted text-foreground"
-					: "border-border bg-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-			)}
+		<SegmentedControl
+			type="single"
+			value={value}
+			onValueChange={(v) => v && onChange(v as Period)}
+			aria-label="Period"
+			className="font-mono text-2xs uppercase tracking-wide"
 		>
-			{children}
-		</button>
+			<SegmentedControlItem value="7d">7d</SegmentedControlItem>
+			<SegmentedControlItem value="30d">30d</SegmentedControlItem>
+			<SegmentedControlItem value="lifetime">Lifetime</SegmentedControlItem>
+		</SegmentedControl>
 	);
 }
 

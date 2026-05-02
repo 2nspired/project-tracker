@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ActorDot } from "@/components/ui/actor-dot";
+import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmented-control";
 import {
 	Sheet,
 	SheetContent,
@@ -65,17 +66,18 @@ export function ActivitySheet({ boardId, open, onOpenChange, onCardClick }: Acti
 					<SheetDescription className="sr-only">
 						Recent board activity — agent and human card moves, comments, and edits.
 					</SheetDescription>
-					<div className="mt-2 flex items-center gap-1">
-						<FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
-							All
-						</FilterChip>
-						<FilterChip active={filter === "agent"} onClick={() => setFilter("agent")}>
-							Agents
-						</FilterChip>
-						<FilterChip active={filter === "human"} onClick={() => setFilter("human")}>
-							You
-						</FilterChip>
-					</div>
+					<SegmentedControl
+						type="single"
+						shape="full"
+						value={filter}
+						onValueChange={(v) => v && setFilter(v as ActorFilter)}
+						aria-label="Filter activity by actor"
+						className="mt-2"
+					>
+						<SegmentedControlItem value="all">All</SegmentedControlItem>
+						<SegmentedControlItem value="agent">Agents</SegmentedControlItem>
+						<SegmentedControlItem value="human">You</SegmentedControlItem>
+					</SegmentedControl>
 				</SheetHeader>
 
 				<div className="flex-1 overflow-y-auto px-5 py-4">
@@ -134,27 +136,5 @@ export function ActivitySheet({ boardId, open, onOpenChange, onCardClick }: Acti
 				</div>
 			</SheetContent>
 		</Sheet>
-	);
-}
-
-function FilterChip({
-	active,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={`rounded-full px-2 py-0.5 text-2xs transition-colors ${
-				active ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted/60"
-			}`}
-		>
-			{children}
-		</button>
 	);
 }

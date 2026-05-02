@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Markdown } from "@/components/ui/markdown";
+import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmented-control";
 import { formatDate } from "@/lib/format-date";
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -39,26 +40,20 @@ export function NoteViewToggle({
 	setView: (v: NoteViewMode) => void;
 }) {
 	return (
-		<div className="flex items-center rounded-md border">
-			<Button
-				variant={view === "card" ? "secondary" : "ghost"}
-				size="icon"
-				className="h-8 w-8 rounded-r-none"
-				onClick={() => setView("card")}
-				title="Card view"
-			>
-				<LayoutGrid className="h-3.5 w-3.5" />
-			</Button>
-			<Button
-				variant={view === "list" ? "secondary" : "ghost"}
-				size="icon"
-				className="h-8 w-8 rounded-l-none"
-				onClick={() => setView("list")}
-				title="List view"
-			>
-				<List className="h-3.5 w-3.5" />
-			</Button>
-		</div>
+		<SegmentedControl
+			type="single"
+			size="icon"
+			value={view}
+			onValueChange={(v) => v && setView(v as NoteViewMode)}
+			aria-label="Notes layout"
+		>
+			<SegmentedControlItem value="card" aria-label="Card view" title="Card view">
+				<LayoutGrid />
+			</SegmentedControlItem>
+			<SegmentedControlItem value="list" aria-label="List view" title="List view">
+				<List />
+			</SegmentedControlItem>
+		</SegmentedControl>
 	);
 }
 

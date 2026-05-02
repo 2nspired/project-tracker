@@ -5,8 +5,9 @@ import { cloneElement, Fragment, isValidElement, type ReactNode, useMemo, useSta
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import { CardRefText, CollapsibleSection, FilterChip } from "@/components/board/session-shell";
+import { CardRefText, CollapsibleSection } from "@/components/board/session-shell";
 import { Markdown } from "@/components/ui/markdown";
+import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmented-control";
 import {
 	Sheet,
 	SheetContent,
@@ -99,28 +100,34 @@ export function HandoffsSheet({
 					<SheetDescription className="sr-only">
 						Recent agent handoffs for this project. Filter by agent or blockers.
 					</SheetDescription>
-					<div className="mt-2 flex items-center gap-1">
-						<FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
-							All
-						</FilterChip>
-						<FilterChip active={filter === "blockers"} onClick={() => setFilter("blockers")}>
-							Has blockers
-						</FilterChip>
+					<div className="mt-2 flex flex-wrap items-center gap-2">
+						<SegmentedControl
+							type="single"
+							shape="full"
+							value={filter}
+							onValueChange={(v) => v && setFilter(v as Filter)}
+							aria-label="Filter handoffs"
+						>
+							<SegmentedControlItem value="all">All</SegmentedControlItem>
+							<SegmentedControlItem value="blockers">Has blockers</SegmentedControlItem>
+						</SegmentedControl>
 						{agents.length > 1 && (
 							<>
-								<span className="mx-1 h-3 w-px bg-border" />
-								<FilterChip active={agentFilter === null} onClick={() => setAgentFilter(null)}>
-									All agents
-								</FilterChip>
-								{agents.map((a) => (
-									<FilterChip
-										key={a}
-										active={agentFilter === a}
-										onClick={() => setAgentFilter(agentFilter === a ? null : a)}
-									>
-										{a}
-									</FilterChip>
-								))}
+								<span className="h-3 w-px bg-border" />
+								<SegmentedControl
+									type="single"
+									shape="full"
+									value={agentFilter ?? "__all__"}
+									onValueChange={(v) => setAgentFilter(v === "__all__" || !v ? null : v)}
+									aria-label="Filter by agent"
+								>
+									<SegmentedControlItem value="__all__">All agents</SegmentedControlItem>
+									{agents.map((a) => (
+										<SegmentedControlItem key={a} value={a}>
+											{a}
+										</SegmentedControlItem>
+									))}
+								</SegmentedControl>
 							</>
 						)}
 					</div>

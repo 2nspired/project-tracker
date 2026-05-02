@@ -3,6 +3,7 @@
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
+import { type Period, PeriodPills } from "@/components/costs/section";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCost } from "@/lib/format-cost";
@@ -22,14 +23,6 @@ import { api } from "@/trpc/react";
 // math but still counted in `shippedCount`, so the header can render the
 // honest "N shipped · No AI cost recorded" partial state when the project
 // has shipped work that lacks `attributeSession`-level wiring.
-
-type Period = "7d" | "30d" | "lifetime";
-
-const PERIOD_OPTIONS: { value: Period; label: string }[] = [
-	{ value: "7d", label: "7d" },
-	{ value: "30d", label: "30d" },
-	{ value: "lifetime", label: "Lifetime" },
-];
 
 type CardDeliverySectionProps = {
 	projectId: string;
@@ -82,32 +75,6 @@ export function CardDeliverySection({ projectId, scope = "project" }: CardDelive
 }
 
 // ─── Subcomponents ─────────────────────────────────────────────────
-
-function PeriodPills({ value, onChange }: { value: Period; onChange: (next: Period) => void }) {
-	return (
-		<div className="flex flex-wrap gap-1">
-			{PERIOD_OPTIONS.map((opt) => {
-				const active = opt.value === value;
-				return (
-					<button
-						key={opt.value}
-						type="button"
-						onClick={() => onChange(opt.value)}
-						aria-pressed={active}
-						className={cn(
-							"rounded-md border px-2 py-0.5 text-2xs font-medium tabular-nums transition-colors",
-							active
-								? "border-foreground/20 bg-foreground/10 text-foreground"
-								: "border-transparent text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-						)}
-					>
-						{opt.label}
-					</button>
-				);
-			})}
-		</div>
-	);
-}
 
 function DeliveryContent({
 	data,
