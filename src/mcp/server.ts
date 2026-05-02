@@ -5,12 +5,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { createTokenUsageService } from "@/lib/services/token-usage";
+import { runVersionCheck } from "@/lib/services/version-check";
 import {
 	clearUpgradeReport,
 	readUpgradeReport,
 	UPGRADE_REPORT_STALE_MS,
 } from "@/lib/upgrade-report";
-import { runVersionCheck } from "@/server/api/routers/system";
 import { initFts5 } from "@/server/fts";
 import { buildBriefPayload } from "@/server/services/brief-payload-service";
 import { hasRole } from "../lib/column-roles.js";

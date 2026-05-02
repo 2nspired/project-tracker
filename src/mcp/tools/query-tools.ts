@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { findStaleInProgress } from "@/server/services/stale-cards";
+import { findStaleInProgress } from "@/lib/services/stale-cards";
 import { hasRole } from "../../lib/column-roles.js";
 import { editDistance } from "../../lib/slugify.js";
 import { db } from "../db.js";
