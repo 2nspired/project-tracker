@@ -20,11 +20,24 @@ function formatHours(hours: number): string {
 
 export function BoardPulse({ boardId, projectId }: { boardId: string; projectId: string }) {
 	const { data: metrics } = api.activity.flowMetrics.useQuery({ boardId }, { staleTime: 60_000 });
+	// Board-scoped — keeps the inline cost number and the popover totals
+	// honest about the surface they live on. Was previously project-wide
+	// (#224), which contradicted the board-mode Costs page and produced a
+	// misleading $/card ratio (board-scoped completions ÷ project-wide cost).
 	const { data: dailyCost } = api.tokenUsage.getDailyCostSeries.useQuery(
-		{ projectId },
+		{ projectId, boardId },
 		{ staleTime: 60_000 }
 	);
 	const { data: projectSummary } = api.tokenUsage.getProjectSummary.useQuery(
+		{ projectId, boardId },
+		{ staleTime: 60_000 }
+	);
+	// Project-wide totals — used only to (a) gate the "Set up token tracking"
+	// CTA so it doesn't fire when events are flowing project-wide but not
+	// attributed to this board's cards, and (b) surface that attribution gap
+	// in the popover so the user sees both the board number and the project
+	// number. Same pattern as the board-mode Costs page (#223).
+	const { data: projectWideSummary } = api.tokenUsage.getProjectSummary.useQuery(
 		{ projectId },
 		{ staleTime: 60_000 }
 	);
@@ -41,11 +54,13 @@ export function BoardPulse({ boardId, projectId }: { boardId: string; projectId:
 	const weekCost = dailyCost?.weekTotalCostUsd ?? 0;
 	const lifetimeCost = projectSummary?.totalCostUsd ?? 0;
 	const hasWeekCost = weekCost > 0;
-	const hasAnyCost = hasWeekCost || lifetimeCost > 0;
-
-	// Show CTA inline only when there's flow data but no cost data anywhere —
-	// users with flow but no tokens are the ones who'd benefit from the nudge.
-	const showCostSetupCta = hasFlowData && !hasAnyCost;
+	const projectWideCost = projectWideSummary?.totalCostUsd ?? 0;
+	const projectWideEventCount = projectWideSummary?.eventCount ?? 0;
+	const projectHasAnyCost = projectWideCost > 0 || projectWideEventCount > 0;
+	// CTA fires only when the project as a whole has no token data — telling
+	// the user to "Set up token tracking" while events are flowing project-
+	// wide but not yet card-attributed would mislead.
+	const showCostSetupCta = hasFlowData && !projectHasAnyCost;
 
 	if (!hasFlowData && !hasWeekCost) return null;
 
@@ -148,9 +163,11 @@ export function BoardPulse({ boardId, projectId }: { boardId: string; projectId:
 
 			<PopoverContent className="w-96 p-0" align="start" sideOffset={2}>
 				<PulseDetails
+					projectId={projectId}
 					metrics={metrics}
 					dailyCost={dailyCost ?? null}
 					projectSummary={projectSummary ?? null}
+					projectWideSummary={projectWideSummary ?? null}
 					totalCompleted={totalCompleted}
 					weekCost={weekCost}
 					lifetimeCost={lifetimeCost}
@@ -167,9 +184,11 @@ type DailyCostSeries = RouterOutputs["tokenUsage"]["getDailyCostSeries"];
 type ProjectSummary = RouterOutputs["tokenUsage"]["getProjectSummary"];
 
 type PulseDetailsProps = {
+	projectId: string;
 	metrics: FlowMetrics;
 	dailyCost: DailyCostSeries | null;
 	projectSummary: ProjectSummary | null;
+	projectWideSummary: ProjectSummary | null;
 	totalCompleted: number;
 	weekCost: number;
 	lifetimeCost: number;
@@ -178,15 +197,24 @@ type PulseDetailsProps = {
 };
 
 function PulseDetails({
+	projectId,
 	metrics,
 	projectSummary,
+	projectWideSummary,
 	totalCompleted,
 	weekCost,
 	lifetimeCost,
 	wowDelta,
 	costPerCompleted,
 }: PulseDetailsProps) {
-	const hasCost = weekCost > 0 || lifetimeCost > 0;
+	const hasBoardCost = weekCost > 0 || lifetimeCost > 0;
+	const projectWideCost = projectWideSummary?.totalCostUsd ?? 0;
+	const projectWideEventCount = projectWideSummary?.eventCount ?? 0;
+	const projectHasCost = projectWideCost > 0 || projectWideEventCount > 0;
+	// Attribution gap: project has token data but none of it is tied to cards
+	// on this board. Surface it explicitly so the popover doesn't read as a
+	// dead "$0" — and link to project totals so the user can verify.
+	const showAttributionGap = !hasBoardCost && projectHasCost;
 	const trackingSince = projectSummary?.trackingSince ?? null;
 	const topModels = projectSummary?.byModel.slice(0, 3) ?? [];
 
@@ -241,7 +269,7 @@ function PulseDetails({
 				</dl>
 			</div>
 
-			{hasCost ? (
+			{hasBoardCost ? (
 				<div className="space-y-2 p-4">
 					<div className="flex items-baseline justify-between gap-3">
 						<div className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -286,6 +314,32 @@ function PulseDetails({
 							</div>
 						</div>
 					)}
+				</div>
+			) : showAttributionGap ? (
+				<div className="space-y-2 p-4">
+					<div className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+						Token cost
+					</div>
+					<p className="text-xs text-muted-foreground">
+						No token cost attributed to this board yet — events are flowing project-wide but haven't
+						been tied to cards on this board.
+					</p>
+					<dl className="space-y-1 text-sm">
+						<div className="flex items-baseline justify-between gap-3">
+							<dt className="text-muted-foreground">This board</dt>
+							<dd className="tabular-nums">{formatCost(0)}</dd>
+						</div>
+						<div className="flex items-baseline justify-between gap-3">
+							<dt className="text-muted-foreground">Project-wide</dt>
+							<dd className="tabular-nums">{formatCost(projectWideCost)}</dd>
+						</div>
+					</dl>
+					<a
+						href={`/projects/${projectId}/costs`}
+						className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+					>
+						View project totals →
+					</a>
 				</div>
 			) : (
 				<div className="p-4">
