@@ -8,6 +8,7 @@ import {
 	coerceRateValue,
 	validateNewModelName,
 } from "@/components/costs/pricing-override-validation";
+import { StepSection } from "@/components/ui/step-section";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
 	DEFAULT_PRICING,
@@ -148,9 +149,9 @@ export function PricingOverrideTable({ projectId: _projectId, projectSummary }: 
 
 	if (isLoading || !pricing) {
 		return (
-			<Section step="01" title="Pricing">
+			<StepSection title="Pricing">
 				<p className="text-xs text-muted-foreground">Loading pricing…</p>
-			</Section>
+			</StepSection>
 		);
 	}
 
@@ -255,7 +256,7 @@ export function PricingOverrideTable({ projectId: _projectId, projectSummary }: 
 	const isSaving = updatePricing.isPending;
 
 	return (
-		<Section step="01" title="Pricing">
+		<StepSection title="Pricing">
 			<VerifiedBanner />
 
 			{/* Visually a table; semantically a stack of labelled rows. We
@@ -321,7 +322,7 @@ export function PricingOverrideTable({ projectId: _projectId, projectSummary }: 
 					{isSaving ? "Saving…" : "Save pricing"}
 				</button>
 			</div>
-		</Section>
+		</StepSection>
 	);
 }
 
@@ -540,20 +541,6 @@ function RateCell({
 				</span>
 			)}
 		</div>
-	);
-}
-
-// ─── Section frame (mirrors token-tracking-setup-dialog "Section") ─
-
-function Section({ step, title, children }: { step: string; title: string; children: ReactNode }) {
-	return (
-		<section className="space-y-3 border-t border-border/50 pt-4">
-			<div className="flex items-baseline gap-2.5">
-				<span className="font-mono text-2xs text-muted-foreground/60 tabular-nums">{step}</span>
-				<h3 className="text-sm font-medium tracking-tight">{title}</h3>
-			</div>
-			{children}
-		</section>
 	);
 }
 

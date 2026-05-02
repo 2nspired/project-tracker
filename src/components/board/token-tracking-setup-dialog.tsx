@@ -19,6 +19,7 @@ import {
 	SheetTitle,
 	SheetTrigger,
 } from "@/components/ui/sheet";
+import { StepSection } from "@/components/ui/step-section";
 import { formatRelative } from "@/lib/format-date";
 import {
 	buildTokenTrackingHookSnippet,
@@ -54,37 +55,6 @@ function InlineCode({ children }: { children: ReactNode }) {
 		<code className="rounded bg-muted/70 px-1 py-px font-mono text-2xs text-foreground/85">
 			{children}
 		</code>
-	);
-}
-
-// Tiny step label used to anchor each section. `01 / 02 / 03` reads as a
-// numbered procedure without competing with the section title for weight.
-function StepLabel({ n }: { n: string }) {
-	return <span className="font-mono text-2xs text-muted-foreground/60 tabular-nums">{n}</span>;
-}
-
-// Section frame. Border-top + inset padding gives each step a clear band
-// that scans top-to-bottom.
-function Section({
-	step,
-	title,
-	right,
-	children,
-}: {
-	step: string;
-	title: string;
-	right?: ReactNode;
-	children: ReactNode;
-}) {
-	return (
-		<section className="space-y-2.5 border-t border-border/50 pt-4 first:border-t-0 first:pt-0">
-			<div className="flex items-baseline gap-2.5">
-				<StepLabel n={step} />
-				<h3 className="text-sm font-medium tracking-tight">{title}</h3>
-				{right && <div className="ml-auto">{right}</div>}
-			</div>
-			{children}
-		</section>
 	);
 }
 
@@ -296,7 +266,7 @@ function HookSnippetSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 	const targetPath = diagnostics?.configPaths.find((c) => c.exists)?.path;
 
 	return (
-		<Section step="01" title="The hook">
+		<StepSection step="01" title="The hook" flush>
 			<div className="overflow-hidden rounded-md border bg-card">
 				<div className="flex items-center gap-2 border-b bg-muted/30 px-3 py-1.5">
 					<span className="font-mono text-2xs uppercase tracking-wide text-muted-foreground/70">
@@ -333,7 +303,7 @@ function HookSnippetSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 				<InlineCode>&lt;dirname&gt;/&lt;sessionId&gt;/subagents/agent-*.jsonl</InlineCode> are
 				aggregated alongside the parent automatically.
 			</p>
-		</Section>
+		</StepSection>
 	);
 }
 
@@ -342,9 +312,9 @@ function HookSnippetSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefined }) {
 	if (!diagnostics) {
 		return (
-			<Section step="02" title="Where it goes">
+			<StepSection step="02" title="Where it goes" flush>
 				<p className="text-xs text-muted-foreground">Looking for your Claude Code config…</p>
-			</Section>
+			</StepSection>
 		);
 	}
 
@@ -352,7 +322,7 @@ function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 
 	if (existing.length === 0) {
 		return (
-			<Section step="02" title="Where it goes">
+			<StepSection step="02" title="Where it goes" flush>
 				<div className="rounded-md border border-dashed bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground">
 					No <InlineCode>settings.json</InlineCode> found at the standard Claude Code locations
 					(user-level <InlineCode>~/.claude/settings.json</InlineCode>, project-level{" "}
@@ -362,14 +332,14 @@ function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 					on this machine, prefer <InlineCode>.claude/settings.local.json</InlineCode> — it's
 					gitignored.
 				</div>
-			</Section>
+			</StepSection>
 		);
 	}
 
 	const allConfigured = existing.every((c) => c.hasHook);
 
 	return (
-		<Section step="02" title="Where it goes">
+		<StepSection step="02" title="Where it goes" flush>
 			<ul className="space-y-1.5">
 				{existing.map((c) => (
 					<li
@@ -403,7 +373,7 @@ function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 					<InlineCode>Stop</InlineCode> entry into it — don't replace the whole object.
 				</div>
 			)}
-		</Section>
+		</StepSection>
 	);
 }
 
@@ -423,9 +393,10 @@ function VerifySection({
 	const style = STATE_STYLE[state];
 
 	return (
-		<Section
+		<StepSection
 			step="03"
 			title="Verify"
+			flush
 			right={
 				<button
 					type="button"
@@ -470,7 +441,7 @@ function VerifySection({
 					</dl>
 				)}
 			</div>
-		</Section>
+		</StepSection>
 	);
 }
 
