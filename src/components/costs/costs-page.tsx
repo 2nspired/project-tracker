@@ -55,60 +55,43 @@ type CostsPageProps = {
 export function CostsPage({
 	projectId,
 	projectName,
-	boardId,
+	boardId: _boardId,
 	boardName: _boardName,
 	boards,
 	fromBoard,
 }: CostsPageProps) {
+	// Board scope deferred until card-attribution is automated (#225). Until
+	// then this page renders project-wide regardless of `?board=`. The
+	// `boardId` prop is preserved on `CostsPageProps` (route plumbing
+	// unchanged) but ignored here for data + child rendering. `?from=`
+	// continues to drive the breadcrumb's first-segment back-link via
+	// `fromBoard`. Re-enable board scope once `attributeSession` runs
+	// automatically on Stop-hook fire so events have `cardId` set and
+	// board-scoped queries return meaningful data.
 	const { data: projectSummary, isLoading: summaryLoading } =
-		api.tokenUsage.getProjectSummary.useQuery(boardId ? { projectId, boardId } : { projectId }, {
-			staleTime: 60_000,
-		});
+		api.tokenUsage.getProjectSummary.useQuery({ projectId }, { staleTime: 60_000 });
 	const { data: dailyCost, isLoading: dailyLoading } = api.tokenUsage.getDailyCostSeries.useQuery(
-		boardId ? { projectId, boardId } : { projectId },
+		{ projectId },
 		{ staleTime: 60_000 }
 	);
-	// In board mode, also fetch the project-wide totals — the Board's-share
-	// cell + the Statement's empty-state branch both need `projectTotal`.
-	// `enabled: !!boardId` keeps project mode from double-fetching.
-	const { data: projectWideSummary } = api.tokenUsage.getProjectSummary.useQuery(
-		{ projectId },
-		{ staleTime: 60_000, enabled: !!boardId }
-	);
 
-	// In board mode wait for projectWideSummary too — otherwise hasNoData
-	// briefly evaluates against board-scoped zeros before the project-wide
-	// query lands, flickering the "Set up tracking" CTA on top of pages that
-	// actually have data.
-	const isLoading = summaryLoading || dailyLoading || (!!boardId && !projectWideSummary);
-
-	// The page-level "no data" empty state advertises hook setup, so it only
-	// fires when the *project as a whole* has no token data. In board mode
-	// with a populated project but zero board-attributed events, render the
-	// regular sections — each has its own board-mode empty-state branch
-	// ("no board-attributed sessions yet") that links out to project totals.
-	// Telling the user to "Set up token tracking" when events are already
-	// flowing is misleading and contradicts the dialog's own status pill.
-	const projectHasAnyData = boardId
-		? !!projectWideSummary &&
-			(projectWideSummary.eventCount > 0 || projectWideSummary.totalCostUsd > 0)
-		: !!projectSummary && (projectSummary.eventCount > 0 || projectSummary.totalCostUsd > 0);
-
-	const hasNoData = !!projectSummary && !!dailyCost && !projectHasAnyData;
+	const isLoading = summaryLoading || dailyLoading;
+	const hasNoData =
+		projectSummary &&
+		dailyCost &&
+		projectSummary.totalCostUsd === 0 &&
+		projectSummary.eventCount === 0;
 
 	return (
-		<div className="mx-auto max-w-3xl space-y-8 px-4 py-6 sm:px-6">
+		<div className="mx-auto max-w-5xl space-y-8 px-4 py-6 sm:px-6">
 			<CostsBreadcrumb
 				projectId={projectId}
 				boards={boards}
-				currentBoardId={boardId ?? null}
+				currentBoardId={null}
 				fromBoard={fromBoard}
 			/>
 
 			<div>
-				{/* H1 stays "Costs" (D2). Pigeon has no left nav so the resource
-				    label is load-bearing — promoting the scope into the H1 would
-				    bury it. Scope reads from the breadcrumb above instead. */}
 				<h1 className="text-2xl font-bold tracking-tight">Costs</h1>
 				<p className="text-sm text-muted-foreground">Token usage and spend for {projectName}.</p>
 			</div>
@@ -138,31 +121,11 @@ export function CostsPage({
 				</EmptyState>
 			) : projectSummary && dailyCost ? (
 				<>
-					<SummaryStrip
-						projectSummary={projectSummary}
-						dailyCost={dailyCost}
-						boardId={boardId}
-						projectWideSummary={boardId ? projectWideSummary : undefined}
-					/>
-					{boardId ? (
-						<p className="font-mono text-2xs italic text-muted-foreground/60">
-							A session that touched cards on multiple boards counts toward each board's total.
-						</p>
-					) : null}
-					<SavingsSection
-						projectId={projectId}
-						boardId={boardId}
-						boardSummary={boardId ? projectSummary : undefined}
-						projectWideSummary={boardId ? projectWideSummary : undefined}
-					/>
-					<PigeonOverheadSection projectId={projectId} scope={boardId ? "board" : "project"} />
-					<CardDeliverySection projectId={projectId} scope={boardId ? "board" : "project"} />
-					{/* Pricing override table is a project-level configuration
-					    surface — hide in board mode (D-spec step 7). It comes back
-					    when the user clears the scope to "All boards". */}
-					{!boardId ? (
-						<PricingOverrideTable projectId={projectId} projectSummary={projectSummary} />
-					) : null}
+					<SummaryStrip projectSummary={projectSummary} dailyCost={dailyCost} />
+					<SavingsSection projectId={projectId} />
+					<PigeonOverheadSection projectId={projectId} scope="project" />
+					<CardDeliverySection projectId={projectId} scope="project" />
+					<PricingOverrideTable projectId={projectId} projectSummary={projectSummary} />
 				</>
 			) : null}
 		</div>

@@ -365,7 +365,7 @@ export default function BoardPage({
 					</Tooltip>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<Link href={`/projects/${projectId}/costs?board=${boardId}&from=${boardId}`}>
+							<Link href={`/projects/${projectId}/costs?from=${boardId}`}>
 								<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
 									<DollarSign className="h-3.5 w-3.5" />
 									Costs
