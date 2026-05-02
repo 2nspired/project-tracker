@@ -137,6 +137,10 @@ Record latency, memory usage, build times, bundle sizes, etc.
 
 The card detail sheet in the UI shows a collapsible "Commit Summary" section for any card with linked commits.
 
+## CHANGELOG entries
+
+Every PR that needs a CHANGELOG line follows the entry style in [`docs/VERSIONING.md`](docs/VERSIONING.md#changelog-entry-style): one short paragraph per bullet (~280 chars, 1–2 sentences), lead with what changed and why it matters, end with the `(#NNN)` tracker link. Forensic detail — file paths, removed type names, grep verification, merge-resolution narrative — belongs on the card, not in the notes. The link is the escape hatch.
+
 ## Last-Write-Wins
 
 This is a single-user local tool — concurrent edits on the same entity are rare, and the UI re-reads on every change. Writes use last-write-wins: no version field, no conflict errors.

@@ -81,6 +81,42 @@ Skip the entry only for: pure formatting/lint commits, CHANGELOG itself, depende
 
 `.github/workflows/changelog.yml` enforces the rule on every PR to `main`. If the PR diff touches `src/`, `prisma/`, `scripts/`, `docs/`, `docs-site/`, or `package.json` and the `## [Unreleased]` section in `CHANGELOG.md` is byte-identical to the base branch's, the check fails. Add the entry, or apply the `skip-changelog` label for the rare PR that genuinely warrants no line (CI-only, test-only, vendored config). The skip path is the escape valve, not the default — every use is visible on the PR.
 
+## CHANGELOG entry style
+
+Entries are read by users after `npm run service:update`, not by reviewers running a postmortem. Write them for the audience that will encounter them.
+
+**The rule:** one short paragraph per bullet, leading with what changed and why it matters, ending with the `(#NNN)` tracker link. Forensic detail (file paths, removed type names, conflict resolution, multi-PR rollup) belongs on the card; the link is the escape hatch for anyone who wants it.
+
+**Soft cap: ~280 characters / 1–2 sentences per bullet.** A bullet that runs longer is a signal the detail belongs on the card, not in the notes. Rare exception: a single MAJOR breaking change may need more — for those, link `docs/UPDATING.md` and keep the bullet itself short.
+
+### What to leave out
+
+- Lists of files touched or moved.
+- Names of removed types, helpers, exports.
+- Inline grep or verification commands.
+- Conflict-resolution narrative from a merge.
+- Internal-only baseline metrics (e.g. "boundary-lint drops 7 → 5") unless a downstream user would notice.
+
+These are valuable — they belong on the linked card and in the PR body. They're not what a user wants while deciding whether to upgrade.
+
+### Pattern grounding
+
+This is the shape the JS ecosystem already converges on: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) buckets carrying paragraph-level entries that link out for detail. Linear's public changelog and most well-run GitHub Releases follow the same pattern — short paragraph of reader-relevant context, link.
+
+The **release-section intro paragraph** above the buckets (the headline + optional `### Why now` from the release procedure) is where narrative goes. The bullets stay tight.
+
+### Worked example — heavy → light
+
+**Heavy** (an actual v6.2.0 entry, ~1,500 characters):
+
+> **#260 cluster 6/6 — move `runVersionCheck` and `findStaleInProgress` to `src/lib/services/`, drop two grandfathered `mcp-imports-server` boundary violations.** Final structural cluster of the umbrella refactor (decision a5a4cde6 — `src/server/` and `src/mcp/` cannot import each other; both consume `src/lib/`). `runVersionCheck` (the GitHub Releases probe behind the header pill + briefMe upgrade-info block) moves from `src/server/api/routers/system.ts` to a new `src/lib/services/version-check.ts`; `system.ts` re-exports the symbols so the existing tRPC procedure + `system.versionCheck.test.ts` keep working […]
+
+**Light** (~280 characters, same value to a user):
+
+> Finished the #260 layering refactor — `src/server/` and `src/mcp/` no longer import each other; both consume `src/lib/services/`. Boundary-lint baseline drops to 5 grandfathered violations; the FTS path and `buildBriefPayload` are deferred to v6.3. (#260)
+
+Anyone wanting the file list, symbol moves, or deferred-work calculus follows `(#260)`.
+
 ## Release procedure (summary)
 
 Full walkthrough in `scripts/release.ts` comments. Short version:
