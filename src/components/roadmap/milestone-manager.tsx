@@ -428,7 +428,7 @@ function MilestoneRowView({
 									<button
 										type="button"
 										onClick={() => onMerge(peer.id)}
-										className="inline-flex h-5 items-center gap-1 rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-1.5 text-2xs font-medium text-amber-700 transition-colors hover:border-amber-500/60 hover:bg-amber-500/10 dark:text-amber-400"
+										className="inline-flex h-5 items-center gap-1 rounded-md border border-dashed border-warning/40 bg-warning/5 px-1.5 text-2xs font-medium text-warning transition-colors hover:border-warning/60 hover:bg-warning/10"
 									>
 										<GitMerge className="h-2.5 w-2.5" />
 										Near-miss: {peer.name}

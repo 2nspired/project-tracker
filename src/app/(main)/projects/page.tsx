@@ -232,7 +232,7 @@ export default function ProjectsPage() {
 												<TooltipProvider>
 													<Tooltip>
 														<TooltipTrigger asChild>
-															<span className="flex items-center gap-1 text-violet-500">
+															<span className="flex items-center gap-1 text-accent-violet">
 																<Bot className="h-3 w-3" />
 																Agent
 															</span>
@@ -255,8 +255,8 @@ export default function ProjectsPage() {
 										}}
 										className={`h-7 w-7 flex items-center justify-center rounded-md transition-opacity ${
 											project.favorite
-												? "opacity-100 text-amber-400"
-												: "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-400"
+												? "opacity-100 text-warning"
+												: "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-warning"
 										}`}
 									>
 										<Star className={`h-4 w-4 ${project.favorite ? "fill-current" : ""}`} />

@@ -200,9 +200,7 @@ function ReadyState({
 	onOpenMethodology: () => void;
 }) {
 	const negative = summary.netSavingsUsd < 0;
-	const netToneClass = negative
-		? "text-amber-700 dark:text-amber-400"
-		: "text-emerald-700 dark:text-emerald-400";
+	const netToneClass = negative ? "text-warning" : "text-success";
 
 	return (
 		<div className="space-y-4">
@@ -263,7 +261,7 @@ function Headline({
 	if (negative) {
 		const cost = Math.abs(summary.netSavingsUsd);
 		return (
-			<p className="font-mono text-2xl tabular-nums text-amber-600 sm:text-3xl md:text-4xl dark:text-amber-400">
+			<p className="font-mono text-2xl tabular-nums text-warning sm:text-3xl md:text-4xl">
 				Pigeon cost {formatCost(cost)} more than it saved this period.
 			</p>
 		);
@@ -332,11 +330,7 @@ function MetricRow({
 	tone?: "emerald" | "amber";
 }) {
 	const valueClass =
-		tone === "emerald"
-			? "text-emerald-700 dark:text-emerald-400"
-			: tone === "amber"
-				? "text-amber-700 dark:text-amber-400"
-				: "text-foreground";
+		tone === "emerald" ? "text-success" : tone === "amber" ? "text-warning" : "text-foreground";
 	return (
 		<>
 			<dt className="text-muted-foreground/70">

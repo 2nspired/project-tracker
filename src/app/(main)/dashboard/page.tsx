@@ -188,7 +188,7 @@ export default function DashboardPage() {
 						</div>
 						<div className="rounded-lg border bg-card p-3">
 							<div className="text-xs font-medium text-muted-foreground">Done</div>
-							<div className="mt-1 text-2xl font-bold text-emerald-600">{stats.done}</div>
+							<div className="mt-1 text-2xl font-bold text-success">{stats.done}</div>
 						</div>
 					</div>
 
@@ -305,13 +305,13 @@ export default function DashboardPage() {
 			{focusCards.length > 0 && !hasFilters && (
 				<div className="mb-6">
 					<div className="mb-3 flex items-center gap-2">
-						<Target className="h-4 w-4 text-orange-500" />
+						<Target className="h-4 w-4 text-warning" />
 						<h2 className="text-sm font-semibold">Focus — In Progress & Review</h2>
-						<span className="rounded-full bg-orange-500/10 px-1.5 py-0.5 text-2xs font-medium text-orange-600">
+						<span className="rounded-full bg-warning/10 px-1.5 py-0.5 text-2xs font-medium text-warning">
 							{focusCards.length}
 						</span>
 					</div>
-					<div className="divide-y rounded-lg border border-orange-500/20 bg-orange-500/[0.03]">
+					<div className="divide-y rounded-lg border border-warning/20 bg-warning/[0.03]">
 						{focusCards.map((card) => {
 							const tags = card.tags;
 							const checkTotal = card.checklists.length;
@@ -319,7 +319,7 @@ export default function DashboardPage() {
 							return (
 								<div
 									key={card.id}
-									className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-orange-500/[0.05]"
+									className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-warning/[0.05]"
 								>
 									<div
 										className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[card.priority as Priority] ?? PRIORITY_DOT.NONE}`}

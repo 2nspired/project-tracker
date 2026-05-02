@@ -146,8 +146,8 @@ export function CardCreateInline({ columnId, boardId }: { columnId: string; boar
 				}}
 			/>
 			{similarCards.length > 0 && (
-				<div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5">
-					<div className="flex items-center gap-1 text-2xs font-medium text-amber-600 dark:text-amber-400">
+				<div className="rounded-md border border-warning/20 bg-warning/5 px-2.5 py-1.5">
+					<div className="flex items-center gap-1 text-2xs font-medium text-warning">
 						<Info className="h-3 w-3" />
 						Similar card{similarCards.length > 1 ? "s" : ""} found
 					</div>

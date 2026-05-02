@@ -83,8 +83,8 @@ export function formatScore(score: number): string {
 
 /** Score color for visual feedback */
 export function scoreColor(score: number): string {
-	if (score <= -50) return "text-red-500";
-	if (score >= 100) return "text-orange-500";
+	if (score <= -50) return "text-danger";
+	if (score >= 100) return "text-warning";
 	if (score >= 60) return "text-yellow-500";
 	return "text-muted-foreground";
 }

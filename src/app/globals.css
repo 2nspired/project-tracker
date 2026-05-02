@@ -36,6 +36,15 @@
 	--color-popover: var(--popover);
 	--color-card-foreground: var(--card-foreground);
 	--color-card: var(--card);
+	/* Semantic role tokens (#241) — pattern: GitHub Primer
+	   `success.fg / attention.fg / danger.fg / accent.fg`. Use these
+	   instead of raw Tailwind palette steps (text-emerald-500 etc.).
+	   Light + dark variants below in :root / .dark. */
+	--color-success: var(--success);
+	--color-warning: var(--warning);
+	--color-danger: var(--danger);
+	--color-info: var(--info);
+	--color-accent-violet: var(--accent-violet);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
@@ -77,6 +86,16 @@
 	--sidebar-accent-foreground: oklch(0.205 0 0);
 	--sidebar-border: oklch(0.922 0 0);
 	--sidebar-ring: oklch(0.708 0 0);
+
+	/* Semantic role tokens (#241).
+	   Light values target ~600 step on the Tailwind palette so foreground
+	   text passes contrast on white surfaces. Tuned against the same oklch
+	   model as the rest of the token system; see also .dark below. */
+	--success: oklch(0.59 0.15 152); /* emerald-ish, contrast-safe on white */
+	--warning: oklch(0.62 0.16 76); /* amber-ish */
+	--danger: oklch(0.58 0.22 28); /* red, matches --destructive hue */
+	--info: oklch(0.58 0.18 252); /* blue */
+	--accent-violet: oklch(0.55 0.21 295); /* violet — agent / AI surface */
 }
 
 .dark {
@@ -111,6 +130,15 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(0.269 0 0);
 	--sidebar-ring: oklch(0.439 0 0);
+
+	/* Semantic role tokens (#241) — dark mode.
+	   Lift lightness so the text still reads on the dark surfaces; the
+	   Tailwind ~400 step is the closest analogue. */
+	--success: oklch(0.78 0.16 152);
+	--warning: oklch(0.8 0.16 76);
+	--danger: oklch(0.7 0.21 28);
+	--info: oklch(0.72 0.16 252);
+	--accent-violet: oklch(0.7 0.18 295);
 }
 
 @layer base {

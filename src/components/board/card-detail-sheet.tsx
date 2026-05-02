@@ -400,13 +400,13 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 							{/* Stalled-in-progress callout */}
 							{card.stale && (
 								<div
-									className="flex items-start gap-2 rounded-md border border-orange-500/30 bg-orange-500/5 px-3 py-2 text-xs text-orange-400"
+									className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning"
 									title={`Last signal at ${new Date(card.stale.lastSignalAt).toLocaleString()}.`}
 								>
 									<MoonStar className="mt-0.5 h-3.5 w-3.5 shrink-0" />
 									<div className="space-y-0.5">
 										<div className="font-medium">Stalled — last signal {card.stale.days}d ago</div>
-										<div className="text-orange-400/70">
+										<div className="text-warning/70">
 											Revive with a comment, commit, or checklist update — or move to Parking Lot /
 											Done.
 										</div>
@@ -783,11 +783,15 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 // ─── Dependencies Section ──────────────────────────────────────────
 
 const RELATION_LABELS: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-	blocks: { icon: <Ban className="h-3 w-3" />, label: "Blocks", color: "text-red-500" },
-	blockedBy: { icon: <Ban className="h-3 w-3" />, label: "Blocked by", color: "text-orange-500" },
-	relatedTo: { icon: <Link2 className="h-3 w-3" />, label: "Related", color: "text-blue-500" },
-	parentOf: { icon: <Link2 className="h-3 w-3" />, label: "Parent of", color: "text-violet-500" },
-	childOf: { icon: <Link2 className="h-3 w-3" />, label: "Child of", color: "text-violet-500" },
+	blocks: { icon: <Ban className="h-3 w-3" />, label: "Blocks", color: "text-danger" },
+	blockedBy: { icon: <Ban className="h-3 w-3" />, label: "Blocked by", color: "text-warning" },
+	relatedTo: { icon: <Link2 className="h-3 w-3" />, label: "Related", color: "text-info" },
+	parentOf: {
+		icon: <Link2 className="h-3 w-3" />,
+		label: "Parent of",
+		color: "text-accent-violet",
+	},
+	childOf: { icon: <Link2 className="h-3 w-3" />, label: "Child of", color: "text-accent-violet" },
 };
 
 function DependenciesSection({ cardId, boardId }: { cardId: string; boardId: string }) {
@@ -868,10 +872,10 @@ function DependenciesSection({ cardId, boardId }: { cardId: string; boardId: str
 // ─── Decisions Section ─────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
-	proposed: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
-	accepted: "bg-green-500/10 text-green-600 border-green-500/20",
-	rejected: "bg-red-500/10 text-red-600 border-red-500/20",
-	superseded: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+	proposed: "bg-warning/10 text-warning border-warning/20",
+	accepted: "bg-success/10 text-success border-success/20",
+	rejected: "bg-danger/10 text-danger border-danger/20",
+	superseded: "bg-muted text-muted-foreground border-muted-foreground/20",
 };
 
 function DecisionsSection({ cardId, projectId }: { cardId: string; projectId: string }) {
@@ -974,11 +978,11 @@ function CardCostSection({ cardId, projectId }: { cardId: string; projectId: str
 // ─── Commit Summary Section ───────────────────────────────────────
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
-	source: { label: "Source", color: "text-blue-500" },
+	source: { label: "Source", color: "text-info" },
 	styles: { label: "Styles", color: "text-pink-500" },
-	config: { label: "Config", color: "text-amber-500" },
-	schema: { label: "Schema", color: "text-violet-500" },
-	tests: { label: "Tests", color: "text-green-500" },
+	config: { label: "Config", color: "text-warning" },
+	schema: { label: "Schema", color: "text-accent-violet" },
+	tests: { label: "Tests", color: "text-success" },
 	docs: { label: "Docs", color: "text-cyan-500" },
 	other: { label: "Other", color: "text-muted-foreground" },
 };

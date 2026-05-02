@@ -12,7 +12,13 @@
  * which swatches to draw.
  */
 
-export type ColorTokenGroup = "Surfaces" | "Brand" | "Borders & Inputs" | "Charts" | "Sidebar";
+export type ColorTokenGroup =
+	| "Surfaces"
+	| "Brand"
+	| "Semantic"
+	| "Borders & Inputs"
+	| "Charts"
+	| "Sidebar";
 
 export interface ColorToken {
 	/** CSS variable name without the leading `--`. e.g. `background`. */
@@ -99,6 +105,36 @@ export const COLOR_TOKENS: ColorToken[] = [
 		group: "Brand",
 		description: "Destructive / error state.",
 	},
+	// Semantic role tokens (#241) — pattern: GitHub Primer success.fg /
+	// attention.fg / danger.fg / accent.fg. Use these for "done /
+	// success / warning / danger / info" states instead of raw Tailwind
+	// palette steps. See `src/lib/priority-colors.ts` for the canonical
+	// STATUS_* maps that consume them.
+	{
+		name: "success",
+		group: "Semantic",
+		description: "Done / completed / positive deltas. e.g. `text-success`.",
+	},
+	{
+		name: "warning",
+		group: "Semantic",
+		description: "Stale / at-risk / attention. e.g. `text-warning`.",
+	},
+	{
+		name: "danger",
+		group: "Semantic",
+		description: "Blocked / overdue / errors. e.g. `text-danger`.",
+	},
+	{
+		name: "info",
+		group: "Semantic",
+		description: "In-progress / informational accents. e.g. `text-info`.",
+	},
+	{
+		name: "accent-violet",
+		group: "Semantic",
+		description: "AI / agent surfaces (handoffs, cost overrides). e.g. `text-accent-violet`.",
+	},
 	// Borders & Inputs
 	{
 		name: "border",
@@ -159,6 +195,7 @@ export const COLOR_TOKENS: ColorToken[] = [
 export const COLOR_TOKEN_GROUPS: ColorTokenGroup[] = [
 	"Surfaces",
 	"Brand",
+	"Semantic",
 	"Borders & Inputs",
 	"Charts",
 	"Sidebar",

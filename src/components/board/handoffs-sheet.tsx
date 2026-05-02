@@ -166,7 +166,7 @@ function HandoffRow({
 	return (
 		<li className="overflow-hidden rounded-lg border bg-card">
 			<header className="flex items-center gap-2 border-b bg-muted/30 px-3 py-2">
-				<Bot className="h-3.5 w-3.5 text-violet-500" />
+				<Bot className="h-3.5 w-3.5 text-accent-violet" />
 				<span className="text-xs font-medium">{handoff.agentName}</span>
 				<span className="font-mono text-2xs text-muted-foreground/60">
 					{formatRelativeCompact(new Date(handoff.createdAt))}

@@ -327,7 +327,7 @@ export function PricingOverrideTable({ projectId: _projectId, projectSummary }: 
 
 function VerifiedBanner() {
 	return (
-		<div className="rounded border-l-2 border-l-amber-500 bg-amber-500/5 px-3 py-1.5 font-mono text-2xs text-amber-700 dark:text-amber-400">
+		<div className="rounded border-l-2 border-l-warning bg-warning/5 px-3 py-1.5 font-mono text-2xs text-warning">
 			Defaults last verified: {PRICING_LAST_VERIFIED} · Verify against provider pricing page
 		</div>
 	);
@@ -450,7 +450,7 @@ function NewModelRow({ row, error, onChangeName, onChangeRate, onRemove }: NewMo
 		<div
 			className={cn(
 				"grid grid-cols-2 gap-2 rounded-md border px-2 py-2 sm:grid-cols-[1.5fr_repeat(5,1fr)_auto] sm:items-baseline",
-				error ? "border-amber-500/40 bg-amber-500/5" : "border-violet-500/30 bg-violet-500/5"
+				error ? "border-warning/40 bg-warning/5" : "border-accent-violet/30 bg-accent-violet/5"
 			)}
 		>
 			<div className="col-span-2 sm:col-span-1">
@@ -462,9 +462,7 @@ function NewModelRow({ row, error, onChangeName, onChangeRate, onRemove }: NewMo
 					aria-label="Model name"
 					className="w-full bg-transparent border-b border-border/50 px-0 py-0.5 font-mono text-xs text-foreground/90 focus:border-foreground/50 focus:outline-none"
 				/>
-				{error && (
-					<p className="pt-1 font-mono text-2xs text-amber-700 dark:text-amber-400">{error}</p>
-				)}
+				{error && <p className="pt-1 font-mono text-2xs text-warning">{error}</p>}
 			</div>
 			{RATE_FIELDS.map((f) => (
 				<RateCell
@@ -559,7 +557,7 @@ function Section({ step, title, children }: { step: string; title: string; child
 
 function DiagnosticRow({ children }: { children: ReactNode }) {
 	return (
-		<div className="rounded border-l-2 border-l-amber-500 bg-amber-500/5 px-3 py-1.5 font-mono text-2xs text-amber-700 dark:text-amber-400">
+		<div className="rounded border-l-2 border-l-warning bg-warning/5 px-3 py-1.5 font-mono text-2xs text-warning">
 			{children}
 		</div>
 	);

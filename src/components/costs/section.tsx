@@ -114,7 +114,7 @@ export function DiagnosticRow({
 }) {
 	const tonal =
 		tone === "amber"
-			? "border-l-amber-500 bg-amber-500/5 text-amber-700 dark:text-amber-400"
+			? "border-l-warning bg-warning/5 text-warning"
 			: "border-l-muted-foreground/40 bg-muted/30 text-muted-foreground";
 	return (
 		<div className={cn("rounded border-l-2 px-3 py-1.5 font-mono text-2xs", tonal)}>{children}</div>

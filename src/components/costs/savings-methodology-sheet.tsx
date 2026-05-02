@@ -206,7 +206,7 @@ function ConservativeSection({ summary }: { summary: SavingsSummary }) {
 				</li>
 			</ul>
 			{negative && (
-				<div className="rounded-md border-l-2 border-l-amber-500 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+				<div className="rounded-md border-l-2 border-l-warning bg-warning/5 px-3 py-2 text-xs text-warning">
 					Your current net is negative. Increasing briefMe call frequency or reducing unnecessary
 					tool calls can reverse this.
 				</div>

@@ -264,14 +264,14 @@ describe("formatScore", () => {
 });
 
 describe("scoreColor", () => {
-	it("returns red for blocked scores (≤ -50)", () => {
-		expect(scoreColor(-50)).toBe("text-red-500");
-		expect(scoreColor(-100)).toBe("text-red-500");
+	it("returns danger semantic token for blocked scores (≤ -50)", () => {
+		expect(scoreColor(-50)).toBe("text-danger");
+		expect(scoreColor(-100)).toBe("text-danger");
 	});
 
-	it("returns orange for ≥100", () => {
-		expect(scoreColor(100)).toBe("text-orange-500");
-		expect(scoreColor(250)).toBe("text-orange-500");
+	it("returns warning semantic token for ≥100", () => {
+		expect(scoreColor(100)).toBe("text-warning");
+		expect(scoreColor(250)).toBe("text-warning");
 	});
 
 	it("returns yellow for 60–99", () => {

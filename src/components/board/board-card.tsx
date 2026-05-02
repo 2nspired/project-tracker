@@ -36,7 +36,7 @@ function getAgeDays(updatedAt: Date): number {
 }
 
 function getAgeIndicator(days: number): { className: string; label: string } | null {
-	if (days >= 7) return { className: "text-orange-500", label: `${days}d` };
+	if (days >= 7) return { className: "text-warning", label: `${days}d` };
 	if (days >= 3) return { className: "text-yellow-500", label: `${days}d` };
 	return null;
 }
@@ -182,7 +182,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 						)}
 						{card.stale && (
 							<span
-								className="flex items-center gap-0.5 text-orange-500"
+								className="flex items-center gap-0.5 text-warning"
 								title={`No activity, comments, commits, or checklist changes for ${card.stale.days} days — revive, re-park, or close.`}
 							>
 								<MoonStar className="h-3 w-3" />

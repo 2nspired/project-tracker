@@ -110,7 +110,7 @@ export default function TimelinePage({
 											<div
 												key={card.id}
 												className={`rounded-lg border p-3 transition-colors ${
-													isDone ? "border-green-500/20 bg-green-500/5" : "bg-card"
+													isDone ? "border-success/20 bg-success/5" : "bg-card"
 												}`}
 											>
 												<div className="flex items-start justify-between gap-2">
@@ -133,7 +133,7 @@ export default function TimelinePage({
 																{card.columnName}
 															</Badge>
 															{checkTotal > 0 && (
-																<span className={checkDone === checkTotal ? "text-green-500" : ""}>
+																<span className={checkDone === checkTotal ? "text-success" : ""}>
 																	{checkDone}/{checkTotal} tasks
 																</span>
 															)}

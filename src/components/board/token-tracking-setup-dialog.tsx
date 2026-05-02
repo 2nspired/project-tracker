@@ -110,24 +110,24 @@ const STATE_STYLE: Record<
 	},
 	"no-events": {
 		label: "Awaiting first event",
-		tone: "text-amber-700 dark:text-amber-400",
-		dot: "bg-amber-500",
-		border: "border-l-amber-500",
-		pill: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+		tone: "text-warning",
+		dot: "bg-warning",
+		border: "border-l-warning",
+		pill: "border-warning/40 bg-warning/10 text-warning",
 	},
 	stale: {
 		label: "Stale",
-		tone: "text-amber-700 dark:text-amber-400",
-		dot: "bg-amber-500",
-		border: "border-l-amber-500",
-		pill: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+		tone: "text-warning",
+		dot: "bg-warning",
+		border: "border-l-warning",
+		pill: "border-warning/40 bg-warning/10 text-warning",
 	},
 	working: {
 		label: "Recording",
-		tone: "text-emerald-700 dark:text-emerald-400",
-		dot: "bg-emerald-500",
-		border: "border-l-emerald-500",
-		pill: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+		tone: "text-success",
+		dot: "bg-success",
+		border: "border-l-success",
+		pill: "border-success/40 bg-success/10 text-success",
 	},
 };
 
@@ -313,7 +313,7 @@ function HookSnippetSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 					>
 						{copied ? (
 							<>
-								<Check className="h-3 w-3 text-emerald-500" />
+								<Check className="h-3 w-3 text-success" />
 								copied
 							</>
 						) : (
@@ -379,7 +379,7 @@ function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 						<span
 							className={cn(
 								"h-1.5 w-1.5 shrink-0 rounded-full",
-								c.hasHook ? "bg-emerald-500" : "bg-muted-foreground/40"
+								c.hasHook ? "bg-success" : "bg-muted-foreground/40"
 							)}
 						/>
 						<code className="min-w-0 flex-1 truncate font-mono text-2xs text-foreground/90">
@@ -388,7 +388,7 @@ function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 						<span
 							className={cn(
 								"shrink-0 font-mono text-2xs uppercase tracking-wide",
-								c.hasHook ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
+								c.hasHook ? "text-success" : "text-muted-foreground"
 							)}
 						>
 							{c.hasHook ? "configured" : "needs paste"}
@@ -485,9 +485,9 @@ function DiagnosticRow({
 }) {
 	const valueClass =
 		tone === "emerald"
-			? "text-emerald-700 dark:text-emerald-400"
+			? "text-success"
 			: tone === "amber"
-				? "text-amber-700 dark:text-amber-400"
+				? "text-warning"
 				: tone === "muted"
 					? "text-muted-foreground/60"
 					: "text-foreground";
@@ -544,7 +544,7 @@ function VerifyMessage({
 					</li>
 					{missing > 0 && (
 						<li className="flex items-start gap-2">
-							<span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500/70" />
+							<span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-warning/70" />
 							<span>
 								{missing} project{missing === 1 ? "" : "s"} missing{" "}
 								<InlineCode>repoPath</InlineCode>. Sessions in unregistered repos drop silently.

@@ -81,7 +81,7 @@ export function MilestoneCard({
 				<ProgressRing value={pct} size={22} strokeWidth={2.5} />
 				<span className="text-xs font-medium">{milestone.name}</span>
 				<span className="text-2xs text-muted-foreground">{milestone.total} cards</span>
-				{blockedCount > 0 && <span className="text-2xs text-red-500">{blockedCount} blocked</span>}
+				{blockedCount > 0 && <span className="text-2xs text-danger">{blockedCount} blocked</span>}
 				<button
 					type="button"
 					onClick={() => setExpanded(!expanded)}
@@ -102,7 +102,7 @@ export function MilestoneCard({
 			style={style}
 			className={`rounded-lg border bg-card transition-shadow hover:shadow-sm ${
 				isDragging ? "opacity-50 shadow-lg" : ""
-			} ${isOverdue ? "border-red-500/30" : isAtRisk ? "border-amber-400/30" : ""}`}
+			} ${isOverdue ? "border-danger/30" : isAtRisk ? "border-warning/30" : ""}`}
 		>
 			{/* Header */}
 			<div className="flex items-center gap-2 px-3 py-2.5">
@@ -119,16 +119,16 @@ export function MilestoneCard({
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">
 						<span className="truncate text-sm font-semibold">{milestone.name}</span>
-						{isOverdue && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-500" />}
+						{isOverdue && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-danger" />}
 						{isAtRisk && !isOverdue && (
-							<AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+							<AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" />
 						)}
 					</div>
 					<div className="flex items-center gap-3 text-2xs text-muted-foreground">
 						{targetDate && (
 							<span
 								className={`flex items-center gap-1 ${
-									isOverdue ? "text-red-500" : isAtRisk ? "text-amber-500" : ""
+									isOverdue ? "text-danger" : isAtRisk ? "text-warning" : ""
 								}`}
 							>
 								<Calendar className="h-3 w-3" />
@@ -139,7 +139,7 @@ export function MilestoneCard({
 							{milestone.done}/{milestone.total} done
 						</span>
 						{blockedCount > 0 && (
-							<span className="flex items-center gap-0.5 text-red-500">
+							<span className="flex items-center gap-0.5 text-danger">
 								<Link2 className="h-3 w-3" />
 								{blockedCount} blocked
 							</span>

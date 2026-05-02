@@ -20,9 +20,9 @@ const HORIZON_CONFIG: Record<
 	now: {
 		label: "Now",
 		description: "Active & in review",
-		borderColor: "border-l-blue-500",
+		borderColor: "border-l-info",
 		bgClass: "bg-card",
-		textClass: "text-blue-500",
+		textClass: "text-info",
 	},
 	later: {
 		label: "Later",
@@ -34,9 +34,9 @@ const HORIZON_CONFIG: Record<
 	done: {
 		label: "Done",
 		description: "Completed",
-		borderColor: "border-l-emerald-500",
-		bgClass: "bg-emerald-500/5",
-		textClass: "text-emerald-500",
+		borderColor: "border-l-success",
+		bgClass: "bg-success/5",
+		textClass: "text-success",
 	},
 };
 

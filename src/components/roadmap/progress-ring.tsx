@@ -49,9 +49,9 @@ export function ProgressRing({
 				transform={`rotate(-90 ${size / 2} ${size / 2})`}
 				className={
 					clamped === 1
-						? "text-emerald-500 transition-[stroke-dashoffset] duration-500"
+						? "text-success transition-[stroke-dashoffset] duration-500"
 						: clamped > 0
-							? "text-blue-500 transition-[stroke-dashoffset] duration-500"
+							? "text-info transition-[stroke-dashoffset] duration-500"
 							: "text-muted-foreground/30 transition-[stroke-dashoffset] duration-500"
 				}
 			/>

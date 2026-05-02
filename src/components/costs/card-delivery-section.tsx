@@ -181,9 +181,7 @@ function DeliveryContent({
 					<span
 						className={cn(
 							"inline-flex items-center gap-1 text-xs",
-							isLower
-								? "text-emerald-700 dark:text-emerald-400"
-								: "text-amber-700 dark:text-amber-400"
+							isLower ? "text-success" : "text-warning"
 						)}
 					>
 						{isLower ? (
@@ -237,8 +235,8 @@ function LoadingState() {
 // we don't pull setup-dialog internals into the costs page.
 function ErrorRow({ message }: { message: string }) {
 	return (
-		<div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2">
-			<p className="text-2xs font-medium text-amber-700 dark:text-amber-400">
+		<div className="rounded-md border border-warning/20 bg-warning/5 px-3 py-2">
+			<p className="text-2xs font-medium text-warning">
 				Couldn't load delivery metrics — {message}
 			</p>
 		</div>

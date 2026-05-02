@@ -212,9 +212,9 @@ function PulseDetails({
 								<span
 									className={`ml-2 text-xs ${
 										wowDelta > 0
-											? "text-emerald-500"
+											? "text-success"
 											: wowDelta < 0
-												? "text-amber-500"
+												? "text-warning"
 												: "text-muted-foreground"
 									}`}
 								>

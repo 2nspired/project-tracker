@@ -55,14 +55,14 @@ export function CardRefText({
 export const ACCENT_STYLES = {
 	muted: { border: "", text: "text-muted-foreground", bg: "" },
 	violet: {
-		border: "border-l-4 border-l-violet-500/40",
-		text: "text-violet-700 dark:text-violet-300",
+		border: "border-l-4 border-l-accent-violet/40",
+		text: "text-accent-violet",
 		bg: "",
 	},
 	red: {
-		border: "border-l-4 border-l-red-500/60",
-		text: "text-red-700 dark:text-red-400",
-		bg: "bg-red-500/5",
+		border: "border-l-4 border-l-danger/60",
+		text: "text-danger",
+		bg: "bg-danger/5",
 	},
 } as const;
 

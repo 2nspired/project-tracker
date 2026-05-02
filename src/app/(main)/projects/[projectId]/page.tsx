@@ -465,13 +465,13 @@ function BoardsTab({
 													<div className="mb-2 flex items-center gap-3 text-xs text-muted-foreground">
 														{inProgressCards > 0 && (
 															<span className="flex items-center gap-1">
-																<span className="h-2 w-2 rounded-full bg-blue-500" />
+																<span className="h-2 w-2 rounded-full bg-info" />
 																{inProgressCards} in progress
 															</span>
 														)}
 														{doneCards > 0 && (
 															<span className="flex items-center gap-1">
-																<span className="h-2 w-2 rounded-full bg-emerald-500" />
+																<span className="h-2 w-2 rounded-full bg-success" />
 																{doneCards} done
 															</span>
 														)}
@@ -479,7 +479,7 @@ function BoardsTab({
 													<div className="flex items-center gap-2">
 														<div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
 															<div
-																className="h-full rounded-full bg-emerald-500 transition-all"
+																className="h-full rounded-full bg-success transition-all"
 																style={{ width: `${pct}%` }}
 															/>
 														</div>
@@ -1004,10 +1004,10 @@ function ProjectNotesTab({
 // ─── Project Decisions Tab ────────────────────────────────────────
 
 const DECISION_STATUS_COLORS: Record<string, string> = {
-	proposed: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
-	accepted: "bg-green-500/10 text-green-600 border-green-500/20",
-	rejected: "bg-red-500/10 text-red-600 border-red-500/20",
-	superseded: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+	proposed: "bg-warning/10 text-warning border-warning/20",
+	accepted: "bg-success/10 text-success border-success/20",
+	rejected: "bg-danger/10 text-danger border-danger/20",
+	superseded: "bg-muted text-muted-foreground border-muted-foreground/20",
 };
 
 function ProjectDecisionsTab({ projectId }: { projectId: string }) {

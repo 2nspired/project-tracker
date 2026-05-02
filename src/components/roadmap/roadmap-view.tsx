@@ -282,7 +282,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 					{/* Mini progress bar */}
 					<div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
 						<div
-							className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+							className="h-full rounded-full bg-success transition-all duration-500"
 							style={{
 								width: `${totalCards > 0 ? (totalDone / totalCards) * 100 : 0}%`,
 							}}

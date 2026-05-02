@@ -149,7 +149,7 @@ export function BoardToolbar({
 						onClick={() => onSortModeChange(sortMode === "manual" ? "smart" : "manual")}
 					>
 						<Sparkles
-							className={`h-3.5 w-3.5 ${sortMode === "smart" ? "text-amber-500" : "text-muted-foreground"}`}
+							className={`h-3.5 w-3.5 ${sortMode === "smart" ? "text-warning" : "text-muted-foreground"}`}
 						/>
 						Smart
 					</Button>

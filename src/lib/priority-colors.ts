@@ -27,39 +27,47 @@ export const PRIORITY_BADGE: Record<Priority, string> = {
 	URGENT: "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-500",
 };
 
-/** Semantic status colors used across board, roadmap, and detail views */
+/**
+ * Semantic status colors used across board, roadmap, and detail views.
+ *
+ * Reference: GitHub Primer's `success.fg / attention.fg / danger.fg / accent.fg`
+ * pattern (#241). `--success / --warning / --danger / --info` are defined in
+ * `src/app/globals.css` (`:root` and `.dark`) and registered as Tailwind v4
+ * utilities via `@theme inline` so `text-success`, `bg-warning/10`, etc.
+ * resolve like any other color utility.
+ */
 export const STATUS_DOT: Record<string, string> = {
-	blocked: "bg-red-500",
-	done: "bg-emerald-500",
-	warning: "bg-amber-500",
+	blocked: "bg-danger",
+	done: "bg-success",
+	warning: "bg-warning",
 };
 
 export const STATUS_TEXT: Record<string, string> = {
-	blocked: "text-red-500",
-	done: "text-emerald-500",
-	warning: "text-amber-500",
+	blocked: "text-danger",
+	done: "text-success",
+	warning: "text-warning",
 };
 
 export const STATUS_BG: Record<string, string> = {
-	blocked: "bg-red-500/5",
-	done: "bg-emerald-500/5",
-	warning: "bg-amber-500/5",
+	blocked: "bg-danger/5",
+	done: "bg-success/5",
+	warning: "bg-warning/5",
 };
 
 export const STATUS_BORDER: Record<string, string> = {
-	blocked: "border-red-500/30",
-	done: "border-emerald-500/20",
-	warning: "border-amber-500/30",
+	blocked: "border-danger/30",
+	done: "border-success/20",
+	warning: "border-warning/30",
 };
 
 /** Roadmap horizon colors */
 export const HORIZON_DOT: Record<string, string> = {
-	now: "bg-blue-500",
+	now: "bg-info",
 	later: "bg-muted-foreground/30",
-	done: "bg-emerald-500",
+	done: "bg-success",
 };
 
-// Semantic color for AI agent indicators
-export const AGENT_COLOR = "text-violet-500";
-export const AGENT_COLOR_DARK = "dark:text-violet-400";
-export const AGENT_DOT = "bg-violet-500";
+// Semantic color for AI agent indicators (cost surface accent).
+// `--accent-violet` is defined in globals.css and auto-flips in dark mode.
+export const AGENT_COLOR = "text-accent-violet";
+export const AGENT_DOT = "bg-accent-violet";

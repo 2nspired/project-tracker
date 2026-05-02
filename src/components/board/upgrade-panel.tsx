@@ -67,11 +67,11 @@ export function UpgradePanel() {
 
 	return (
 		<aside
-			className="flex items-start gap-3 border-b bg-violet-500/[0.06] px-4 py-2.5 text-xs"
+			className="flex items-start gap-3 border-b bg-accent-violet/[0.06] px-4 py-2.5 text-xs"
 			aria-label="Release notes"
 		>
 			<span className="mt-0.5 flex shrink-0 items-center gap-2 font-medium text-foreground">
-				<Sparkles className="h-3.5 w-3.5 text-violet-500" />
+				<Sparkles className="h-3.5 w-3.5 text-accent-violet" />
 				What's new in v{currentVersion}
 			</span>
 			<div className="min-w-0 flex-1 text-muted-foreground">
