@@ -9,10 +9,11 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock the staleness module first — it imports the MCP db at module-load
-// time, which can fail in a vitest jsdom context that doesn't have
-// PrismaClient generated yet for that path.
-vi.mock("@/mcp/staleness", () => ({
+// Mock the staleness module — keeps the parity test focused on payload
+// shape rather than the staleness evaluator's git-shell-out path.
+// Module path moved from `@/mcp/staleness` to `@/lib/services/staleness`
+// in #228 (server↔mcp layer-violation fix).
+vi.mock("@/lib/services/staleness", () => ({
 	checkStaleness: vi.fn(async () => []),
 	formatStalenessWarnings: vi.fn(() => null),
 }));

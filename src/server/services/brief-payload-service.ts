@@ -20,14 +20,10 @@ import { computeBoardDiff } from "@/lib/services/board-diff";
 import { isRecentDecision } from "@/lib/services/decisions";
 import { getLatestHandoff, parseHandoff } from "@/lib/services/handoff";
 import { getBlockers as getBlockersShared } from "@/lib/services/relations";
+import { checkStaleness, formatStalenessWarnings } from "@/lib/services/staleness";
 import { loadTrackerPolicy } from "@/lib/services/tracker-policy";
-// Re-using the staleness shape from the MCP layer would create a circular
-// import, so the helpers are duplicated here. Both copies stay in sync via
-// the shape: `formatStalenessWarnings` is pure formatting and
-// `checkStaleness` is a pure read; lifting them is out of scope.
 import type { UpgradeReport } from "@/lib/upgrade-report";
 import { computeWorkNextScore } from "@/lib/work-next-score";
-import { checkStaleness, formatStalenessWarnings } from "@/mcp/staleness";
 import type { VersionCheckResult } from "@/server/api/routers/system";
 import { findStaleInProgress } from "@/server/services/stale-cards";
 import { tokenUsageService } from "@/server/services/token-usage-service";
@@ -159,7 +155,7 @@ export async function buildBriefPayload(
 				},
 			},
 		}),
-		checkStaleness(board.project.id),
+		checkStaleness(db, board.project.id),
 		getBlockersShared(db, boardId),
 		db.activity.findMany({
 			where: {
