@@ -14,6 +14,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { TokenCostChip } from "@/components/ui/token-cost-chip";
 import { formatRelativeCompact } from "@/lib/format-date";
 import { api } from "@/trpc/react";
@@ -354,9 +355,9 @@ function HandoffsSkeleton() {
 		<div className="space-y-3">
 			{[0, 1, 2].map((i) => (
 				<div key={i} className="rounded-lg border bg-muted/20 p-3">
-					<div className="h-3 w-32 animate-pulse rounded bg-muted" />
-					<div className="mt-2 h-3 w-full animate-pulse rounded bg-muted" />
-					<div className="mt-1 h-3 w-3/4 animate-pulse rounded bg-muted" />
+					<Skeleton className="h-3 w-32" />
+					<Skeleton className="mt-2 h-3 w-full" />
+					<Skeleton className="mt-1 h-3 w-3/4" />
 				</div>
 			))}
 		</div>
