@@ -5,7 +5,14 @@
 //
 // Order matches src/mcp/server.ts.
 
-import "./extended-tools.js";
+import "./tools/card-tools.js";
+import "./tools/card-create-tools.js";
+import "./tools/checklist-tools.js";
+import "./tools/comment-tools.js";
+import "./tools/milestone-tools.js";
+import "./tools/note-tools.js";
+import "./tools/activity-tools.js";
+import "./tools/setup-tools.js";
 import "./tools/discovery-tools.js";
 import "./tools/relation-tools.js";
 import "./tools/session-tools.js";
