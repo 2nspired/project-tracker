@@ -75,11 +75,6 @@ function strictTagError(
 	};
 }
 
-function isDoneColumnRow(column: { role?: string | null; name: string }): boolean {
-	if (column.role) return column.role === "done";
-	return column.name.toLowerCase() === "done";
-}
-
 const execFileAsync = promisify(execFile);
 
 type ResolvedBoard =
@@ -558,8 +553,8 @@ server.registerTool(
 					position !== undefined ? Math.min(position, filtered.length) : filtered.length;
 				filtered.splice(insertAt, 0, card);
 
-				const sourceIsDone = isDoneColumnRow(card.column);
-				const targetIsDone = isDoneColumnRow(targetColumn);
+				const sourceIsDone = hasRole(card.column, "done");
+				const targetIsDone = hasRole(targetColumn, "done");
 				const completedAtPatch =
 					targetIsDone && !sourceIsDone
 						? { completedAt: new Date() }

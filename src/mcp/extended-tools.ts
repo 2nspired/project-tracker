@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { editDistance as nameDistance, slugify as slugifyName } from "@/lib/slugify";
 import { milestoneService } from "@/server/services/milestone-service";
+import { hasRole } from "../lib/column-roles.js";
 import { db } from "./db.js";
 import {
 	buildTaxonomyMeta,
@@ -18,11 +19,6 @@ import {
 	resolveCardRef,
 	safeExecute,
 } from "./utils.js";
-
-function isDoneColumnLike(column: { role?: string | null; name: string }): boolean {
-	if (column.role) return column.role === "done";
-	return column.name.toLowerCase() === "done";
-}
 
 // ─── Discovery ──────────────────────────────────────────────────────
 
@@ -640,8 +636,8 @@ registerExtendedTool("bulkMoveCards", {
 					continue;
 				}
 
-				const sourceIsDone = isDoneColumnLike(card.column);
-				const targetIsDone = isDoneColumnLike(column);
+				const sourceIsDone = hasRole(card.column, "done");
+				const targetIsDone = hasRole(column, "done");
 				const completedAtPatch =
 					targetIsDone && !sourceIsDone
 						? { completedAt: new Date() }
