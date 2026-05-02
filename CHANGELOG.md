@@ -20,6 +20,11 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Removed
 
 - Delete dead-code stub `src/utilities/auth/server.ts` — last surviving file from the pre-#231 auth scaffold. Zero external consumers post-merge of v6.2 (#263).
+- **BREAKING (internal): drop dead `Label` + `CardLabel` Prisma models** (#172). Pre-v4.2 schema. The canonical tag entity has been `Tag` + `CardTag` since v4.2 (#227 finished that migration in v6.2). `prisma.label` and `prisma.cardLabel` were never called from any application code (verified via `grep -rEn 'db\.label\|db\.cardLabel\|prisma\.label\|prisma\.cardLabel' src/ scripts/` — only matches were in the auto-generated client). Dropped `Label` model, `CardLabel` junction, `Project.labels` relation, and `Card.cardLabels` relation. Migration: `npm run service:update` runs `prisma db push` automatically on next install; orphan `label` / `card_label` SQLite tables drop cleanly (zero rows in either across surveyed dev DBs).
+
+### Refactor
+
+- **Internal: swap last surviving `isDoneColumnLike` helper in `src/mcp/tools/card-tools.ts` for the canonical `hasRole(col, "done")`** — flagged in #194's PR body as the trailing leftover from #229's helper consolidation that didn't survive #235's split. No behavior change; locked by the existing `column-roles` test block from #233.
 
 ## [6.2.0] — 2026-05-02
 
