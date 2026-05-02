@@ -11,6 +11,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Added
 
 - Landed the Attribution Engine pure-function core (`src/lib/services/attribution.ts`) — picks one card per session via a 5-tier heuristic (explicit → single In-Progress → session-recent-touch → session-commit → unattributed). Multi-In-Progress sessions short-circuit to `unattributed` per the orchestrator-mode gate. Cluster head for the v6.3 charter; write-path wiring + backfill follow in #269 and #270. (#268)
+- Wired the Attribution Engine into both `recordTokenUsage` paths (`recordManual` + `recordFromTranscript`); each write now persists `signal` + `signalConfidence` columns on `TokenUsageEvent` for the #213 unattributed-gap counter. Stop-hook re-runs prefer fresh single-In-Progress attribution over stale `attributeSession` cardIds while still preserving prior attribution when the engine returns null. Tail signals 3+4 deferred to #272. `npm run service:update` runs `prisma db push` automatically. (#269)
 
 ## [6.2.1] — 2026-05-02
 
