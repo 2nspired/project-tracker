@@ -7,6 +7,7 @@
  */
 
 import type { PrismaClient } from "prisma/generated/client";
+import { slugify } from "@/lib/slugify";
 import { TUTORIAL_SLUG, teachingProject } from "./teaching-project";
 
 export interface SeedResult {
@@ -80,6 +81,10 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 	const numberToId = new Map<number, string>();
 	const positionCounters = new Map<string, number>();
 
+	// Cache for project-scoped Tag rows so we don't re-upsert the same slug
+	// on every card. Tutorial seed defines a small set of canonical labels.
+	const tagIdBySlug = new Map<string, string>();
+
 	for (let i = 0; i < teachingProject.cards.length; i++) {
 		const def = teachingProject.cards[i];
 		const cardNumber = i + 1;
@@ -96,10 +101,32 @@ export async function seedTutorialProject(db: PrismaClient): Promise<SeedResult 
 				description: def.description,
 				position,
 				priority: def.priority,
-				tags: JSON.stringify(def.tags),
 				createdBy: def.createdBy,
 			},
 		});
+
+		// Resolve tag labels to canonical Tag rows (creating as needed) and
+		// link via CardTag. Mirrors the v4.2+ write path now that the legacy
+		// Card.tags JSON column has been dropped.
+		for (const label of def.tags) {
+			const slug = slugify(label);
+			if (!slug) continue;
+			let tagId = tagIdBySlug.get(slug);
+			if (!tagId) {
+				const tag = await db.tag.upsert({
+					where: { projectId_slug: { projectId: project.id, slug } },
+					create: { projectId: project.id, slug, label },
+					update: {},
+				});
+				tagId = tag.id;
+				tagIdBySlug.set(slug, tagId);
+			}
+			await db.cardTag.upsert({
+				where: { cardId_tagId: { cardId: card.id, tagId } },
+				create: { cardId: card.id, tagId },
+				update: {},
+			});
+		}
 
 		numberToId.set(cardNumber, card.id);
 	}

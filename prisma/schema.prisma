@@ -8,29 +8,29 @@ datasource db {
 }
 
 model Project {
-  id              String   @id @default(uuid())
-  name            String
-  description     String?
-  color           String   @default("slate")
-  slug            String   @unique
-  favorite        Boolean  @default(false)
-  repoPath        String?  @unique @map("repo_path")
-  defaultBoardId  String?  @unique @map("default_board_id")
-  nextCardNumber  Int      @default(1) @map("next_card_number")
-  metadata        String   @default("{}") // JSON: agent-writable; tokenBaseline, etc.
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  color          String   @default("slate")
+  slug           String   @unique
+  favorite       Boolean  @default(false)
+  repoPath       String?  @unique @map("repo_path")
+  defaultBoardId String?  @unique @map("default_board_id")
+  nextCardNumber Int      @default(1) @map("next_card_number")
+  metadata       String   @default("{}") // JSON: agent-writable; tokenBaseline, etc.
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  boards         Board[]
-  defaultBoard   Board?   @relation("DefaultBoard", fields: [defaultBoardId], references: [id], onDelete: SetNull)
-  labels         Label[]
-  tags           Tag[]
-  cards          Card[]
-  notes          Note[]
-  handoffs       Handoff[]
-  milestones     Milestone[]
-  gitLinks       GitLink[]
-  claims         Claim[]
+  boards           Board[]
+  defaultBoard     Board?            @relation("DefaultBoard", fields: [defaultBoardId], references: [id], onDelete: SetNull)
+  labels           Label[]
+  tags             Tag[]
+  cards            Card[]
+  notes            Note[]
+  handoffs         Handoff[]
+  milestones       Milestone[]
+  gitLinks         GitLink[]
+  claims           Claim[]
   tokenUsageEvents TokenUsageEvent[]
 
   @@map("project")
@@ -60,10 +60,10 @@ model Milestone {
 }
 
 model Label {
-  id        String @id @default(uuid())
-  projectId String @map("project_id")
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
   name      String
-  color     String @default("#6b7280")
+  color     String   @default("#6b7280")
   createdAt DateTime @default(now()) @map("created_at")
 
   project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -76,11 +76,10 @@ model Label {
 
 // Project-scoped, normalized tag entity introduced in v4.2.
 //
-// Replaces the legacy `Card.tags String @default("[]")` JSON column,
-// which stays populated through v4.2 as a read fallback and is dropped
-// in v5. The split between `slug` (canonical, immutable identifier;
-// kebab-case via `slugify()`) and `label` (mutable display) keeps
-// `mergeTags` and `renameTag` cheap.
+// Replaced the legacy `Card.tags String @default("[]")` JSON column —
+// dropped in v5 (#227). The split between `slug` (canonical, immutable
+// identifier; kebab-case via `slugify()`) and `label` (mutable display)
+// keeps `mergeTags` and `renameTag` cheap.
 model Tag {
   id        String   @id @default(uuid())
   projectId String   @map("project_id")
@@ -103,22 +102,22 @@ model Tag {
 }
 
 model Board {
-  id          String   @id @default(uuid())
-  projectId   String   @map("project_id")
-  name        String
-  description String?
+  id                  String   @id @default(uuid())
+  projectId           String   @map("project_id")
+  name                String
+  description         String?
   // Threshold (days) for the "stale in-progress" reconciler. null disables
   // the check for this board; any positive integer is the silence window
   // before a card in an `active`-role column is flagged as stalled.
-  staleInProgressDays Int? @default(3) @map("stale_in_progress_days")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  staleInProgressDays Int?     @default(3) @map("stale_in_progress_days")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
-  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   columns           Column[]
   notes             Note[]
   handoffs          Handoff[]
-  defaultForProject Project? @relation("DefaultBoard")
+  defaultForProject Project?  @relation("DefaultBoard")
 
   @@index([projectId])
   @@map("board")
@@ -130,7 +129,7 @@ model Column {
   name        String
   description String?
   position    Int
-  role        String?  // backlog, todo, active, review, done, parking
+  role        String? // backlog, todo, active, review, done, parking
   isParking   Boolean  @default(false) @map("is_parking")
   color       String?
   createdAt   DateTime @default(now()) @map("created_at")
@@ -144,40 +143,39 @@ model Column {
 }
 
 model Card {
-  id          String   @id @default(uuid())
-  columnId    String   @map("column_id")
-  projectId   String   @map("project_id")
-  number      Int
-  title       String
-  description String?
-  position    Int
-  priority    String   @default("NONE")
-  tags        String   @default("[]")
-  createdBy   String   @default("HUMAN") @map("created_by")
-  milestoneId String?   @map("milestone_id")
-  dueDate     DateTime? @map("due_date")
-  metadata     String   @default("{}") // JSON object for agent context (not rendered in UI)
-  lastEditedBy String?  @map("last_edited_by") // Agent/actor who last modified this card
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String    @id @default(uuid())
+  columnId     String    @map("column_id")
+  projectId    String    @map("project_id")
+  number       Int
+  title        String
+  description  String?
+  position     Int
+  priority     String    @default("NONE")
+  createdBy    String    @default("HUMAN") @map("created_by")
+  milestoneId  String?   @map("milestone_id")
+  dueDate      DateTime? @map("due_date")
+  metadata     String    @default("{}") // JSON object for agent context (not rendered in UI)
+  lastEditedBy String?   @map("last_edited_by") // Agent/actor who last modified this card
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
   // Stable ship-date stamp set when the card enters a Done-role column and
   // cleared when it leaves. Backs the Done-column sort so it isn't reshuffled
   // by transactional position rewrites that bump updatedAt.
   completedAt  DateTime? @map("completed_at")
 
-  column        Column          @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  milestone     Milestone?      @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  checklists    ChecklistItem[]
-  comments      Comment[]
-  activities    Activity[]
-  cardLabels    CardLabel[]
-  cardTags      CardTag[]
-  relationsFrom CardRelation[]  @relation("RelationFrom")
-  relationsTo   CardRelation[]  @relation("RelationTo")
-  gitLinks      GitLink[]
-  claims        Claim[]
-  notes         Note[]
+  column           Column            @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone        Milestone?        @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  checklists       ChecklistItem[]
+  comments         Comment[]
+  activities       Activity[]
+  cardLabels       CardLabel[]
+  cardTags         CardTag[]
+  relationsFrom    CardRelation[]    @relation("RelationFrom")
+  relationsTo      CardRelation[]    @relation("RelationTo")
+  gitLinks         GitLink[]
+  claims           Claim[]
+  notes            Note[]
   tokenUsageEvents TokenUsageEvent[]
 
   @@unique([projectId, number])
@@ -306,14 +304,14 @@ model Handoff {
   boardId   String   @map("board_id")
   projectId String   @map("project_id")
   agentName String   @map("agent_name")
-  summary   String                                // body prose
-  workingOn String   @default("[]") @map("working_on")  // JSON string array
+  summary   String // body prose
+  workingOn String   @default("[]") @map("working_on") // JSON string array
   findings  String   @default("[]")
   nextSteps String   @default("[]") @map("next_steps")
   blockers  String   @default("[]")
   createdAt DateTime @default(now()) @map("created_at")
 
-  board   Board   @relation(fields: [boardId],   references: [id], onDelete: Cascade)
+  board   Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([boardId, createdAt])
@@ -327,7 +325,7 @@ model CardRelation {
   id         String   @id @default(uuid())
   fromCardId String   @map("from_card_id")
   toCardId   String   @map("to_card_id")
-  type       String   // blocks, related, parent
+  type       String // blocks, related, parent
   createdAt  DateTime @default(now()) @map("created_at")
 
   fromCard Card @relation("RelationFrom", fields: [fromCardId], references: [id], onDelete: Cascade)
@@ -364,14 +362,14 @@ model GitLink {
 model Claim {
   id             String    @id @default(uuid())
   projectId      String    @map("project_id")
-  kind           String    // 'context' | 'code' | 'measurement' | 'decision'
-  statement      String    // one-sentence assertion (list-row display)
-  body           String    @default("")        // markdown elaboration
-  evidence       String    @default("{}")      // JSON: { files?, symbols?, urls?, cardIds? }
-  payload        String    @default("{}")      // JSON: kind-specific structured data
-  author         String    @default("AGENT")   // AGENT_NAME or HUMAN
+  kind           String // 'context' | 'code' | 'measurement' | 'decision'
+  statement      String // one-sentence assertion (list-row display)
+  body           String    @default("") // markdown elaboration
+  evidence       String    @default("{}") // JSON: { files?, symbols?, urls?, cardIds? }
+  payload        String    @default("{}") // JSON: kind-specific structured data
+  author         String    @default("AGENT") // AGENT_NAME or HUMAN
   cardId         String?   @map("card_id")
-  status         String    @default("active")  // 'active' | 'superseded' | 'retired'
+  status         String    @default("active") // 'active' | 'superseded' | 'retired'
   supersedesId   String?   @map("supersedes_id")
   supersededById String?   @map("superseded_by_id")
   recordedAtSha  String?   @map("recorded_at_sha")
@@ -381,7 +379,7 @@ model Claim {
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  card    Card?   @relation(fields: [cardId],    references: [id], onDelete: SetNull)
+  card    Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
   // supersedesId / supersededById are plain FK-less string IDs,
   // matching the Decision model convention — cross-linking is
   // enforced in the tool handler.
@@ -452,7 +450,7 @@ model TokenUsageEvent {
   recordedAt            DateTime @default(now()) @map("recorded_at")
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  card    Card?   @relation(fields: [cardId],    references: [id], onDelete: SetNull)
+  card    Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
 
   @@index([sessionId])
   @@index([projectId])

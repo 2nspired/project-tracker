@@ -37,7 +37,7 @@ export function getAgentNameSource(): AgentNameSource {
  * Increment when schema changes require `db:push`.
  * Feature map tells agents what capabilities are available.
  */
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export type FeatureAvailability = {
 	version: number;
