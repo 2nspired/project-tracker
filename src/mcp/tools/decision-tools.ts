@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createClaimService } from "@/server/services/claim-service";
+import { createClaimService } from "@/lib/services/claim";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, err, ok, resolveCardRef, safeExecute } from "../utils.js";

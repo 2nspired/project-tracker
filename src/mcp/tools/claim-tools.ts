@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CLAIM_KINDS, CLAIM_STATUSES, claimEvidenceSchema } from "@/lib/schemas/claim-schemas";
-import { createClaimService } from "@/server/services/claim-service";
+import { createClaimService } from "@/lib/services/claim";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, err, errWithToolHint, ok, resolveCardRef, safeExecute } from "../utils.js";

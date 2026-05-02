@@ -1,6 +1,6 @@
 import type { Claim } from "prisma/generated/client";
 import { z } from "zod";
-import { createClaimService, type NormalizedClaim } from "@/server/services/claim-service";
+import { createClaimService, type NormalizedClaim } from "@/lib/services/claim";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { err, ok, safeExecute } from "../utils.js";
