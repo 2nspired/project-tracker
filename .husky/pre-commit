@@ -1,0 +1,45 @@
+#!/usr/bin/env sh
+# Pigeon pre-commit gate (#255).
+#
+# Runs four checks in order — fast first, slow last:
+#   1. lint-staged                  → biome on staged files only.
+#   2. lint:design + lint:boundary  → design-system + module-boundary lints (whole repo, fast regex).
+#   3. docs:sync + catalog:sync     → regenerate tool docs/catalog AND auto-stage any diff.
+#   4. type-check                   → tsc --noEmit (whole project; tsc doesn't operate on staged files).
+#
+# Steps 1-2 fail loudly. Step 3 self-heals (no failure on diff — it stages and continues),
+# matching the "the script keeps changing files I have to stage" friction documented in
+# the Tool Registry CI Gates memory. Step 4 is the slowest; deferred to last so cheaper
+# checks short-circuit common mistakes first.
+#
+# To skip in an emergency: `git commit --no-verify`. Don't make a habit of it.
+
+set -e
+
+# 1. Staged-only biome (formats + autofixes)
+npx --no-install lint-staged
+
+# 2. Whole-repo regex lints (cheap)
+npm run lint:design --silent
+npm run lint:boundary --silent
+
+# 3. Tool registry sync — regenerate and re-stage if changed.
+#    The sync scripts write atomically; we re-stage any diff so the commit
+#    captures the up-to-date generated files. Avoids the cycle where the CI
+#    catalog:check fails on a PR because the contributor forgot to run it.
+SYNCED_PATHS="src/lib/tool-catalog.generated.ts README.md docs-site/src/content/docs/tools.mdx"
+
+before_hash=$(git diff --cached --stat)
+npm run docs:sync --silent
+npm run catalog:sync --silent
+
+# Stage any files the sync scripts touched (only if they're tracked or newly generated under known paths).
+git add $SYNCED_PATHS 2>/dev/null || true
+
+after_hash=$(git diff --cached --stat)
+if [ "$before_hash" != "$after_hash" ]; then
+	echo "→ pre-commit: regenerated tool docs/catalog and staged the diff."
+fi
+
+# 4. Type check — slowest, runs last so cheaper checks fail first.
+npm run type-check --silent

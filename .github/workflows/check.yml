@@ -27,11 +27,17 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Design lint
+        run: npm run lint:design
+
+      - name: Boundary lint
+        run: npm run lint:boundary
+
       - name: Docs in sync
         run: npm run docs:check
 
       - name: Tool catalog in sync
         run: npm run catalog:check
 
-      - name: Tests
-        run: npm test
+      - name: Tests + coverage floor
+        run: npm run test:coverage
