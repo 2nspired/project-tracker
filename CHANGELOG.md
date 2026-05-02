@@ -17,6 +17,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 - Anchor activityService throughput sparkline at UTC midnight to match #203 cost-sparkline fix; aligns x-axes on Pulse strip (#208)
 
+### Removed
+
+- Delete dead-code stub `src/utilities/auth/server.ts` — last surviving file from the pre-#231 auth scaffold. Zero external consumers post-merge of v6.2 (#263).
+
 ## [6.2.0] — 2026-05-02
 
 Consolidation sprint cut under a feature freeze. v6.2 was scoped from a project audit (#253) that ran the codebase + docs against the Pigeon ICP (Rudy: indie dev running parallel projects, plus Product Owners) and surfaced the friction points that survived v6.1.0 — duplicated docs, drifting prose-level tool counts, dead Costs sub-components, the un-executed `AGENTS.md` / `AGENT-GUIDE.md` split, scope-creep on the Costs page, and a handful of small Costs-surface bugs that contradicted each other across BoardPulse / Costs page / setup dialog. The release theme is **Quality, Consistency & Architecture**: no headline new feature, just every audit-flagged adoption blocker resolved or explicitly deferred with a documented reason. Audit healthScore moved 62% → 80% (#256).
