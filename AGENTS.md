@@ -312,33 +312,9 @@ stamp `AGENT_NAME` on each write. Resolution order at server start:
    `codex`) — only consulted when `.mcp.json` has no `AGENT_NAME` entry
 3. Literal `"Agent"` — fallback when the client also declared no name
 
-Then add to the project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc.):
+Then add to the project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc.) the snippet that `connect.sh` prints — it points the agent at [`docs/AGENT-GUIDE.md`](docs/AGENT-GUIDE.md) (also served live at `tracker://server/agent-guide`), which is the project-agnostic best-practices guide for any agent using Pigeon. The snippet is derived from `scripts/print-connect-snippet.ts`, so it stays in sync with the running server.
 
-```
-## Project Tracking
-
-This project uses Pigeon (a kanban board with MCP integration) for context continuity across AI sessions.
-
-**Session lifecycle:** Call `briefMe()` at the start of each conversation for
-a one-shot session primer (handoff, top work, blockers, pulse). Call
-`saveHandoff({ summary, ... })` before wrapping up — it saves the handoff,
-links new commits, reports the cards you touched, and returns a resume prompt
-for the next chat. In Claude Code the `/handoff` slash command calls
-`saveHandoff` for you. Both tools auto-detect the board from your git repo
-after a one-time `registerRepo` call.
-
-**Tool architecture:** 10 essential tools are always visible (briefMe,
-saveHandoff, createCard, updateCard, moveCard, addComment, registerRepo,
-checkOnboarding, getTools, runTool). Extended tools — including getBoard,
-searchCards, getRoadmap — live behind `getTools`/`runTool`; briefMe composes
-the common session-start views. Call `getTools()` with no args to see all
-categories.
-
-**Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
-reflect progress. Use `addComment` for decisions and blockers. Call
-`saveHandoff` (or `/handoff`) to save a handoff so the next conversation
-picks up in context. For mid-session checkpoints — when you want a snapshot
-without re-running git sync — pass `syncGit: false`.
+If you're adopting Pigeon and want to read the guide directly, start with [`docs/AGENT-GUIDE.md`](docs/AGENT-GUIDE.md).
 
 ## Token Tracking (#96)
 
