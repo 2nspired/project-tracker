@@ -8,6 +8,7 @@ import {
 	coerceRateValue,
 	validateNewModelName,
 } from "@/components/costs/pricing-override-validation";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
 	DEFAULT_PRICING,
 	type ModelPricing,
@@ -35,12 +36,32 @@ const BUILTIN_KEYS = Object.keys(DEFAULT_PRICING)
 
 type RateField = keyof ModelPricing;
 
-const RATE_FIELDS: { key: RateField; label: string }[] = [
-	{ key: "inputPerMTok", label: "Input/MTok" },
-	{ key: "outputPerMTok", label: "Output/MTok" },
-	{ key: "cacheReadPerMTok", label: "Cache Read/MTok" },
-	{ key: "cacheCreation1hPerMTok", label: "Cache 1h/MTok" },
-	{ key: "cacheCreation5mPerMTok", label: "Cache 5m/MTok" },
+const RATE_FIELDS: { key: RateField; label: string; tooltip: string }[] = [
+	{
+		key: "inputPerMTok",
+		label: "Input/MTok",
+		tooltip: "Per-million prompt tokens sent to the model.",
+	},
+	{
+		key: "outputPerMTok",
+		label: "Output/MTok",
+		tooltip: "Per-million response tokens from the model.",
+	},
+	{
+		key: "cacheReadPerMTok",
+		label: "Cache Read/MTok",
+		tooltip: "Per-million tokens re-read from prompt cache (discounted vs. fresh input).",
+	},
+	{
+		key: "cacheCreation1hPerMTok",
+		label: "Cache 1h/MTok",
+		tooltip: "Per-million tokens written to the 1-hour prompt cache.",
+	},
+	{
+		key: "cacheCreation5mPerMTok",
+		label: "Cache 5m/MTok",
+		tooltip: "Per-million tokens written to the 5-minute prompt cache (default).",
+	},
 ];
 
 // Per-cell working state — strings rather than numbers so an empty input
@@ -317,20 +338,43 @@ function VerifiedBanner() {
 function HeaderRow() {
 	return (
 		<div className="hidden grid-cols-[1.5fr_repeat(5,1fr)_auto] gap-2 border-b border-border/50 pb-1.5 sm:grid">
-			<HeaderCell>Model</HeaderCell>
+			<HeaderCell tooltip="Model identifier (pricing keys on this exact string).">Model</HeaderCell>
 			{RATE_FIELDS.map((f) => (
-				<HeaderCell key={f.key}>{f.label}</HeaderCell>
+				<HeaderCell key={f.key} tooltip={f.tooltip}>
+					{f.label}
+				</HeaderCell>
 			))}
 			<HeaderCell>{""}</HeaderCell>
 		</div>
 	);
 }
 
-function HeaderCell({ children }: { children: ReactNode }) {
+function HeaderCell({ children, tooltip }: { children: ReactNode; tooltip?: string }) {
+	if (!tooltip) {
+		return (
+			<div className="font-mono text-2xs uppercase tracking-wide text-muted-foreground/70">
+				{children}
+			</div>
+		);
+	}
 	return (
-		<div className="font-mono text-2xs uppercase tracking-wide text-muted-foreground/70">
-			{children}
-		</div>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					className="cursor-help text-left font-mono text-2xs uppercase tracking-wide text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+				>
+					{children}
+				</button>
+			</TooltipTrigger>
+			<TooltipContent
+				side="top"
+				sideOffset={6}
+				className="max-w-md px-2.5 py-1.5 text-xs leading-snug normal-case tracking-normal whitespace-normal"
+			>
+				{tooltip}
+			</TooltipContent>
+		</Tooltip>
 	);
 }
 
