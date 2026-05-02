@@ -2,7 +2,7 @@
 
 import { FolderKanban, Hash, LayoutDashboard, Plus, StickyNote } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { McpToolRow } from "@/components/header/mcp-tool-row";
 import { SlashCommandRow } from "@/components/header/slash-command-row";
 import {
@@ -19,8 +19,71 @@ import { PRIORITY_DOT } from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";
 import { api } from "@/trpc/react";
 
-export function CommandPalette() {
+/**
+ * Context that owns the command-palette open-state plus the global Cmd-K /
+ * Ctrl-K keyboard listener. Lifting this state out of the dialog component
+ * lets sibling UI (TopNav search button) trigger the palette via a hook
+ * call rather than the previous `document.dispatchEvent(KeyboardEvent)`
+ * hack — which was fragile (depends on event bubbling order, can be
+ * swallowed by other listeners) and impossible to type-check.
+ */
+type CommandPaletteContextValue = {
+	open: boolean;
+	setOpen: (open: boolean) => void;
+	toggle: () => void;
+};
+
+const CommandPaletteContext = createContext<CommandPaletteContextValue | null>(null);
+
+export function useCommandPalette(): CommandPaletteContextValue {
+	const ctx = useContext(CommandPaletteContext);
+	if (!ctx) {
+		throw new Error("useCommandPalette must be used within <CommandPaletteProvider>");
+	}
+	return ctx;
+}
+
+/**
+ * Wraps the app subtree that should have access to the command palette.
+ * Owns open-state + the global Cmd-K listener and renders the palette UI
+ * once at the bottom of the tree.
+ */
+export function CommandPaletteProvider({ children }: { children: React.ReactNode }) {
 	const [open, setOpen] = useState(false);
+
+	// Listen for Cmd+K / Ctrl+K — global. Lives here (not in the dialog
+	// component) so the shortcut works even when the dialog hasn't yet
+	// been mounted by React (it's rendered as a sibling below).
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+				e.preventDefault();
+				setOpen((prev) => !prev);
+			}
+		};
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, []);
+
+	const value = useMemo<CommandPaletteContextValue>(
+		() => ({
+			open,
+			setOpen,
+			toggle: () => setOpen((prev) => !prev),
+		}),
+		[open]
+	);
+
+	return (
+		<CommandPaletteContext.Provider value={value}>
+			{children}
+			<CommandPalette />
+		</CommandPaletteContext.Provider>
+	);
+}
+
+function CommandPalette() {
+	const { open, setOpen } = useCommandPalette();
 	const [search, setSearch] = useState("");
 	const [debouncedSearch, setDebouncedSearch] = useState("");
 	const router = useRouter();
@@ -33,26 +96,17 @@ export function CommandPalette() {
 		return () => clearTimeout(timer);
 	}, [search]);
 
-	// Listen for Cmd+K / Ctrl+K
-	useEffect(() => {
-		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-				e.preventDefault();
-				setOpen((prev) => !prev);
-			}
-		};
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, []);
-
 	// Reset search when closing
-	const handleOpenChange = useCallback((value: boolean) => {
-		setOpen(value);
-		if (!value) {
-			setSearch("");
-			setDebouncedSearch("");
-		}
-	}, []);
+	const handleOpenChange = useCallback(
+		(value: boolean) => {
+			setOpen(value);
+			if (!value) {
+				setSearch("");
+				setDebouncedSearch("");
+			}
+		},
+		[setOpen]
+	);
 
 	// Search cards only when palette is open and there's a search term
 	const { data: cards, isLoading: cardsLoading } = api.card.listAll.useQuery(

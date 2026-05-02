@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useBoardEvents } from "@/hooks/use-board-events";
 import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { api } from "@/trpc/react";
@@ -279,7 +279,7 @@ export default function BoardPage({
 	};
 
 	return (
-		<TooltipProvider>
+		<>
 			<div className="flex h-[calc(100dvh-3.5rem-1px)] flex-col">
 				<div className="flex items-center gap-3 border-b px-4 py-2">
 					<Tooltip>
@@ -431,6 +431,6 @@ export default function BoardPage({
 					<BoardListView board={board} {...viewProps} />
 				)}
 			</div>
-		</TooltipProvider>
+		</>
 	);
 }

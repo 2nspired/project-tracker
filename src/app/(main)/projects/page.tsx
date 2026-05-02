@@ -45,7 +45,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { COLOR_CLASSES } from "@/lib/project-colors";
 import { PROJECT_COLORS, type ProjectColor } from "@/lib/schemas/project-schemas";
 import { api } from "@/trpc/react";
@@ -229,19 +229,17 @@ export default function ProjectsPage() {
 												{project._count.cards} card{project._count.cards !== 1 ? "s" : ""}
 											</span>
 											{project.hasAgentCards && (
-												<TooltipProvider>
-													<Tooltip>
-														<TooltipTrigger asChild>
-															<span className="flex items-center gap-1 text-accent-violet">
-																<Bot className="h-3 w-3" />
-																Agent
-															</span>
-														</TooltipTrigger>
-														<TooltipContent>
-															An AI agent has created cards in this project
-														</TooltipContent>
-													</Tooltip>
-												</TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span className="flex items-center gap-1 text-accent-violet">
+															<Bot className="h-3 w-3" />
+															Agent
+														</span>
+													</TooltipTrigger>
+													<TooltipContent>
+														An AI agent has created cards in this project
+													</TooltipContent>
+												</Tooltip>
 											)}
 										</div>
 									</Card>

@@ -48,7 +48,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 					disableTransitionOnChange
 				>
 					<TRPCReactProvider>
-						<TooltipProvider>
+						<TooltipProvider delayDuration={500}>
 							{children}
 							<Toaster />
 						</TooltipProvider>

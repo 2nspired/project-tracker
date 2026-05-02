@@ -26,7 +26,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getHorizon } from "@/lib/column-roles";
 import { PRIORITY_DOT } from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";
@@ -230,66 +230,61 @@ export default function DashboardPage() {
 									{p.milestones.length > 0 ? (
 										<>
 											{/* Stacked milestone bar */}
-											<TooltipProvider>
-												<div className="mt-2 flex h-5 w-full overflow-hidden rounded">
-													{p.milestones.map((ms, idx) => {
-														const done = ms.cells.filter((c) => c === "done").length;
-														const remaining = ms.cells.length - done;
-														const donePct = (done / p.total) * 100;
-														const remainPct = (remaining / p.total) * 100;
-														const green = greens[idx % greens.length];
-														const gray = grays[idx % grays.length];
+											<div className="mt-2 flex h-5 w-full overflow-hidden rounded">
+												{p.milestones.map((ms, idx) => {
+													const done = ms.cells.filter((c) => c === "done").length;
+													const remaining = ms.cells.length - done;
+													const donePct = (done / p.total) * 100;
+													const remainPct = (remaining / p.total) * 100;
+													const green = greens[idx % greens.length];
+													const gray = grays[idx % grays.length];
 
-														return (
-															<Tooltip key={ms.name}>
-																<TooltipTrigger asChild>
-																	<div
-																		className="flex"
-																		style={{ width: `${donePct + remainPct}%` }}
-																	>
-																		{donePct > 0 && (
-																			<div
-																				className={`${green} h-full transition-all`}
-																				style={{
-																					width: `${(donePct / (donePct + remainPct)) * 100}%`,
-																				}}
-																			/>
-																		)}
-																		{remainPct > 0 && (
-																			<div
-																				className={`${gray} h-full transition-all`}
-																				style={{
-																					width: `${(remainPct / (donePct + remainPct)) * 100}%`,
-																				}}
-																			/>
-																		)}
-																	</div>
-																</TooltipTrigger>
-																<TooltipContent side="bottom" className="text-xs">
-																	<p className="font-medium">{ms.name}</p>
-																	<p className="text-muted-foreground">
-																		{done}/{ms.cells.length} done
-																	</p>
-																</TooltipContent>
-															</Tooltip>
-														);
-													})}
-													{unmilestoned > 0 && (
-														<Tooltip>
+													return (
+														<Tooltip key={ms.name}>
 															<TooltipTrigger asChild>
-																<div
-																	className="bg-muted-foreground/15 h-full"
-																	style={{ width: `${(unmilestoned / p.total) * 100}%` }}
-																/>
+																<div className="flex" style={{ width: `${donePct + remainPct}%` }}>
+																	{donePct > 0 && (
+																		<div
+																			className={`${green} h-full transition-all`}
+																			style={{
+																				width: `${(donePct / (donePct + remainPct)) * 100}%`,
+																			}}
+																		/>
+																	)}
+																	{remainPct > 0 && (
+																		<div
+																			className={`${gray} h-full transition-all`}
+																			style={{
+																				width: `${(remainPct / (donePct + remainPct)) * 100}%`,
+																			}}
+																		/>
+																	)}
+																</div>
 															</TooltipTrigger>
 															<TooltipContent side="bottom" className="text-xs">
-																<p className="font-medium">No milestone</p>
-																<p className="text-muted-foreground">{unmilestoned} cards</p>
+																<p className="font-medium">{ms.name}</p>
+																<p className="text-muted-foreground">
+																	{done}/{ms.cells.length} done
+																</p>
 															</TooltipContent>
 														</Tooltip>
-													)}
-												</div>
-											</TooltipProvider>
+													);
+												})}
+												{unmilestoned > 0 && (
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<div
+																className="bg-muted-foreground/15 h-full"
+																style={{ width: `${(unmilestoned / p.total) * 100}%` }}
+															/>
+														</TooltipTrigger>
+														<TooltipContent side="bottom" className="text-xs">
+															<p className="font-medium">No milestone</p>
+															<p className="text-muted-foreground">{unmilestoned} cards</p>
+														</TooltipContent>
+													</Tooltip>
+												)}
+											</div>
 										</>
 									) : (
 										<Progress value={pct} className="mt-2 h-2" />
