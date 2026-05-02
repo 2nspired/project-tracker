@@ -658,101 +658,106 @@ server.registerTool(
 		inputSchema: {},
 		annotations: { readOnlyHint: true },
 	},
-	wrapEssentialHandler("checkOnboarding", async () => {
-		const [projectCount, boardCount, cardCount, handoffCount, projects] = await Promise.all([
-			db.project.count(),
-			db.board.count(),
-			db.card.count(),
-			db.handoff.count(),
-			db.project.findMany({
-				orderBy: { createdAt: "desc" },
-				include: {
-					boards: {
-						select: {
-							id: true,
-							name: true,
-							columns: {
-								select: { name: true, _count: { select: { cards: true } } },
-								orderBy: { position: "asc" },
+	wrapEssentialHandler(
+		"checkOnboarding",
+		async () => {
+			const [projectCount, boardCount, cardCount, handoffCount, projects] = await Promise.all([
+				db.project.count(),
+				db.board.count(),
+				db.card.count(),
+				db.handoff.count(),
+				db.project.findMany({
+					orderBy: { createdAt: "desc" },
+					include: {
+						boards: {
+							select: {
+								id: true,
+								name: true,
+								columns: {
+									select: { name: true, _count: { select: { cards: true } } },
+									orderBy: { position: "asc" },
+								},
 							},
 						},
 					},
+				}),
+			]);
+
+			let state: "empty" | "existing" | "returning";
+			if (projectCount === 0) {
+				state = "empty";
+			} else if (handoffCount > 0) {
+				state = "returning";
+			} else {
+				state = "existing";
+			}
+
+			const offerSampleProject = state === "empty" || (state === "existing" && cardCount === 0);
+
+			const options: Array<{ action: string; description: string }> = [];
+			if (offerSampleProject) {
+				options.push(
+					{
+						action: "runTool({ tool: 'seedTutorial' })",
+						description: "Create tutorial project with 10 example cards",
+					},
+					{ action: "onboarding prompt (quickstart)", description: "Set up your own project" },
+					{ action: "onboarding prompt (tutorial)", description: "Step-by-step guided walkthrough" }
+				);
+			}
+			if (state === "returning") {
+				options.push({
+					action:
+						"Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer",
+					description: "Continue where you left off",
+				});
+			} else if (state === "existing") {
+				options.push({
+					action:
+						"Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer",
+					description: "Start working on a board",
+				});
+			}
+
+			// Check staleness across all projects
+			const allWarnings = (await Promise.all(projects.map((p) => checkStaleness(p.id)))).flat();
+			const stalenessWarnings =
+				allWarnings.length > 0 ? formatStalenessWarnings(allWarnings) : null;
+
+			return ok({
+				state,
+				stats: {
+					projects: projectCount,
+					boards: boardCount,
+					cards: cardCount,
+					handoffs: handoffCount,
 				},
-			}),
-		]);
-
-		let state: "empty" | "existing" | "returning";
-		if (projectCount === 0) {
-			state = "empty";
-		} else if (handoffCount > 0) {
-			state = "returning";
-		} else {
-			state = "existing";
-		}
-
-		const offerSampleProject = state === "empty" || (state === "existing" && cardCount === 0);
-
-		const options: Array<{ action: string; description: string }> = [];
-		if (offerSampleProject) {
-			options.push(
-				{
-					action: "runTool({ tool: 'seedTutorial' })",
-					description: "Create tutorial project with 10 example cards",
+				...(IS_LEGACY_BRAND ? { _brandDeprecation: LEGACY_BRAND_DEPRECATION } : {}),
+				toolArchitecture: {
+					essential: `${ESSENTIAL_TOOLS.length} tools are always visible: ${ESSENTIAL_TOOLS.map((t) => t.name).join(", ")}. briefMe is the session-start primer; getBoard, searchCards, and getRoadmap live in extended — call via runTool.`,
+					extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
+					workflows:
+						"Named multi-step recipes (sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge) are listed via `runTool('listWorkflows', { boardId? })` — use these to learn what to do, not just which tool to call.",
+					prompts: `${REGISTERED_PROMPTS.length} MCP prompts are available (${REGISTERED_PROMPTS.join(", ")}). Prompts are invoked via the MCP prompts/get protocol, not via runTool.`,
+					manifest:
+						"Machine-readable surface at resource `tracker://server/manifest` — all tool names, categories, descriptions, schema version, and commit SHA.",
 				},
-				{ action: "onboarding prompt (quickstart)", description: "Set up your own project" },
-				{ action: "onboarding prompt (tutorial)", description: "Step-by-step guided walkthrough" }
-			);
-		}
-		if (state === "returning") {
-			options.push({
-				action:
-					"Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer",
-				description: "Continue where you left off",
-			});
-		} else if (state === "existing") {
-			options.push({
-				action:
-					"Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer",
-				description: "Start working on a board",
-			});
-		}
-
-		// Check staleness across all projects
-		const allWarnings = (await Promise.all(projects.map((p) => checkStaleness(p.id)))).flat();
-		const stalenessWarnings = allWarnings.length > 0 ? formatStalenessWarnings(allWarnings) : null;
-
-		return ok({
-			state,
-			stats: {
-				projects: projectCount,
-				boards: boardCount,
-				cards: cardCount,
-				handoffs: handoffCount,
-			},
-			...(IS_LEGACY_BRAND ? { _brandDeprecation: LEGACY_BRAND_DEPRECATION } : {}),
-			toolArchitecture: {
-				essential: `${ESSENTIAL_TOOLS.length} tools are always visible: ${ESSENTIAL_TOOLS.map((t) => t.name).join(", ")}. briefMe is the session-start primer; getBoard, searchCards, and getRoadmap live in extended — call via runTool.`,
-				extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
-				workflows:
-					"Named multi-step recipes (sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge) are listed via `runTool('listWorkflows', { boardId? })` — use these to learn what to do, not just which tool to call.",
-				prompts: `${REGISTERED_PROMPTS.length} MCP prompts are available (${REGISTERED_PROMPTS.join(", ")}). Prompts are invoked via the MCP prompts/get protocol, not via runTool.`,
-				manifest:
-					"Machine-readable surface at resource `tracker://server/manifest` — all tool names, categories, descriptions, schema version, and commit SHA.",
-			},
-			offerSampleProject,
-			projects: projects.map((p) => ({
-				id: p.id,
-				name: p.name,
-				boards: p.boards.map((b) => ({
-					id: b.id,
-					name: b.name,
-					columns: b.columns.map((c) => ({ name: c.name, cards: c._count.cards })),
+				offerSampleProject,
+				projects: projects.map((p) => ({
+					id: p.id,
+					name: p.name,
+					boards: p.boards.map((b) => ({
+						id: b.id,
+						name: b.name,
+						columns: b.columns.map((c) => ({ name: c.name, cards: c._count.cards })),
+					})),
 				})),
-			})),
-			options,
-			stalenessWarnings,
-		});
-	})
+				options,
+				stalenessWarnings,
+			});
+		},
+		{ readOnlyHint: true }
+	)
 );
 
 // ─── Session Primer (Essential) ──────────────────────────────────────
@@ -777,90 +782,95 @@ server.registerTool(
 		},
 		annotations: { readOnlyHint: true },
 	},
-	wrapEssentialHandler("briefMe", async ({ boardId: explicitBoardId, format }) => {
-		return safeExecute(async () => {
-			let boardId = explicitBoardId;
-			let autoResolved: { projectName: string; boardName: string } | null = null;
-			if (!boardId) {
-				const resolved = await resolveBoardFromCwd();
-				if (!resolved.ok) {
-					if (resolved.kind === "unregistered") return unregisteredRepoResponse(resolved.repoRoot);
-					return err(resolved.reason, resolved.hint);
+	wrapEssentialHandler(
+		"briefMe",
+		async ({ boardId: explicitBoardId, format }) => {
+			return safeExecute(async () => {
+				let boardId = explicitBoardId;
+				let autoResolved: { projectName: string; boardName: string } | null = null;
+				if (!boardId) {
+					const resolved = await resolveBoardFromCwd();
+					if (!resolved.ok) {
+						if (resolved.kind === "unregistered")
+							return unregisteredRepoResponse(resolved.repoRoot);
+						return err(resolved.reason, resolved.hint);
+					}
+					boardId = resolved.boardId;
+					autoResolved = { projectName: resolved.projectName, boardName: resolved.boardName };
 				}
-				boardId = resolved.boardId;
-				autoResolved = { projectName: resolved.projectName, boardName: resolved.boardName };
-			}
 
-			// Existence check first so we can return a structured error response
-			// — the shared service throws when the board can't be loaded. After
-			// this guard we delegate to buildBriefPayload for the actual
-			// composition.
-			const boardExists = await db.board.findUnique({
-				where: { id: boardId },
-				select: { id: true },
-			});
-			if (!boardExists) return err("Board not found.", "Use checkOnboarding to discover boards.");
-
-			const [bootSha, headSha, upgradeInfo, upgradeReportRaw] = await Promise.all([
-				getCommitSha(),
-				getCurrentHeadSha(),
-				runVersionCheck(),
-				readUpgradeReport(),
-			]);
-
-			// Stale-guard: a `data/last-upgrade.json` older than 24h is treated
-			// as not-present. Protects against the file lingering forever if
-			// the user never ran briefMe after upgrading.
-			const upgradeReport =
-				upgradeReportRaw &&
-				Date.now() - new Date(upgradeReportRaw.completedAt).getTime() < UPGRADE_REPORT_STALE_MS
-					? upgradeReportRaw
-					: undefined;
-
-			const briefPayload = await buildBriefPayload(boardId, db, {
-				agentName: AGENT_NAME,
-				serverVersion: MCP_SERVER_VERSION,
-				isLegacyBrand: IS_LEGACY_BRAND,
-				legacyBrandDeprecation: LEGACY_BRAND_DEPRECATION,
-				bootSha,
-				headSha,
-				autoResolved,
-				upgradeInfo,
-				upgradeReport,
-			});
-
-			// One-shot semantics: any time we *had* a report on disk (even one
-			// the parser decided was clean and didn't surface), clear it so the
-			// second briefMe in the session doesn't re-process a stale signal.
-			// Fire-and-forget — never block the response on file IO.
-			if (upgradeReportRaw) {
-				clearUpgradeReport().catch((e) =>
-					console.error("[MCP] clearUpgradeReport (briefMe) failed:", e)
-				);
-			}
-
-			// Side-effect boundary (post-topWork): when an active card is in the
-			// payload's topWork tier, attribute this MCP session's token rows to
-			// it so getCardSummary doesn't show $0. Fire-and-forget — token
-			// tracking should never block briefMe. (F2 / #191)
-			const topWork = briefPayload.topWork as Array<{ ref: string; source: string }>;
-			const activeCard = topWork.find((c) => c.source === "active");
-			if (activeCard) {
-				const cardNum = Number(activeCard.ref.replace("#", ""));
-				const card = await db.card.findFirst({
-					where: { number: cardNum, column: { boardId } },
+				// Existence check first so we can return a structured error response
+				// — the shared service throws when the board can't be loaded. After
+				// this guard we delegate to buildBriefPayload for the actual
+				// composition.
+				const boardExists = await db.board.findUnique({
+					where: { id: boardId },
 					select: { id: true },
 				});
-				if (card) {
-					tokenUsageService
-						.attributeSession(SESSION_ID, card.id)
-						.catch((e) => console.error("[MCP] attributeSession (briefMe) failed:", e));
-				}
-			}
+				if (!boardExists) return err("Board not found.", "Use checkOnboarding to discover boards.");
 
-			return ok(briefPayload, format as "json" | "toon");
-		});
-	})
+				const [bootSha, headSha, upgradeInfo, upgradeReportRaw] = await Promise.all([
+					getCommitSha(),
+					getCurrentHeadSha(),
+					runVersionCheck(),
+					readUpgradeReport(),
+				]);
+
+				// Stale-guard: a `data/last-upgrade.json` older than 24h is treated
+				// as not-present. Protects against the file lingering forever if
+				// the user never ran briefMe after upgrading.
+				const upgradeReport =
+					upgradeReportRaw &&
+					Date.now() - new Date(upgradeReportRaw.completedAt).getTime() < UPGRADE_REPORT_STALE_MS
+						? upgradeReportRaw
+						: undefined;
+
+				const briefPayload = await buildBriefPayload(boardId, db, {
+					agentName: AGENT_NAME,
+					serverVersion: MCP_SERVER_VERSION,
+					isLegacyBrand: IS_LEGACY_BRAND,
+					legacyBrandDeprecation: LEGACY_BRAND_DEPRECATION,
+					bootSha,
+					headSha,
+					autoResolved,
+					upgradeInfo,
+					upgradeReport,
+				});
+
+				// One-shot semantics: any time we *had* a report on disk (even one
+				// the parser decided was clean and didn't surface), clear it so the
+				// second briefMe in the session doesn't re-process a stale signal.
+				// Fire-and-forget — never block the response on file IO.
+				if (upgradeReportRaw) {
+					clearUpgradeReport().catch((e) =>
+						console.error("[MCP] clearUpgradeReport (briefMe) failed:", e)
+					);
+				}
+
+				// Side-effect boundary (post-topWork): when an active card is in the
+				// payload's topWork tier, attribute this MCP session's token rows to
+				// it so getCardSummary doesn't show $0. Fire-and-forget — token
+				// tracking should never block briefMe. (F2 / #191)
+				const topWork = briefPayload.topWork as Array<{ ref: string; source: string }>;
+				const activeCard = topWork.find((c) => c.source === "active");
+				if (activeCard) {
+					const cardNum = Number(activeCard.ref.replace("#", ""));
+					const card = await db.card.findFirst({
+						where: { number: cardNum, column: { boardId } },
+						select: { id: true },
+					});
+					if (card) {
+						tokenUsageService
+							.attributeSession(SESSION_ID, card.id)
+							.catch((e) => console.error("[MCP] attributeSession (briefMe) failed:", e));
+					}
+				}
+
+				return ok(briefPayload, format as "json" | "toon");
+			});
+		},
+		{ readOnlyHint: true }
+	)
 );
 
 // ─── Session Wrap-Up (Essential) ─────────────────────────────────────
@@ -1174,15 +1184,19 @@ server.registerTool(
 		},
 		annotations: { readOnlyHint: true },
 	},
-	wrapEssentialHandler("getTools", async ({ category, tool }) => {
-		const result = getToolCatalog({ category, tool });
-		if (!result)
-			return err(
-				`Tool "${tool}" not found.`,
-				"Call getTools() with no args to see all categories."
-			);
-		return ok(result);
-	})
+	wrapEssentialHandler(
+		"getTools",
+		async ({ category, tool }) => {
+			const result = getToolCatalog({ category, tool });
+			if (!result)
+				return err(
+					`Tool "${tool}" not found.`,
+					"Call getTools() with no args to see all categories."
+				);
+			return ok(result);
+		},
+		{ readOnlyHint: true }
+	)
 );
 
 server.registerTool(

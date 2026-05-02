@@ -360,16 +360,23 @@ export async function executeTool(
 	// after schema validation but before the handler — so a malformed call
 	// still gets the precise schema-level error, and a well-typed call
 	// gets the policy-level intent gate before any state mutation.
+	//
+	// Read-only short-circuit (card #232): tools annotated with
+	// `readOnlyHint: true` can't trigger an `intent_required_on` violation,
+	// so we skip the resolver entirely. This avoids a per-call `git rev-parse`
+	// subprocess (3s timeout) + DB lookup on read-heavy sessions.
 	const validatedParams = parsed.data as Record<string, unknown>;
-	const policy = await resolvePolicyForCall(validatedParams);
-	const check = requireIntentIfPolicyRequires(policy, name, validatedParams);
-	if (!check.ok) {
-		const result: ToolResult = {
-			content: [{ type: "text" as const, text: check.message }],
-			isError: true,
-		};
-		logToolCall(name, Date.now() - start, result);
-		return result;
+	if (def.annotations?.readOnlyHint !== true) {
+		const policy = await resolvePolicyForCall(validatedParams);
+		const check = requireIntentIfPolicyRequires(policy, name, validatedParams);
+		if (!check.ok) {
+			const result: ToolResult = {
+				content: [{ type: "text" as const, text: check.message }],
+				isError: true,
+			};
+			logToolCall(name, Date.now() - start, result);
+			return result;
+		}
 	}
 
 	const result = await def.handler(validatedParams);

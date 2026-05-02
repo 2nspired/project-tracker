@@ -56,10 +56,22 @@ export function logToolCall(toolName: string, durationMs: number, result: ToolRe
 // ─── Essential Tool Wrapper ──────────────────────────────────────────
 // Wraps essential tool handlers registered directly on McpServer.
 
+export type WrapOptions = {
+	/**
+	 * When true, the wrapper skips policy resolution entirely. Read-only
+	 * tools (e.g. `briefMe`, `checkOnboarding`, `getTools`) cannot trigger
+	 * an `intent_required_on` violation — the policy gate only runs on
+	 * mutating tools. Skipping avoids the per-call `git rev-parse`
+	 * subprocess + DB lookup in `resolvePolicyForCall`. See card #232.
+	 */
+	readOnlyHint?: boolean;
+};
+
 // biome-ignore lint/suspicious/noExplicitAny: handler wrapper must preserve MCP SDK's generic handler types
 export function wrapEssentialHandler<F extends (...args: any[]) => Promise<any>>(
 	toolName: string,
-	handler: F
+	handler: F,
+	options: WrapOptions = {}
 ): F {
 	const wrapped = (async (...args: unknown[]) => {
 		const start = Date.now();
@@ -68,20 +80,26 @@ export function wrapEssentialHandler<F extends (...args: any[]) => Promise<any>>
 			// Runs *before* the tool handler so we reject missing-intent calls
 			// without mutating state. The hardcoded `.min(1)` schemas on
 			// moveCard/deleteCard remain as a back-compat safety net.
+			//
+			// Read-only short-circuit (card #232): skip the resolver for tools
+			// that can't possibly mutate state. Saves a `git rev-parse`
+			// subprocess (3s timeout) + DB lookup on every read-only call.
 			const params = args[0];
-			const policy = await resolvePolicyForCall(params);
-			const check = requireIntentIfPolicyRequires(policy, toolName, params);
-			if (!check.ok) {
-				const result = err(check.message);
-				record({
-					toolName,
-					toolType: "essential",
-					durationMs: Date.now() - start,
-					success: false,
-					errorMessage: result.content[0]?.text?.slice(0, 500),
-					responseTokens: Math.ceil((result.content[0]?.text?.length ?? 0) / 4),
-				});
-				return result;
+			if (!options.readOnlyHint) {
+				const policy = await resolvePolicyForCall(params);
+				const check = requireIntentIfPolicyRequires(policy, toolName, params);
+				if (!check.ok) {
+					const result = err(check.message);
+					record({
+						toolName,
+						toolType: "essential",
+						durationMs: Date.now() - start,
+						success: false,
+						errorMessage: result.content[0]?.text?.slice(0, 500),
+						responseTokens: Math.ceil((result.content[0]?.text?.length ?? 0) / 4),
+					});
+					return result;
+				}
 			}
 
 			const result = await handler(...args);
