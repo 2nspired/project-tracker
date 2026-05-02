@@ -86,7 +86,7 @@ export function TopNav() {
 							className="hidden items-center gap-1.5 rounded-md border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent sm:flex"
 						>
 							Search
-							<kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">⌘K</kbd>
+							<kbd className="rounded bg-muted px-1 py-0.5 font-mono text-2xs">⌘K</kbd>
 						</button>
 					</TooltipTrigger>
 					<TooltipContent side="bottom" sideOffset={6}>

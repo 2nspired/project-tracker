@@ -33,7 +33,7 @@ export function DesignSidebar() {
 									>
 										<span>{item.label}</span>
 										{!item.built ? (
-											<span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+											<span className="rounded bg-muted px-1.5 py-0.5 text-2xs font-medium tracking-wide text-muted-foreground uppercase">
 												Soon
 											</span>
 										) : null}

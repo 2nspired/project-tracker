@@ -109,7 +109,7 @@ export function ActivitySheet({ boardId, open, onOpenChange, onCardClick }: Acti
 												<span className="shrink-0 font-mono text-2xs text-muted-foreground">
 													#{activity.card.number}
 												</span>
-												<span className="ml-auto shrink-0 font-mono text-[0.625rem] tabular-nums text-muted-foreground/60">
+												<span className="ml-auto shrink-0 font-mono text-2xs tabular-nums text-muted-foreground/60">
 													{formatRelativeCompact(new Date(activity.createdAt))}
 												</span>
 											</div>

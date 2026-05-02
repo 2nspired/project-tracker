@@ -135,7 +135,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 
 				{authorship && (
 					<span
-						className="inline-flex items-center gap-1.5 text-[0.625rem] leading-4 text-muted-foreground"
+						className="inline-flex items-center gap-1.5 text-2xs leading-4 text-muted-foreground"
 						title={authorship.tooltip}
 					>
 						<ActorDot
@@ -152,13 +152,13 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 						{tags.slice(0, 3).map((tag) => (
 							<span
 								key={tag}
-								className="rounded-full border border-border px-1.5 text-[0.625rem] leading-4 text-muted-foreground"
+								className="rounded-full border border-border px-1.5 text-2xs leading-4 text-muted-foreground"
 							>
 								{tag}
 							</span>
 						))}
 						{tags.length > 3 && (
-							<span className="rounded-full border border-border px-1.5 text-[0.625rem] leading-4 text-muted-foreground">
+							<span className="rounded-full border border-border px-1.5 text-2xs leading-4 text-muted-foreground">
 								+{tags.length - 3}
 							</span>
 						)}

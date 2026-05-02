@@ -729,7 +729,7 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 															<span>
 																{formatActivityDescription(activity.action, activity.details)}
 															</span>
-															<span className="ml-auto shrink-0 font-mono text-[0.625rem] tabular-nums text-muted-foreground/60">
+															<span className="ml-auto shrink-0 font-mono text-2xs tabular-nums text-muted-foreground/60">
 																{formatRelativeCompact(new Date(activity.createdAt))}
 															</span>
 														</div>

@@ -75,7 +75,7 @@ function Chip({
 		<Badge
 			variant={variant}
 			title="Pigeon tool overhead this session"
-			className={cn("font-mono text-[10px] tabular-nums", className)}
+			className={cn("font-mono text-2xs tabular-nums", className)}
 		>
 			Pigeon: {formatCost(costUsd)}
 		</Badge>

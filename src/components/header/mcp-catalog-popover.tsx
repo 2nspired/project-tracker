@@ -288,7 +288,7 @@ function ParamPreview({ schema }: { schema: Record<string, ToolParamInfo> }) {
 							{info.type}
 						</span>
 						{info.description && (
-							<div className="ml-3 mt-0.5 font-sans text-[10px] text-muted-foreground">
+							<div className="ml-3 mt-0.5 font-sans text-2xs text-muted-foreground">
 								{info.description}
 							</div>
 						)}

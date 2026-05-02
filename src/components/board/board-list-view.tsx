@@ -521,13 +521,13 @@ function ListRowContent({ card }: { card: ListCard }) {
 							{tags.slice(0, 2).map((tag) => (
 								<span
 									key={tag}
-									className="rounded-full border border-border px-1.5 text-[0.625rem] leading-4 text-muted-foreground"
+									className="rounded-full border border-border px-1.5 text-2xs leading-4 text-muted-foreground"
 								>
 									{tag}
 								</span>
 							))}
 							{tags.length > 2 && (
-								<span className="text-[0.625rem] text-muted-foreground">+{tags.length - 2}</span>
+								<span className="text-2xs text-muted-foreground">+{tags.length - 2}</span>
 							)}
 						</div>
 					)}

@@ -48,7 +48,7 @@ export function ServerStatusPill() {
 					target="_blank"
 					rel="noopener noreferrer"
 					aria-label={ariaLabel}
-					className="hidden items-center gap-1.5 rounded-full border bg-background/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-flex"
+					className="hidden items-center gap-1.5 rounded-full border bg-background/50 px-2 py-0.5 font-mono text-2xs text-muted-foreground sm:inline-flex"
 				>
 					{isOutdated ? (
 						<span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" />

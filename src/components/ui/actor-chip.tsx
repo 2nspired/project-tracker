@@ -47,7 +47,7 @@ export function ActorChip({
 					<User className={sizes.icon} />
 				</span>
 			)}
-			{showName && <span className="truncate text-[0.625rem] font-medium leading-4">{label}</span>}
+			{showName && <span className="truncate text-2xs font-medium leading-4">{label}</span>}
 		</span>
 	);
 }

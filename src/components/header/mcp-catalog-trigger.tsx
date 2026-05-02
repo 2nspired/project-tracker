@@ -105,7 +105,7 @@ function TriggerButton({ open, ...props }: { open: boolean } & React.ComponentPr
 		>
 			<Command className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
 			<span className="hidden sm:inline">Commands</span>
-			<kbd className="hidden rounded bg-muted px-1 py-0.5 font-mono text-[10px] sm:inline">?</kbd>
+			<kbd className="hidden rounded bg-muted px-1 py-0.5 font-mono text-2xs sm:inline">?</kbd>
 		</button>
 	);
 }
