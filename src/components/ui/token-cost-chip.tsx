@@ -31,7 +31,7 @@ export function TokenCostChip({
 		<Badge
 			variant={variant}
 			title={tooltip}
-			className={cn("font-mono text-[10px] tabular-nums", className)}
+			className={cn("font-mono text-2xs tabular-nums", className)}
 		>
 			{formatted}
 		</Badge>

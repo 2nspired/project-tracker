@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Changed
+
+- Migrate 6 `text-[10px]` sites to `text-2xs` for type-scale consistency (#258). Touched `src/app/(main)/layout.tsx`, `src/components/ui/token-cost-chip.tsx`, `src/components/ui/pigeon-overhead-chip.tsx`, `src/components/layout/server-status-pill.tsx`, `src/components/header/mcp-catalog-popover.tsx`, `src/components/header/mcp-catalog-trigger.tsx`. The seventh site flagged on the card — `src/components/roadmap/progress-ring.tsx`'s `text-[8px]` SVG ring label — was left as an arbitrary value and annotated with a `design-system:` comment because no `text-3xs` token exists on `main` (adding tokens is out of scope for this PR). Remaining `text-[0.5rem]` / `text-[0.625rem]` rem-based sites are out of scope (card scoped to integer-px sites only).
+
 ## [6.2.0] — 2026-05-02
 
 Consolidation sprint cut under a feature freeze. v6.2 was scoped from a project audit (#253) that ran the codebase + docs against the Pigeon ICP (Rudy: indie dev running parallel projects, plus Product Owners) and surfaced the friction points that survived v6.1.0 — duplicated docs, drifting prose-level tool counts, dead Costs sub-components, the un-executed `AGENTS.md` / `AGENT-GUIDE.md` split, scope-creep on the Costs page, and a handful of small Costs-surface bugs that contradicted each other across BoardPulse / Costs page / setup dialog. The release theme is **Quality, Consistency & Architecture**: no headline new feature, just every audit-flagged adoption blocker resolved or explicitly deferred with a documented reason. Audit healthScore moved 62% → 80% (#256).

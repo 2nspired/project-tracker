@@ -56,6 +56,7 @@ export function ProgressRing({
 				}
 			/>
 			{/* Center percentage text */}
+			{/* design-system: SVG ring label needs sub-token sizing; intrinsic to the visual (no text-3xs token defined) */}
 			<text
 				x={size / 2}
 				y={size / 2}
