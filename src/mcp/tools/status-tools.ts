@@ -32,6 +32,7 @@ export async function generateStatusMarkdown(
 										select: { completed: true },
 									},
 									milestone: { select: { id: true, name: true } },
+									cardTags: { include: { tag: { select: { label: true } } } },
 								},
 							},
 						},
@@ -48,9 +49,9 @@ export async function generateStatusMarkdown(
 	// Flatten all cards across all boards
 	const allCards = project.boards.flatMap((b) =>
 		b.columns.flatMap((col) =>
-			col.cards.map((card) => ({
+			col.cards.map(({ cardTags, ...card }) => ({
 				...card,
-				tags: JSON.parse(card.tags) as string[],
+				tags: cardTags.map((ct) => ct.tag.label),
 				columnName: col.name,
 				columnRole: col.role,
 				horizon: getHorizon(col),

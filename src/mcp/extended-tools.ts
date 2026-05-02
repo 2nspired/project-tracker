@@ -110,6 +110,7 @@ registerExtendedTool("getCard", {
 					relationsTo: {
 						include: { fromCard: { select: { id: true, number: true, title: true } } },
 					},
+					cardTags: { include: { tag: { select: { label: true } } } },
 				},
 			});
 			if (!card) return err("Card not found.");
@@ -164,7 +165,7 @@ registerExtendedTool("getCard", {
 					title: card.title,
 					description: card.description,
 					priority: card.priority,
-					tags: JSON.parse(card.tags),
+					tags: card.cardTags.map((ct) => ct.tag.label),
 					createdBy: card.createdBy,
 					milestone: card.milestone,
 					column: card.column.name,
@@ -390,7 +391,6 @@ registerExtendedTool("bulkCreateCards", {
 						title: input.title as string,
 						description: input.description as string | undefined,
 						priority: (input.priority as string) ?? "NONE",
-						tags: JSON.stringify(tagResolution.applied ? tagResolution.labels : []),
 						milestoneId:
 							milestoneResolution.applied && milestoneResolution.milestoneId !== null
 								? milestoneResolution.milestoneId
@@ -544,11 +544,21 @@ registerExtendedTool("createCardFromTemplate", {
 					title: fullTitle,
 					description: tmpl.description,
 					priority: tmpl.priority,
-					tags: JSON.stringify(tmpl.tags),
 					createdBy: "AGENT",
 					position: (maxPos._max.position ?? -1) + 1,
 				},
 			});
+
+			// Resolve template tags via the same path the other write paths use,
+			// then sync through the CardTag junction.
+			if (tmpl.tags.length > 0) {
+				const templateTagResolution = await resolveTagsForWrite(db, board.projectId, {
+					tags: tmpl.tags,
+				});
+				if (templateTagResolution.ok && templateTagResolution.applied) {
+					await syncCardTags(db, card.id, templateTagResolution.tagIds);
+				}
+			}
 
 			for (let i = 0; i < tmpl.checklist.length; i++) {
 				await db.checklistItem.create({
@@ -758,12 +768,14 @@ registerExtendedTool("bulkUpdateCards", {
 					where: { id },
 					data: {
 						priority: input.priority as string | undefined,
-						tags: tagResolution.applied ? JSON.stringify(tagResolution.labels) : undefined,
 						milestoneId: milestoneResolution.applied ? milestoneResolution.milestoneId : undefined,
 						metadata: mergedMetadata,
 						lastEditedBy: AGENT_NAME,
 					},
-					include: { milestone: { select: { name: true } } },
+					include: {
+						milestone: { select: { name: true } },
+						cardTags: { include: { tag: { select: { label: true } } } },
+					},
 				});
 
 				if (tagResolution.applied) {
@@ -774,11 +786,16 @@ registerExtendedTool("bulkUpdateCards", {
 				if (meta?._deprecated) {
 					for (const m of meta._deprecated) deprecatedSeen.add(m);
 				}
+				// Prefer the freshly applied label set when tags changed; otherwise
+				// echo back the existing CardTag join.
+				const responseTags = tagResolution.applied
+					? tagResolution.labels
+					: card.cardTags.map((ct) => ct.tag.label);
 				updated.push({
 					ref: `#${card.number}`,
 					title: card.title,
 					priority: card.priority,
-					tags: JSON.parse(card.tags),
+					tags: responseTags,
 					milestone: card.milestone?.name ?? null,
 					...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
 					...(meta?._didYouMean ? { _didYouMean: meta._didYouMean } : {}),
@@ -1556,6 +1573,7 @@ registerExtendedTool("getWorkNextSuggestion", {
 									checklists: { select: { completed: true } },
 									relationsTo: { where: { type: "blocks" }, select: { id: true } },
 									relationsFrom: { where: { type: "blocks" }, select: { id: true } },
+									cardTags: { include: { tag: { select: { label: true } } } },
 								},
 							},
 						},
@@ -1581,7 +1599,7 @@ registerExtendedTool("getWorkNextSuggestion", {
 							_blocksOtherCount: card.relationsFrom.length,
 						}),
 						isBlocked: card.relationsTo.length > 0,
-						tags: JSON.parse(card.tags) as string[],
+						tags: card.cardTags.map((ct) => ct.tag.label),
 					}))
 				)
 				.sort((a, b) => b.score - a.score);

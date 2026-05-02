@@ -147,24 +147,22 @@ registerExtendedTool("queryCards", {
 				include: {
 					column: { select: { name: true } },
 					milestone: { select: { name: true } },
+					cardTags: { include: { tag: { select: { label: true } } } },
 					_count: { select: { relationsTo: { where: { type: "blocks" } } } },
 				},
 				take: limit as number,
 				orderBy: { updatedAt: "desc" },
 			});
 
-			// Post-filter: tags (cards that have ALL specified tags)
+			// Post-filter: tags (cards that have ALL specified tags). Compares
+			// against the canonical CardTag join — slug match is the cheaper
+			// path, but the public API speaks labels so we match those.
 			let filtered = cards;
 			if (tags && (tags as string[]).length > 0) {
 				const requiredTags = tags as string[];
 				filtered = filtered.filter((card) => {
-					let cardTags: string[] = [];
-					try {
-						cardTags = JSON.parse(card.tags) as string[];
-					} catch {
-						return false;
-					}
-					return requiredTags.every((t) => cardTags.includes(t));
+					const cardTagLabels = card.cardTags.map((ct) => ct.tag.label);
+					return requiredTags.every((t) => cardTagLabels.includes(t));
 				});
 			}
 
@@ -184,7 +182,7 @@ registerExtendedTool("queryCards", {
 					title: card.title,
 					priority: card.priority,
 					column: card.column.name,
-					tags: JSON.parse(card.tags) as string[],
+					tags: card.cardTags.map((ct) => ct.tag.label),
 					milestone: card.milestone?.name ?? null,
 					updatedAt: card.updatedAt,
 				})),
@@ -241,6 +239,7 @@ registerExtendedTool("auditBoard", {
 								include: {
 									checklists: { select: { id: true } },
 									milestone: { select: { name: true } },
+									cardTags: { select: { tagId: true } },
 								},
 							},
 						},
@@ -261,14 +260,7 @@ registerExtendedTool("auditBoard", {
 				.filter((c) => c.priority === "NONE")
 				.map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
 			const missingTags = allCards
-				.filter((c) => {
-					try {
-						const t = JSON.parse(c.tags);
-						return !Array.isArray(t) || t.length === 0;
-					} catch {
-						return true;
-					}
-				})
+				.filter((c) => c.cardTags.length === 0)
 				.map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
 			const noMilestone = allCards
 				.filter((c) => !c.milestone)

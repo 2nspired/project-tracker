@@ -120,6 +120,7 @@ export function registerResources(server: McpServer) {
 								include: {
 									checklists: { select: { text: true, completed: true } },
 									milestone: { select: { name: true } },
+									cardTags: { include: { tag: { select: { label: true } } } },
 								},
 							},
 						},
@@ -139,7 +140,7 @@ export function registerResources(server: McpServer) {
 						ref: `#${c.number}`,
 						title: c.title,
 						priority: c.priority,
-						tags: JSON.parse(c.tags),
+						tags: c.cardTags.map((ct) => ct.tag.label),
 						milestone: c.milestone?.name ?? null,
 						checklist: `${c.checklists.filter((cl) => cl.completed).length}/${c.checklists.length}`,
 					})),
@@ -183,6 +184,7 @@ export function registerResources(server: McpServer) {
 					},
 					column: { select: { name: true } },
 					milestone: { select: { name: true } },
+					cardTags: { include: { tag: { select: { label: true } } } },
 					relationsFrom: { include: { toCard: { select: { number: true, title: true } } } },
 					relationsTo: { include: { fromCard: { select: { number: true, title: true } } } },
 				},
@@ -197,7 +199,7 @@ export function registerResources(server: McpServer) {
 				priority: card.priority,
 				column: card.column.name,
 				milestone: card.milestone?.name ?? null,
-				tags: JSON.parse(card.tags),
+				tags: card.cardTags.map((ct) => ct.tag.label),
 				checklist: card.checklists,
 				comments: card.comments.map((c) => ({
 					content: c.content,

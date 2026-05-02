@@ -104,6 +104,7 @@ export async function loadCardContext(
 			},
 			milestone: { select: { id: true, name: true } },
 			column: { select: { name: true, role: true } },
+			cardTags: { include: { tag: { select: { label: true, slug: true } } } },
 			relationsFrom: {
 				include: {
 					toCard: { select: { id: true, number: true, title: true, priority: true } },
@@ -138,16 +139,19 @@ export async function loadCardContext(
 		};
 	});
 
-	const cardTags: string[] = JSON.parse(card.tags);
+	const cardTags: string[] = card.cardTags.map((ct) => ct.tag.label);
+	const cardTagSlugs: string[] = card.cardTags.map((ct) => ct.tag.slug);
 	let relatedCards: CardContextPayload["relatedCards"] = [];
-	if (card.milestoneId || cardTags.length > 0) {
+	if (card.milestoneId || cardTagSlugs.length > 0) {
 		const candidates = await db.card.findMany({
 			where: {
 				id: { not: cardId },
 				column: { boardId },
 				OR: [
 					...(card.milestoneId ? [{ milestoneId: card.milestoneId }] : []),
-					...(cardTags.length > 0 ? cardTags.map((t) => ({ tags: { contains: t } })) : []),
+					...(cardTagSlugs.length > 0
+						? [{ cardTags: { some: { tag: { slug: { in: cardTagSlugs } } } } }]
+						: []),
 				],
 			},
 			select: {

@@ -64,6 +64,7 @@ registerExtendedTool("getBoard", {
 								include: {
 									checklists: { orderBy: { position: "asc" } },
 									milestone: { select: { id: true, name: true } },
+									cardTags: { include: { tag: { select: { label: true } } } },
 									_count: { select: { comments: true } },
 								},
 							},
@@ -125,6 +126,7 @@ registerExtendedTool("getBoard", {
 					description: summaryMode ? undefined : col.description,
 					isParking: col.isParking,
 					cards: col.cards.map((card) => {
+						const tags = card.cardTags.map((ct) => ct.tag.label);
 						if (summaryMode) {
 							const msProgress = card.milestone ? milestoneProgress.get(card.milestone.id) : null;
 							return {
@@ -132,7 +134,7 @@ registerExtendedTool("getBoard", {
 								ref: `#${card.number}`,
 								title: card.title,
 								priority: card.priority,
-								tags: JSON.parse(card.tags),
+								tags,
 								milestone: card.milestone?.name ?? null,
 								...(msProgress && {
 									milestoneProgress: `${Math.round((msProgress.done / msProgress.total) * 100)}%`,
@@ -150,7 +152,7 @@ registerExtendedTool("getBoard", {
 							title: card.title,
 							description: card.description,
 							priority: card.priority,
-							tags: JSON.parse(card.tags),
+							tags,
 							createdBy: card.createdBy,
 							lastEditedBy: card.lastEditedBy,
 							milestone: card.milestone

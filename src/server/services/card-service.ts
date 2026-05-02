@@ -69,7 +69,8 @@ async function listByColumn(columnId: string): Promise<ServiceResult<Card[]>> {
 
 async function getById(cardId: string): Promise<
 	ServiceResult<
-		Card & {
+		Omit<Card, "tags"> & {
+			tags: string[];
 			checklists: Array<{ id: string; text: string; completed: boolean; position: number }>;
 			comments: Array<{
 				id: string;
@@ -120,6 +121,7 @@ async function getById(cardId: string): Promise<
 				relationsFrom: { include: { toCard: { select: { id: true, number: true, title: true } } } },
 				relationsTo: { include: { fromCard: { select: { id: true, number: true, title: true } } } },
 				gitLinks: { orderBy: { commitDate: "desc" }, take: 20 },
+				cardTags: { include: { tag: { select: { label: true, slug: true } } } },
 			},
 		});
 		if (!card) {
@@ -128,13 +130,17 @@ async function getById(cardId: string): Promise<
 
 		const staleMap = await findStaleInProgress(db, card.column.boardId);
 		const info = staleMap.get(card.id);
-		const { column: _column, ...cardWithoutColumn } = card;
+		// Project CardTag → tags: string[] for the API surface; UI expects an
+		// array of labels rather than the junction rows.
+		const { column: _column, cardTags, ...cardWithoutColumn } = card;
+		const tags = cardTags.map((ct) => ct.tag.label);
 		const enriched = info
 			? {
 					...cardWithoutColumn,
+					tags,
 					stale: { days: info.days, lastSignalAt: info.lastSignalAt.toISOString() },
 				}
-			: cardWithoutColumn;
+			: { ...cardWithoutColumn, tags };
 		return { success: true, data: enriched };
 	} catch (error) {
 		console.error("[CARD_SERVICE] getById error:", error);
@@ -157,9 +163,9 @@ async function create(data: CreateCardInput): Promise<ServiceResult<Card>> {
 		// Resolve legacy tag inputs into canonical (tagId, label) pairs BEFORE
 		// the transaction — resolveOrCreate has its own writes and shouldn't
 		// nest inside the card-create tx.
-		const { tagIds, labels } = data.tags?.length
+		const { tagIds } = data.tags?.length
 			? await resolveLegacyTagsForWeb(db, projectId, data.tags)
-			: { tagIds: [], labels: [] };
+			: { tagIds: [] };
 
 		// Wrap position + number + create in a transaction to prevent race conditions
 		const card = await db.$transaction(async (tx) => {
@@ -183,9 +189,6 @@ async function create(data: CreateCardInput): Promise<ServiceResult<Card>> {
 					title: data.title,
 					description: data.description,
 					priority: data.priority,
-					// Sync the legacy JSON column with canonical labels so reads
-					// that haven't been migrated to the junction stay coherent.
-					tags: JSON.stringify(labels),
 					createdBy: data.createdBy,
 					dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
 					milestoneId: data.milestoneId ?? undefined,
@@ -226,19 +229,31 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 
 		// Resolve tags up front (writes to Tag table happen here).
 		const tagsApplied = data.tags !== undefined;
-		const { tagIds, labels } = tagsApplied
+		const { tagIds } = tagsApplied
 			? await resolveLegacyTagsForWeb(db, existing.projectId, data.tags ?? [])
-			: { tagIds: [], labels: [] };
-		const nextTags = tagsApplied ? JSON.stringify(labels) : undefined;
+			: { tagIds: [] };
 		const nextDueDate =
 			data.dueDate !== undefined ? (data.dueDate ? new Date(data.dueDate) : null) : undefined;
 		const nextMilestoneId = data.milestoneId !== undefined ? data.milestoneId : undefined;
+
+		// Detect tag-set churn by comparing existing CardTag rows to the resolved
+		// target set; a length mismatch or any new tagId triggers a re-sync.
+		let tagsChanged = false;
+		if (tagsApplied) {
+			const existingCardTags = await db.cardTag.findMany({
+				where: { cardId },
+				select: { tagId: true },
+			});
+			const existingIds = new Set(existingCardTags.map((ct) => ct.tagId));
+			tagsChanged =
+				existingIds.size !== tagIds.length || tagIds.some((id) => !existingIds.has(id));
+		}
 
 		const changed =
 			(data.title !== undefined && data.title !== existing.title) ||
 			(data.description !== undefined && data.description !== existing.description) ||
 			(data.priority !== undefined && data.priority !== existing.priority) ||
-			(nextTags !== undefined && nextTags !== existing.tags) ||
+			tagsChanged ||
 			(nextDueDate !== undefined &&
 				(nextDueDate?.getTime() ?? null) !==
 					(existing.dueDate ? new Date(existing.dueDate).getTime() : null)) ||
@@ -255,7 +270,6 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 					title: data.title,
 					description: data.description,
 					priority: data.priority,
-					tags: nextTags,
 					dueDate: nextDueDate,
 					milestoneId: nextMilestoneId,
 					lastEditedBy: "HUMAN",
@@ -387,7 +401,8 @@ async function deleteCard(cardId: string): Promise<ServiceResult<Card>> {
 async function listAll(filters?: { priority?: string; tag?: string; search?: string }): Promise<
 	ServiceResult<
 		Array<
-			Card & {
+			Omit<Card, "tags"> & {
+				tags: string[];
 				column: {
 					name: string;
 					role: string | null;
@@ -411,9 +426,8 @@ async function listAll(filters?: { priority?: string; tag?: string; search?: str
 				{ description: { contains: filters.search } },
 			];
 		}
-		// v4.2: filter through the CardTag junction by normalized slug. Pre-v4.2
-		// data (cards whose JSON `tags` column hasn't been migrated yet) won't
-		// match — the migrateTags MCP tool backfills the junction in one shot.
+		// Filter through the CardTag junction by normalized slug — the v4.2 →
+		// v5 migration dropped the legacy JSON column, so this is the only path.
 		if (filters?.tag && filters.tag !== "ALL") {
 			const slug = slugifyTag(filters.tag);
 			if (slug) {
@@ -433,12 +447,18 @@ async function listAll(filters?: { priority?: string; tag?: string; search?: str
 				},
 				milestone: { select: { id: true, name: true } },
 				checklists: { select: { completed: true } },
+				cardTags: { include: { tag: { select: { label: true } } } },
 			},
 			orderBy: { updatedAt: "desc" },
 			take: 200,
 		});
 
-		return { success: true, data: cards };
+		const projected = cards.map(({ cardTags, ...rest }) => ({
+			...rest,
+			tags: cardTags.map((ct) => ct.tag.label),
+		}));
+
+		return { success: true, data: projected };
 	} catch (error) {
 		console.error("[CARD_SERVICE] listAll error:", error);
 		return { success: false, error: { code: "LIST_FAILED", message: "Failed to fetch cards." } };

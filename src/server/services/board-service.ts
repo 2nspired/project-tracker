@@ -86,8 +86,6 @@ async function getById(boardId: string): Promise<ServiceResult<Board>> {
 	}
 }
 
-type FullBoard = Awaited<ReturnType<typeof getFullBoardData>>;
-
 async function getFullBoardData(boardId: string) {
 	return db.board.findUnique({
 		where: { id: boardId },
@@ -102,6 +100,7 @@ async function getFullBoardData(boardId: string) {
 							checklists: { orderBy: { position: "asc" } },
 							milestone: { select: { id: true, name: true, targetDate: true } },
 							relationsTo: { where: { type: "blocks" }, select: { id: true } },
+							cardTags: { include: { tag: { select: { label: true } } } },
 							_count: { select: { comments: true } },
 						},
 					},
@@ -111,11 +110,19 @@ async function getFullBoardData(boardId: string) {
 	});
 }
 
-type FullBoardCard = NonNullable<FullBoard>["columns"][number]["cards"][number];
-type FullBoardWithStale = NonNullable<FullBoard> & {
+type FullBoardRaw = NonNullable<Awaited<ReturnType<typeof getFullBoardData>>>;
+type FullBoardRawCard = FullBoardRaw["columns"][number]["cards"][number];
+// `tags` is projected from the CardTag join into a plain string[] on the API
+// surface; consumers don't see the junction rows directly. The cardTags
+// property is dropped from the output to keep the shape lean.
+type FullBoardCard = Omit<FullBoardRawCard, "cardTags"> & {
+	tags: string[];
+	stale?: { days: number; lastSignalAt: string };
+};
+type FullBoardWithStale = Omit<FullBoardRaw, "columns"> & {
 	columns: Array<
-		NonNullable<FullBoard>["columns"][number] & {
-			cards: Array<FullBoardCard & { stale?: { days: number; lastSignalAt: string } }>;
+		Omit<FullBoardRaw["columns"][number], "cards"> & {
+			cards: FullBoardCard[];
 		}
 	>;
 };
@@ -132,11 +139,12 @@ async function getFull(boardId: string): Promise<ServiceResult<FullBoardWithStal
 			...board,
 			columns: board.columns.map((col) => ({
 				...col,
-				cards: col.cards.map((card) => {
+				cards: col.cards.map(({ cardTags, ...card }) => {
+					const tags = cardTags.map((ct) => ct.tag.label);
 					const info = staleMap.get(card.id);
 					return info
-						? { ...card, stale: { days: info.days, lastSignalAt: info.lastSignalAt.toISOString() } }
-						: card;
+						? { ...card, tags, stale: { days: info.days, lastSignalAt: info.lastSignalAt.toISOString() } }
+						: { ...card, tags };
 				}),
 			})),
 		};

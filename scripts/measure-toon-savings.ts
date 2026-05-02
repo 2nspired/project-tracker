@@ -24,6 +24,7 @@ async function main() {
 						include: {
 							checklists: { orderBy: { position: "asc" } },
 							milestone: { select: { id: true, name: true } },
+							cardTags: { include: { tag: { select: { label: true } } } },
 							_count: { select: { comments: true } },
 						},
 					},
@@ -52,7 +53,7 @@ async function main() {
 					title: card.title,
 					description: card.description,
 					priority: card.priority,
-					tags: JSON.parse(card.tags),
+					tags: card.cardTags.map((ct) => ct.tag.label),
 					createdBy: card.createdBy,
 					lastEditedBy: card.lastEditedBy,
 					milestone: card.milestone,
@@ -82,7 +83,7 @@ async function main() {
 					ref: `#${card.number}`,
 					title: card.title,
 					priority: card.priority,
-					tags: JSON.parse(card.tags),
+					tags: card.cardTags.map((ct) => ct.tag.label),
 					milestone: card.milestone?.name ?? null,
 					checklist: {
 						total: card.checklists.length,

@@ -300,9 +300,6 @@ server.registerTool(
 						title,
 						description,
 						priority,
-						// Card.tags JSON column stays synced through v4.2 with the
-						// canonical labels from the resolved Tag rows; dropped in v5.
-						tags: JSON.stringify(tagResolution.applied ? tagResolution.labels : []),
 						milestoneId:
 							milestoneResolution.applied && milestoneResolution.milestoneId !== null
 								? milestoneResolution.milestoneId
@@ -447,13 +444,14 @@ server.registerTool(
 						title,
 						description,
 						priority,
-						// Sync the legacy JSON column when tags were touched; leave alone otherwise.
-						tags: tagResolution.applied ? JSON.stringify(tagResolution.labels) : undefined,
 						milestoneId: milestoneResolution.applied ? milestoneResolution.milestoneId : undefined,
 						metadata: mergedMetadata,
 						lastEditedBy: AGENT_NAME,
 					},
-					include: { milestone: { select: { name: true } } },
+					include: {
+						milestone: { select: { name: true } },
+						cardTags: { include: { tag: { select: { label: true } } } },
+					},
 				});
 
 				if (tagResolution.applied) {
@@ -471,6 +469,9 @@ server.registerTool(
 				});
 
 				const meta = buildTaxonomyMeta(tagResolution, milestoneResolution);
+				const responseTags = tagResolution.applied
+					? tagResolution.labels
+					: card.cardTags.map((ct) => ct.tag.label);
 				return ok({
 					id: card.id,
 					ref: `#${card.number}`,
@@ -479,7 +480,7 @@ server.registerTool(
 					lastEditedBy: card.lastEditedBy,
 					fields: {
 						priority: card.priority,
-						tags: JSON.parse(card.tags),
+						tags: responseTags,
 						milestone: card.milestone?.name ?? null,
 						metadata: JSON.parse(card.metadata),
 					},
@@ -1732,6 +1733,7 @@ registerPromptTracked(
 							include: {
 								checklists: true,
 								milestone: { select: { id: true, name: true } },
+								cardTags: { include: { tag: { select: { label: true } } } },
 								_count: { select: { comments: true } },
 							},
 						},
@@ -1755,7 +1757,7 @@ registerPromptTracked(
 				title: c.title,
 				description: c.description?.substring(0, 200),
 				priority: c.priority,
-				tags: JSON.parse(c.tags),
+				tags: c.cardTags.map((ct) => ct.tag.label),
 				milestone: c.milestone?.name ?? null,
 				checklist: `${c.checklists.filter((i) => i.completed).length}/${c.checklists.length}`,
 			})),
