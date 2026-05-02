@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { editDistance as nameDistance, slugify as slugifyName } from "@/lib/slugify";
+import { computeWorkNextScore } from "@/lib/work-next-score";
 import { milestoneService } from "@/server/services/milestone-service";
 import { hasRole } from "../lib/column-roles.js";
 import { db } from "./db.js";
@@ -1527,51 +1528,6 @@ registerExtendedTool("createColumn", {
 
 // ─── Smart Prioritization ──────────────────────────────────────────
 
-const PRIORITY_WEIGHT: Record<string, number> = {
-	URGENT: 5,
-	HIGH: 4,
-	MEDIUM: 3,
-	LOW: 2,
-	NONE: 0,
-};
-
-function computeScore(card: {
-	priority: string;
-	updatedAt: Date;
-	dueDate: Date | null;
-	checklists: Array<{ completed: boolean }>;
-	blockedByCount: number;
-	blocksOtherCount: number;
-}): number {
-	const ageDays = Math.floor(
-		(Date.now() - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24)
-	);
-
-	if (card.blockedByCount > 0) return -100 + (PRIORITY_WEIGHT[card.priority] ?? 0);
-
-	let score = (PRIORITY_WEIGHT[card.priority] ?? 0) * 30;
-	score += Math.min(ageDays, 14) * 2;
-	score += card.blocksOtherCount * 15;
-
-	if (card.dueDate) {
-		const daysUntilDue = Math.floor(
-			(new Date(card.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-		);
-		if (daysUntilDue < 0) score += 50;
-		else if (daysUntilDue <= 1) score += 40;
-		else if (daysUntilDue <= 3) score += 25;
-		else if (daysUntilDue <= 7) score += 10;
-	}
-
-	const total = card.checklists.length;
-	if (total > 0) {
-		const done = card.checklists.filter((c) => c.completed).length;
-		score += Math.round((done / total) * 10);
-	}
-
-	return score;
-}
-
 registerExtendedTool("getWorkNextSuggestion", {
 	category: "discovery",
 	description:
@@ -1616,13 +1572,13 @@ registerExtendedTool("getWorkNextSuggestion", {
 						title: card.title,
 						priority: card.priority,
 						column: col.name,
-						score: computeScore({
+						score: computeWorkNextScore({
 							priority: card.priority,
 							updatedAt: card.updatedAt,
 							dueDate: card.dueDate,
 							checklists: card.checklists,
-							blockedByCount: card.relationsTo.length,
-							blocksOtherCount: card.relationsFrom.length,
+							_blockedByCount: card.relationsTo.length,
+							_blocksOtherCount: card.relationsFrom.length,
 						}),
 						isBlocked: card.relationsTo.length > 0,
 						tags: JSON.parse(card.tags) as string[],
