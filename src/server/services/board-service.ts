@@ -143,7 +143,11 @@ async function getFull(boardId: string): Promise<ServiceResult<FullBoardWithStal
 					const tags = cardTags.map((ct) => ct.tag.label);
 					const info = staleMap.get(card.id);
 					return info
-						? { ...card, tags, stale: { days: info.days, lastSignalAt: info.lastSignalAt.toISOString() } }
+						? {
+								...card,
+								tags,
+								stale: { days: info.days, lastSignalAt: info.lastSignalAt.toISOString() },
+							}
 						: { ...card, tags };
 				}),
 			})),

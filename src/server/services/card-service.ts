@@ -245,8 +245,7 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 				select: { tagId: true },
 			});
 			const existingIds = new Set(existingCardTags.map((ct) => ct.tagId));
-			tagsChanged =
-				existingIds.size !== tagIds.length || tagIds.some((id) => !existingIds.has(id));
+			tagsChanged = existingIds.size !== tagIds.length || tagIds.some((id) => !existingIds.has(id));
 		}
 
 		const changed =
