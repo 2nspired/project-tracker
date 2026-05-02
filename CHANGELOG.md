@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Removed
+
+- **Artificial 50–150ms dev-mode delay on every tRPC call + production timing log noise** (#234). `src/server/api/trpc.ts`'s `timingMiddleware` previously injected a `Math.floor(Math.random() * 100) + 50` ms `setTimeout` before forwarding any request when `t._config.isDev` was true (a t3-stack template artifact intended to simulate network latency for SaaS staging environments) and emitted a `console.log("[TRPC] {path} took {N}ms to execute")` on **every** request in **all** environments — including the launchd background service, where the line landed in `service:logs` for every board poll, sparkline render, and SSE-fallback request. Pigeon is local-first; there is no network hop to simulate and the unconditional log was diagnostic-free noise (no path filter, no slow-call threshold). Fix: drop the `if (t._config.isDev) { … setTimeout … }` block entirely (dev tRPC calls now run at native speed), and gate the timing `console.log` behind the same `t._config.isDev` check so production / launchd-service logs stay clean while the dev surface still gets per-request timing if needed. Closes #234.
+
 ### Added
 
 - **Pricing-table column headers now carry hover tooltips** (#226). Each header on the Costs page's `<PricingOverrideTable>` (`Model` / `Input/MTok` / `Output/MTok` / `Cache Read/MTok` / `Cache 1h/MTok` / `Cache 5m/MTok`) renders as a `<Tooltip>` trigger with a one-sentence explanation of what the rate represents — input vs. output, prompt cache read vs. write, 5m vs. 1h cache lifetime — so a first-time user doesn't have to cross-reference Anthropic API docs to read the table. Trigger is a keyboard-focusable `<button type="button">` (a11y) with a dotted underline + `cursor-help` cue; tooltip content caps at `max-w-xs` (320px). Mobile is unaffected (the desktop header row hides at `<sm` breakpoints; mobile uses inline labels next to each cell value). Closes #226. (#226)
