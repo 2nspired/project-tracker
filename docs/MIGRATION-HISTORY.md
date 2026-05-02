@@ -48,7 +48,7 @@ Legacy `tags` / `milestoneName` paths still work as of v6.0.0 but emit `_depreca
 | `mergeTags({ fromTagId, intoTagId })` | Admin cleanup — rewrites all CardTag rows from `from` to `into`, then deletes the source. |
 | `deleteTag({ tagId })` | Hard-delete a tag — **only when zero cards reference it**. Non-orphan deletes return `USAGE_NOT_ZERO`; merge first. Atomic against concurrent CardTag inserts (#170). |
 | `mergeMilestones({ fromMilestoneId, intoMilestoneId })` | Admin cleanup — rewrites Card.milestoneId from `from` to `into`, then deletes the source. |
-| `migrateTags()` | One-shot idempotent backfill from the legacy JSON column to the Tag + CardTag junction. Composes with `migrateProjectPrompt`. |
+| `migrateTags()` | One-shot idempotent backfill from the legacy JSON column to the Tag + CardTag junction. Composes with `migrateProjectPrompt`. **Removed in v6.2 (#227)** alongside the `Card.tags` column drop — historical only. |
 | `updateMilestone({ ..., state: "archived" })` | New `state` field — archived milestones are hidden from the picker by default but kept in the schema. |
 
 `listMilestones` returns `_governanceHints` per milestone (singletons > 60 days, near-name neighbours within slug Levenshtein 2). Use these as signal for a one-time human triage pass with `mergeMilestones` / `updateMilestone({ state: "archived" })` — milestones are dedupe-by-judgment, not dedupe-by-rule.
