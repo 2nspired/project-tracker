@@ -108,6 +108,24 @@ export const tokenUsageRouter = createTRPCRouter({
 			return result.data;
 		}),
 
+	getDailyCostShareSeries: publicProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				boardId: z.string().uuid(),
+			})
+		)
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getDailyCostShareSeries(
+				input.projectId,
+				input.boardId
+			);
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
+
 	getDiagnostics: publicProcedure.query(async () => {
 		const result = await tokenUsageService.getDiagnostics();
 		if (!result.success) {

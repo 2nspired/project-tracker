@@ -1221,6 +1221,87 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		}
 	}
 
+	// 7-element share series: this board's % of project cost per UTC day
+	// (#212). Mirrors `getDailyCostSeries`'s bucketing so the sparkline
+	// indices align with cost sparkline indices on the same strip.
+	//
+	// Edge cases:
+	//   - Project bucket is 0 → ratio = 0 (NaN-safe; no `0/0` div).
+	//   - Board bucket > 0 in a day where project bucket is also 0 cannot
+	//     happen by construction (board events are a subset of project
+	//     events scoped through `resolveBoardScopeWhere`).
+	//
+	// Returns ratios in [0, 1]. The session-expansion rule means board
+	// totals can equal project totals on a given day (a session that
+	// touched cards on this board contributes its full cost to both
+	// numerator and denominator), so 1.0 is a valid value, not an error.
+	async function getDailyCostShareSeries(
+		projectId: string,
+		boardId: string
+	): Promise<ServiceResult<{ dailyShare: number[] }>> {
+		try {
+			const now = new Date();
+			const todayUtcMidnightMs = Date.UTC(
+				now.getUTCFullYear(),
+				now.getUTCMonth(),
+				now.getUTCDate()
+			);
+			const windowStart = new Date(todayUtcMidnightMs - 6 * 24 * 60 * 60 * 1000);
+
+			const boardWhere = await resolveBoardScopeWhere(projectId, boardId);
+			const [projectEvents, boardEvents, pricing] = await Promise.all([
+				prisma.tokenUsageEvent.findMany({
+					where: { projectId, recordedAt: { gte: windowStart } },
+					select: {
+						sessionId: true,
+						model: true,
+						inputTokens: true,
+						outputTokens: true,
+						cacheReadTokens: true,
+						cacheCreation1hTokens: true,
+						cacheCreation5mTokens: true,
+						recordedAt: true,
+					},
+				}),
+				prisma.tokenUsageEvent.findMany({
+					where: { ...boardWhere, recordedAt: { gte: windowStart } },
+					select: {
+						sessionId: true,
+						model: true,
+						inputTokens: true,
+						outputTokens: true,
+						cacheReadTokens: true,
+						cacheCreation1hTokens: true,
+						cacheCreation5mTokens: true,
+						recordedAt: true,
+					},
+				}),
+				loadPricing(),
+			]);
+
+			const projectByDay = new Array<number>(7).fill(0);
+			const boardByDay = new Array<number>(7).fill(0);
+			const dayMs = 24 * 60 * 60 * 1000;
+			for (const event of projectEvents) {
+				const i = Math.floor((event.recordedAt.getTime() - windowStart.getTime()) / dayMs);
+				if (i >= 0 && i < 7) projectByDay[i] += computeCost(event, pricing);
+			}
+			for (const event of boardEvents) {
+				const i = Math.floor((event.recordedAt.getTime() - windowStart.getTime()) / dayMs);
+				if (i >= 0 && i < 7) boardByDay[i] += computeCost(event, pricing);
+			}
+
+			const dailyShare = projectByDay.map((p, i) => (p > 0 ? boardByDay[i] / p : 0));
+			return { success: true, data: { dailyShare } };
+		} catch (error) {
+			console.error("[TOKEN_USAGE_SERVICE] getDailyCostShareSeries error:", error);
+			return {
+				success: false,
+				error: { code: "QUERY_FAILED", message: "Failed to load daily cost share series." },
+			};
+		}
+	}
+
 	// ─── Setup diagnostics ─────────────────────────────────────────────
 
 	async function getDiagnostics(): Promise<ServiceResult<SetupDiagnostics>> {
@@ -1587,6 +1668,7 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		getCardSummary,
 		getMilestoneSummary,
 		getDailyCostSeries,
+		getDailyCostShareSeries,
 		getDiagnostics,
 		getPricing,
 		updatePricing,

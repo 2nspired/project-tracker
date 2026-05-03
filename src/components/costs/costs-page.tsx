@@ -30,37 +30,43 @@ type CostsPageProps = {
 
 // Client component owning the data fetches for the Costs page.
 //
-// Board-scope plumbing (#200) was deferred in #225 — the page renders
-// project-wide regardless of `?board=` until card-attribution of Stop-hook
-// events is automated. The `boardId` prop is preserved on `CostsPageProps`
-// (route plumbing unchanged) but ignored by the data fetches and child
-// rendering. `?from=` continues to drive the breadcrumb's first-segment
-// back-link via `fromBoard`. The deep-dive lenses (`<SavingsSection>`,
-// `<PigeonOverheadSection>`, `<CardDeliverySection>`) along with their
-// backing tRPC procedures were removed in #236 — the page now renders
-// just `<SummaryStrip>` and `<PricingOverrideTable>`.
+// Board scope (#200) was deferred in #225 pending automatic card
+// attribution. With #268/#269 shipping the Attribution Engine, that
+// gating reason is satisfied — board scope is re-enabled in #212.
+// `?board=<id>` narrows queries to that board (session-expansion rule
+// applies, so `boardA + boardB > project` is *expected* — see
+// `resolveBoardScopeWhere`'s doc). `?from=<boardId>` continues to drive
+// only the breadcrumb back-link.
 export function CostsPage({
 	projectId,
 	projectName,
-	boardId: _boardId,
+	boardId,
 	boardName: _boardName,
 	boards,
 	fromBoard,
 }: CostsPageProps) {
-	// Board scope deferred until card-attribution is automated (#225). Until
-	// then this page renders project-wide regardless of `?board=`. The
-	// `boardId` prop is preserved on `CostsPageProps` (route plumbing
-	// unchanged) but ignored here for data + child rendering. `?from=`
-	// continues to drive the breadcrumb's first-segment back-link via
-	// `fromBoard`. Re-enable board scope once `attributeSession` runs
-	// automatically on Stop-hook fire so events have `cardId` set and
-	// board-scoped queries return meaningful data.
 	const { data: projectSummary, isLoading: summaryLoading } =
-		api.tokenUsage.getProjectSummary.useQuery({ projectId }, { staleTime: 60_000 });
+		api.tokenUsage.getProjectSummary.useQuery({ projectId, boardId }, { staleTime: 60_000 });
 	const { data: dailyCost, isLoading: dailyLoading } = api.tokenUsage.getDailyCostSeries.useQuery(
-		{ projectId },
+		{ projectId, boardId },
 		{ staleTime: 60_000 }
 	);
+	// Project-wide summary is needed in board mode for the share denominator
+	// (#212). When `boardId` is undefined we skip the second query — `enabled`
+	// gates the fetch and `projectSummary` itself becomes the project-wide
+	// number that `<SummaryStrip>` reads.
+	const { data: projectWideSummary } = api.tokenUsage.getProjectSummary.useQuery(
+		{ projectId },
+		{ staleTime: 60_000, enabled: !!boardId }
+	);
+	// 7-day share sparkline (#212) — only fetched in board mode. Drives the
+	// inline sparkline next to the Board's-share percentage cell.
+	const { data: dailyShare } = api.tokenUsage.getDailyCostShareSeries.useQuery(
+		// biome-ignore lint/style/noNonNullAssertion: gated by `enabled`
+		{ projectId, boardId: boardId! },
+		{ staleTime: 60_000, enabled: !!boardId }
+	);
+	// Top-N expensive sessions lens (#211).
 	const { data: topSessions } = api.tokenUsage.getTopSessions.useQuery(
 		{ projectId, limit: 10 },
 		{ staleTime: 60_000 }
@@ -78,13 +84,16 @@ export function CostsPage({
 			<CostsBreadcrumb
 				projectId={projectId}
 				boards={boards}
-				currentBoardId={null}
+				currentBoardId={boardId ?? null}
 				fromBoard={fromBoard}
 			/>
 
 			<div>
 				<h1 className="text-2xl font-bold tracking-tight">Costs</h1>
-				<p className="text-sm text-muted-foreground">Token usage and spend for {projectName}.</p>
+				<p className="text-sm text-muted-foreground">
+					Token usage and spend for {projectName}
+					{boardId ? ` · scoped to ${boards.find((b) => b.id === boardId)?.name ?? "board"}` : ""}.
+				</p>
 			</div>
 
 			{isLoading ? (
@@ -112,7 +121,13 @@ export function CostsPage({
 				</EmptyState>
 			) : projectSummary && dailyCost ? (
 				<>
-					<SummaryStrip projectSummary={projectSummary} dailyCost={dailyCost} />
+					<SummaryStrip
+						projectSummary={projectSummary}
+						dailyCost={dailyCost}
+						boardId={boardId}
+						projectWideSummary={projectWideSummary}
+						dailyShare={dailyShare?.dailyShare}
+					/>
 					<UnattributedGapCard projectSummary={projectSummary} />
 					{topSessions ? (
 						<TopSessionsSection topSessions={topSessions} projectId={projectId} />

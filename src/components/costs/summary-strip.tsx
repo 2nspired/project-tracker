@@ -24,6 +24,14 @@ type SummaryStripProps = {
 	 * stays.
 	 */
 	projectWideSummary?: ProjectSummary;
+	/**
+	 * Optional 7-element share series (board cost / project cost per UTC
+	 * day) — drives the inline sparkline next to the Board's-share
+	 * percentage in board mode (#212). Indices align with `dailyCost`'s
+	 * `dailyCostUsd`. Pass `undefined` to render the cell without a
+	 * sparkline (loading state or pre-#212 callsites).
+	 */
+	dailyShare?: number[];
 };
 
 // Top-of-page summary for the Costs view. Four cells (lifetime cost,
@@ -46,6 +54,7 @@ export function SummaryStrip({
 	dailyCost,
 	boardId,
 	projectWideSummary,
+	dailyShare,
 }: SummaryStripProps) {
 	const lifetimeCost = projectSummary.totalCostUsd;
 	const weekCost = dailyCost.weekTotalCostUsd;
@@ -78,9 +87,20 @@ export function SummaryStrip({
 
 			{inBoardMode ? (
 				<Cell label="Board's share">
-					<span className="font-mono text-2xl tabular-nums">
-						{formatBoardShare(projectSummary.totalCostUsd, projectWideSummary.totalCostUsd)}
-					</span>
+					<div className="flex items-baseline gap-2">
+						<span className="font-mono text-2xl tabular-nums">
+							{formatBoardShare(projectSummary.totalCostUsd, projectWideSummary.totalCostUsd)}
+						</span>
+						{dailyShare && dailyShare.length === 7 ? (
+							<Sparkline
+								data={dailyShare}
+								strokeClassName="stroke-violet-500"
+								fillClassName="fill-violet-500/10"
+								dotClassName="fill-violet-500"
+								label="Daily share sparkline"
+							/>
+						) : null}
+					</div>
 				</Cell>
 			) : (
 				<Cell label="Tracking since">
