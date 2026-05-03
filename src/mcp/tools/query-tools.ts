@@ -1,10 +1,13 @@
 import { z } from "zod";
-import { findStaleInProgress } from "@/lib/services/stale-cards";
-import { hasRole } from "../../lib/column-roles.js";
-import { editDistance } from "../../lib/slugify.js";
+import { createBoardAuditService } from "@/lib/services/board-audit";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { err, errWithToolHint, ok, safeExecute } from "../utils.js";
+
+// MCP-bound singleton for the shared board-audit factory. The web side
+// has its own singleton in `src/server/services/board-audit-service.ts`
+// — this is the MCP-process equivalent (decision a5a4cde6).
+const boardAuditService = createBoardAuditService(db);
 
 // ─── Smart Queries ────────────────────────────────────────────────
 
@@ -216,154 +219,29 @@ registerExtendedTool("auditBoard", {
 	annotations: { readOnlyHint: true },
 	handler: ({ boardId, excludeDone, weights: rawWeights }) =>
 		safeExecute(async () => {
-			const w = (rawWeights ?? {
-				priority: 1,
-				tags: 1,
-				milestone: 1,
-				checklist: 1,
-				staleInProgress: 1,
-			}) as {
-				priority: number;
-				tags: number;
-				milestone: number;
-				checklist: number;
-				staleInProgress: number;
-			};
-			const board = await db.board.findUnique({
-				where: { id: boardId as string },
-				include: {
-					columns: {
-						orderBy: { position: "asc" },
-						include: {
-							cards: {
-								include: {
-									checklists: { select: { id: true } },
-									milestone: { select: { name: true } },
-									cardTags: { select: { tagId: true } },
-								},
-							},
-						},
-					},
-				},
+			// Delegate to the shared service factory (#173). The factory owns
+			// every detail of the previous inline implementation; this thin
+			// shim translates the ServiceResult contract back to the MCP
+			// `ok()` / `err()` envelopes. The response shape is FROZEN — agent
+			// callers depend on it unchanged.
+			const result = await boardAuditService.auditBoard(boardId as string, {
+				excludeDone: excludeDone as boolean,
+				weights: rawWeights as
+					| {
+							priority: number;
+							tags: number;
+							milestone: number;
+							checklist: number;
+							staleInProgress: number;
+					  }
+					| undefined,
 			});
-			if (!board)
-				return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
-
-			let columns = board.columns;
-			if (excludeDone) {
-				columns = columns.filter((col) => !hasRole(col, "done") && !hasRole(col, "parking"));
-			}
-
-			const allCards = columns.flatMap((col) => col.cards.map((c) => ({ ...c, column: col.name })));
-
-			const missingPriority = allCards
-				.filter((c) => c.priority === "NONE")
-				.map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
-			const missingTags = allCards
-				.filter((c) => c.cardTags.length === 0)
-				.map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
-			const noMilestone = allCards
-				.filter((c) => !c.milestone)
-				.map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
-			const emptyChecklist = allCards
-				.filter((c) => c.checklists.length === 0)
-				.map((c) => ({ ref: `#${c.number}`, title: c.title, column: c.column }));
-
-			const staleMap = await findStaleInProgress(db, boardId as string);
-			const staleInProgress = allCards
-				.filter((c) => staleMap.has(c.id))
-				.map((c) => {
-					const info = staleMap.get(c.id);
-					if (!info) return null;
-					return { ref: `#${c.number}`, title: c.title, column: c.column, days: info.days };
-				})
-				.filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-
-			// ─── Taxonomy-level signals (#163) ────────────────────────────
-			// Project-scoped checks that surface drift between explicit
-			// `mergeTags`/`updateMilestone` runs. Same response shape rules
-			// as the card-level sections above: count + array of items.
-			const { projectId } = board;
-
-			const tagsWithUsage = await db.tag.findMany({
-				where: { projectId },
-				select: {
-					slug: true,
-					label: true,
-					_count: { select: { cardTags: true } },
-				},
-			});
-
-			const singleUseTags = tagsWithUsage
-				.filter((t) => t._count.cardTags === 1)
-				.map((t) => ({ slug: t.slug, label: t.label }));
-
-			const slugs = tagsWithUsage.map((t) => t.slug);
-			const nearMissTagPairs: Array<{ a: string; b: string; distance: number }> = [];
-			for (let i = 0; i < slugs.length; i++) {
-				for (let j = i + 1; j < slugs.length; j++) {
-					const d = editDistance(slugs[i], slugs[j], 2);
-					if (d <= 2) {
-						nearMissTagPairs.push({ a: slugs[i], b: slugs[j], distance: d });
-					}
+			if (!result.success) {
+				if (result.error.code === "NOT_FOUND") {
+					return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
 				}
+				return err(result.error.message);
 			}
-
-			const activeMilestones = await db.milestone.findMany({
-				where: { projectId, state: "active" },
-				select: {
-					name: true,
-					cards: {
-						select: { column: { select: { role: true, name: true } } },
-					},
-				},
-			});
-
-			const staleActiveMilestones = activeMilestones
-				.filter((m) => {
-					if (m.cards.length === 0) return false;
-					return m.cards.every((c) => hasRole(c.column, "done") || hasRole(c.column, "parking"));
-				})
-				.map((m) => ({ name: m.name, cardCount: m.cards.length }));
-
-			const totalCards = allCards.length;
-			const totalWeight = w.priority + w.tags + w.milestone + w.checklist + w.staleInProgress;
-			const weightedIssues =
-				missingPriority.length * w.priority +
-				missingTags.length * w.tags +
-				noMilestone.length * w.milestone +
-				emptyChecklist.length * w.checklist +
-				staleInProgress.length * w.staleInProgress;
-			const maxScore = totalCards * totalWeight;
-			const healthScore =
-				maxScore > 0 ? `${Math.round(((maxScore - weightedIssues) / maxScore) * 100)}%` : "N/A";
-
-			return ok({
-				totalCards,
-				healthScore,
-				scoring: {
-					weights: w,
-					perDimension: {
-						priority: { issues: missingPriority.length, weight: w.priority },
-						tags: { issues: missingTags.length, weight: w.tags },
-						milestone: { issues: noMilestone.length, weight: w.milestone },
-						checklist: { issues: emptyChecklist.length, weight: w.checklist },
-						staleInProgress: { issues: staleInProgress.length, weight: w.staleInProgress },
-					},
-				},
-				missingPriority: { count: missingPriority.length, cards: missingPriority },
-				missingTags: { count: missingTags.length, cards: missingTags },
-				noMilestone: { count: noMilestone.length, cards: noMilestone },
-				emptyChecklist: { count: emptyChecklist.length, cards: emptyChecklist },
-				staleInProgress: { count: staleInProgress.length, cards: staleInProgress },
-				taxonomy: {
-					singleUseTags: { count: singleUseTags.length, tags: singleUseTags },
-					nearMissTags: { count: nearMissTagPairs.length, pairs: nearMissTagPairs },
-					staleActiveMilestones: {
-						count: staleActiveMilestones.length,
-						milestones: staleActiveMilestones,
-					},
-				},
-			});
+			return ok(result.data);
 		}),
 });

@@ -1,0 +1,230 @@
+---
+title: tRPC API reference
+description: Reference for every tRPC procedure exposed by the Pigeon web app. Used by the React frontend and any tRPC-aware HTTP consumer.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The Pigeon web app exposes its data over **tRPC v11**. This page lists every procedure in the root router, grouped by sub-router, with the input shape and a one-line description. It's reference material — dense and scannable.
+
+If you need MCP tools instead, see [MCP tools](/tools/). The two surfaces sit on top of the same `src/lib/services/` layer (see [Architecture](/architecture/)) but expose different procedure sets — the web UI calls tRPC; agents call MCP.
+
+<Aside type="caution" title="No auth, by design">
+Every procedure is `publicProcedure`. Pigeon is local-first; the web UI and the MCP server both run on your machine and access the same SQLite file. There's no user model, no session cookies, no rate limit. Don't expose `localhost:3100` to the public internet.
+</Aside>
+
+## Routers at a glance
+
+| Router | Concerns | File |
+|---|---|---|
+| [`project`](#project) | Workspaces (one per repo) | `src/server/api/routers/project.ts` |
+| [`board`](#board) | Kanban views inside a project | `src/server/api/routers/board.ts` |
+| [`column`](#column) | Vertical lanes; carry the `role` | `src/server/api/routers/column.ts` |
+| [`card`](#card) | Units of work | `src/server/api/routers/card.ts` |
+| [`checklist`](#checklist) | Sub-card todos | `src/server/api/routers/checklist.ts` |
+| [`comment`](#comment) | Card-scoped narrative | `src/server/api/routers/comment.ts` |
+| [`activity`](#activity) | Append-only audit log | `src/server/api/routers/activity.ts` |
+| [`tag`](#tag) | Project-scoped labels | `src/server/api/routers/tag.ts` |
+| [`milestone`](#milestone) | Card grouping with target date | `src/server/api/routers/milestone.ts` |
+| [`relation`](#relation) | `blocks` / `related` / `parent` between cards | `src/server/api/routers/relation.ts` |
+| [`handoff`](#handoff) | Append-only session continuity | `src/server/api/routers/handoff.ts` |
+| [`decision`](#decision) | Decision claims (legacy adapter over `Claim`) | `src/server/api/routers/decision.ts` |
+| [`note`](#note) | Loose markdown — agent context | `src/server/api/routers/note.ts` |
+| [`tokenUsage`](#tokenusage) | Costs page aggregations | `src/server/api/routers/token-usage.ts` |
+| [`system`](#system) | Version, tool catalog, release notes | `src/server/api/routers/system.ts` |
+
+Composition: `src/server/api/root.ts` glues these into the `appRouter`. Every procedure is exposed at `/api/trpc/<router>.<procedure>` — e.g. `/api/trpc/card.listAll`.
+
+## `project`
+
+Top-level workspace. One per repo.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `list` | query | `{}` | List all projects (sorted favorites-first). |
+| `getById` | query | `{ id: uuid }` | Fetch one project by id. |
+| `create` | mutation | `createProjectSchema` | Create a project (allocates `slug`, `repoPath`, default board). |
+| `update` | mutation | `{ id, data }` | Update name / slug / repoPath / metadata. |
+| `delete` | mutation | `{ id: uuid }` | Cascade-delete project + boards + cards. |
+| `toggleFavorite` | mutation | `{ id: uuid }` | Flip the favorite flag. |
+| `setDefaultBoard` | mutation | `{ projectId, boardId \| null }` | Bind the project's default board (must belong to project). |
+| `seedTutorial` | mutation | `{}` | Seed the Pigeon Tutorial project + board. |
+
+## `board`
+
+A kanban view inside a project. A project can have multiple boards; each holds its own column layout.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `list` | query | `{ projectId }` | List boards in a project. |
+| `getFull` | query | `{ id: uuid }` | Board + columns + cards (the canonical hydrate-everything call). |
+| `create` | mutation | `createBoardSchema` | Create board + default column set. |
+| `update` | mutation | `{ id, data }` | Update name / description / `staleInProgressDays`. |
+| `delete` | mutation | `{ id: uuid }` | Cascade-delete board + columns + cards. |
+
+## `column`
+
+Vertical lanes; carry `role` (`backlog`/`todo`/`active`/`review`/`done`/`parking`).
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `create` | mutation | `createColumnSchema` | Add a column to a board. |
+| `update` | mutation | `{ id, data }` | Rename / re-role / set parking flag. |
+| `reorder` | mutation | `reorderColumnsSchema` | Bulk re-position columns on a board. |
+| `delete` | mutation | `{ id: uuid }` | Delete column (must be empty, or cards reflow). |
+
+## `card`
+
+Units of work. The bulk of the board's surface area.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `listAll` | query | `{ projectId, boardId?, priority?, tag?, search? }` | Filter cards across a project. |
+| `getById` | query | `{ id: uuid }` | Fetch card + comments + checklist + relations. |
+| `create` | mutation | `createCardSchema` | Allocates project-scoped `#N`. |
+| `update` | mutation | `{ id, data }` | Description, priority, milestone, tags, metadata. |
+| `move` | mutation | `{ id, columnId, position, intent? }` | Move between columns (`intent` required per `tracker.md`). |
+| `getCommitSummary` | query | `{ id: uuid }` | Linked commits + paths-touched roll-up. |
+| `delete` | mutation | `{ id: uuid }` | Soft-delete (sets `deletedAt`); `#N` never recycles. |
+
+## `checklist`
+
+Sub-card todos. Lightweight; no nesting.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `create` | mutation | `createChecklistItemSchema` | Add an item to a card. |
+| `update` | mutation | `{ id, data }` | Toggle `completed` or update text/position. |
+| `delete` | mutation | `{ id: uuid }` | Remove an item. |
+
+## `comment`
+
+Card-scoped narrative. Surfaced to the next session via `getCardContext`.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `list` | query | `{ cardId: uuid }` | Comments on a card, oldest-first. |
+| `create` | mutation | `createCommentSchema` | Add a comment (`authorType: HUMAN \| AGENT`). |
+
+## `activity`
+
+Append-only audit log of everything that happened on a card or board.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `list` | query | `{ cardId: uuid }` | Activity rows for one card. |
+| `listByBoard` | query | `{ boardId, limit? }` | Recent activity across a board. |
+| `flowMetrics` | query | `{ boardId }` | Throughput sparkline + cycle-time roll-ups. |
+
+## `tag`
+
+Project-scoped labels. `slug` is immutable, `label` is mutable.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `list` | query | `listTagsSchema` | List tags in a project. |
+| `getById` | query | `{ id: uuid }` | Fetch one tag. |
+| `create` | mutation | `createTagSchema` | Create a tag (allocates slug). |
+| `rename` | mutation | `renameTagSchema` | Rename label without changing slug. |
+| `merge` | mutation | `mergeTagsSchema` | Merge two tags; redirects all `CardTag` rows. |
+| `delete` | mutation | `deleteTagSchema` | Delete tag and unlink from cards. |
+
+## `milestone`
+
+Card grouping with a target date. Release horizon, not a deadline.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `list` | query | `{ projectId, state? }` | List milestones in a project. |
+| `getById` | query | `{ id: uuid }` | Fetch one milestone. |
+| `create` | mutation | `createMilestoneSchema` | Create a milestone with target date + state. |
+| `update` | mutation | `{ id, data }` | Update title / target date / state. |
+| `reorder` | mutation | `reorderMilestonesSchema` | Bulk re-position milestones. |
+| `delete` | mutation | `{ id: uuid }` | Delete milestone; cards get `milestoneId = null`. |
+| `merge` | mutation | `mergeMilestonesSchema` | Merge two milestones; redirects all cards. |
+
+## `relation`
+
+`blocks` / `related` / `parent` edges between cards.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `link` | mutation | `createRelationSchema` | Add a relation `(fromCardId, toCardId, type)`. |
+| `unlink` | mutation | `{ fromCardId, toCardId, type }` | Remove a relation. |
+| `getForCard` | query | `{ cardId: uuid }` | All edges touching a card (incoming + outgoing). |
+| `getBlockers` | query | `{ projectId }` | Cards that are blocked by an open card (graph crawl). |
+
+## `handoff`
+
+Append-only session continuity. Read by `briefMe`, written by `saveHandoff`.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `save` | mutation | `createHandoffSchema` | Append a new handoff (`agentName`, `summary`, `workingOn`, `findings`, `nextSteps`, `blockers`). |
+| `getLatest` | query | `{ projectId, boardId? }` | Most recent handoff for the scope. |
+| `list` | query | `{ projectId, boardId?, limit? }` | History of handoffs. |
+| `getBoardDiff` | query | `{ boardId, sinceHandoffId? }` | What changed since a given handoff (cards moved, created, commented, checklist progress). |
+
+## `decision`
+
+Decision claims. Legacy adapter — there is no `Decision` Prisma model; these are `Claim` rows with `kind = 'decision'`. See [Data model](/data-model/#why-one-claim-table-for-four-kinds).
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `create` | mutation | `createDecisionSchema` | Create a decision-shaped Claim. |
+| `update` | mutation | `{ id, data }` | Update the decision payload. |
+| `getById` | query | `{ id: uuid }` | Fetch one decision. |
+| `list` | query | `{ projectId, cardId?, status? }` | List decisions across a project. |
+| `delete` | mutation | `{ id: uuid }` | Delete a decision (soft on the underlying Claim). |
+
+## `note`
+
+Loose markdown — agent context, ad-hoc capture. Survives project deletion (`onDelete: SetNull`).
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `list` | query | `{ projectId, boardId?, cardId? }` | List notes scoped to a project / board / card. |
+| `create` | mutation | `createNoteSchema` | Create a note. |
+| `update` | mutation | `{ id, data }` | Update title / body / kind. |
+| `delete` | mutation | `{ id: uuid }` | Delete a note. |
+| `promoteToCard` | mutation | `promoteNoteToCardSchema` | Convert a note into a card on the given column. |
+
+## `tokenUsage`
+
+Costs page aggregations. Backed by `src/lib/services/token-usage.ts`. See [Cost tracking](/costs/) for the math behind every section.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `getProjectSummary` | query | `{ projectId, boardId? }` | Headline cells (lifetime cost, sessions, tracking-since) + `attributionBreakdown`. |
+| `getSessionSummary` | query | `{ sessionId }` | One session's cost + token rollup. |
+| `getCardSummary` | query | `{ cardId }` | One card's cost across all attributed sessions. |
+| `getMilestoneSummary` | query | `{ milestoneId }` | Milestone-scoped cost rollup. |
+| `getTopSessions` | query | `{ projectId, boardId?, limit? }` | Top-N most expensive sessions with attributed card. |
+| `getDailyCostSeries` | query | `{ projectId, boardId? }` | 7-day UTC-bucketed cost sparkline. |
+| `getDailyCostShareSeries` | query | `{ projectId, boardId }` | Per-day board's-share-of-project ratio (NaN-safe). |
+| `getDiagnostics` | query | `{}` | Pricing health (last-verified date, default rate sources). |
+| `getPricing` | query | `{}` | Resolved pricing map (defaults + overrides). |
+| `updatePricing` | mutation | `{ projectId, model, rates }` | Per-project rate override. |
+| `getSavingsSummary` | query | `{ projectId }` | briefMe vs naive `getBoard` bootstrap. |
+| `recalibrateBaseline` | mutation | `{ projectId }` | Re-measure both payload sizes; persist to `Project.metadata.tokenBaseline`. |
+| `getSessionPigeonOverhead` | query | `{ sessionId }` | One session's MCP-tool-call overhead. |
+| `getCardPigeonOverhead` | query | `{ cardId }` | One card's MCP-tool-call overhead. |
+| `getCardDeliveryMetrics` | query | `{ projectId, boardId?, limit? }` | Median cost-per-shipped-card + Top-N most expensive cards. |
+| `getProjectPigeonOverhead` | query | `{ projectId, boardId? }` | Project-wide MCP-tool-call overhead (priced at session's first model's `outputPerMTok`). |
+
+## `system`
+
+Version + catalog metadata for the web UI.
+
+| Procedure | Kind | Input | What it does |
+|---|---|---|---|
+| `info` | query | `{}` | `{ version, mode }` (mode is `service` in prod, `dev` in dev). |
+| `toolCatalog` | query | `{}` | The MCP tool catalog + slash-command list (used by the in-app `?` palette). |
+| `versionCheck` | query | `{}` | Local-vs-shipped doctor pass — surfaces drift. |
+| `releaseNotes` | query | `{ version? }` | Parse `CHANGELOG.md` and return entries. |
+
+## See also
+
+- [MCP tools](/tools/) — the agent-facing surface (different procedure set, same service layer).
+- [Architecture](/architecture/) — how `src/server/api/routers/` thin-adapt over `src/lib/services/`.
+- [Cost tracking](/costs/) — the numbers `tokenUsage.*` aggregates over.

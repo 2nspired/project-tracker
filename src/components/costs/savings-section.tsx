@@ -16,6 +16,7 @@
  */
 
 import { useState } from "react";
+import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { Button } from "@/components/ui/button";
 import { formatRelative } from "@/lib/format-date";
 import { api, type RouterOutputs } from "@/trpc/react";
@@ -43,7 +44,13 @@ export function SavingsSection({ projectId, summary }: SavingsSectionProps) {
 			<section className="rounded-md border bg-muted/20 px-5 py-4">
 				<header className="flex items-baseline justify-between gap-4">
 					<div>
-						<h2 className="text-sm font-medium">Pigeon savings</h2>
+						<div className="flex items-center gap-1.5">
+							<h2 className="text-sm font-medium">Pigeon savings</h2>
+							<SectionHelpLink
+								anchor="pigeon-savings"
+								label="How is the savings number calculated?"
+							/>
+						</div>
 						<p className="mt-0.5 text-2xs text-muted-foreground">
 							Compares this project's `briefMe` payload against a naive `getBoard` bootstrap. Run
 							once to populate.

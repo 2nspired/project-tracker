@@ -96,7 +96,7 @@ export function CreateProjectDialog() {
 										key={c}
 										type="button"
 										onClick={() => setColor(c)}
-										className={`h-6 w-6 rounded-full ${COLOR_CLASSES[c].bg} transition-all ${
+										className={`h-6 w-6 rounded-full ${COLOR_CLASSES[c].bg} transition-[transform,box-shadow] ${
 											color === c
 												? "ring-2 ring-ring ring-offset-2 ring-offset-background"
 												: "hover:scale-110"

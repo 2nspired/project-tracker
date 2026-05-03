@@ -8,6 +8,7 @@ import {
 	coerceRateValue,
 	validateNewModelName,
 } from "@/components/costs/pricing-override-validation";
+import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { LoadingRow } from "@/components/ui/skeleton";
 import { StepSection } from "@/components/ui/step-section";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -150,7 +151,14 @@ export function PricingOverrideTable({ projectId: _projectId, projectSummary }: 
 
 	if (isLoading || !pricing) {
 		return (
-			<StepSection title="Pricing">
+			<StepSection
+				title={
+					<span className="inline-flex items-center gap-1.5">
+						Pricing
+						<SectionHelpLink anchor="pricing-model" label="How does pricing work?" />
+					</span>
+				}
+			>
 				<LoadingRow text="Loading pricing…" />
 			</StepSection>
 		);
@@ -257,7 +265,14 @@ export function PricingOverrideTable({ projectId: _projectId, projectSummary }: 
 	const isSaving = updatePricing.isPending;
 
 	return (
-		<StepSection title="Pricing">
+		<StepSection
+			title={
+				<span className="inline-flex items-center gap-1.5">
+					Pricing
+					<SectionHelpLink anchor="pricing-model" label="How does pricing work?" />
+				</span>
+			}
+		>
 			<VerifiedBanner />
 
 			{/* Visually a table; semantically a stack of labelled rows. We
@@ -530,7 +545,7 @@ function RateCell({
 				name={field}
 				className={cn(
 					"font-mono text-2xs tabular-nums w-20 bg-transparent border-b focus:outline-none",
-					isOverridden ? "border-b-violet-500" : "border-border/50",
+					isOverridden ? "border-b-accent-violet" : "border-border/50",
 					"focus:border-foreground/50"
 				)}
 			/>

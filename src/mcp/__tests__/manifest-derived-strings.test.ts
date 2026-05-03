@@ -33,7 +33,10 @@ describe("manifest-derived user-facing strings (#187)", () => {
 		});
 
 		it("does not contain the old hand-maintained 'N MCP prompts are available (...)' literal", () => {
+			// Guard against re-introducing the historical hand-maintained string in
+			// either its original (resume-session) or post-#169 (resume-board) form.
 			expect(SERVER_TS).not.toMatch(/"7 MCP prompts are available \(resume-session, onboarding/);
+			expect(SERVER_TS).not.toMatch(/"7 MCP prompts are available \(resume-board, onboarding/);
 		});
 	});
 

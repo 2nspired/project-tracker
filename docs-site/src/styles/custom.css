@@ -3,12 +3,13 @@
  *
  * Aesthetic: operator-grade engineering manual. Drafting paper grid,
  * mono numerals on metadata, asymmetric type pairing (Geist sans for
- * voice, Geist mono for instruments). Indigo accent does the lifting;
+ * voice, Geist mono for instruments). Violet accent does the lifting
+ * (unified with the app's --accent-violet, see src/app/globals.css);
  * everything else is grayscale on a tinted-paper substrate.
  *
  * Both themes are first-class:
  *   light = warm-tinted technical paper
- *   dark  = oscilloscope/CRT — near-black with phosphor indigo
+ *   dark  = oscilloscope/CRT — near-black with phosphor violet
  *
  * Token layers:
  *   1. Typography scale (4-pt grid, clamp-fluid)
@@ -65,29 +66,35 @@
 	--space-8: 4.5rem;
 	--space-9: 6rem;
 
-	/* ---------- Accent (indigo) -- preserved from previous palette ----- */
-	--sl-color-accent-low: oklch(0.92 0.05 264);
-	--sl-color-accent: oklch(0.488 0.243 264.376);
-	--sl-color-accent-high: oklch(0.35 0.2 264);
-	--sl-color-text-accent: oklch(0.488 0.243 264.376);
+	/* ---------- Accent (violet) — unified with app's --accent-violet ----
+	   See src/app/globals.css. Decision 5b791ce0 / card #281: docs-site
+	   adopts the app's violet hue (oklch ~295) so a single accent vocab
+	   spans the product surface and the docs surface. */
+	--sl-color-accent-low: oklch(0.92 0.05 295);
+	--sl-color-accent: oklch(0.55 0.21 295);
+	--sl-color-accent-high: oklch(0.40 0.18 295);
+	--sl-color-text-accent: oklch(0.55 0.21 295);
 
 	/* color of foreground when sitting on the accent bg */
-	--cta-on-accent: oklch(0.99 0.01 264);
+	--cta-on-accent: oklch(0.99 0.01 295);
 
-	/* ---------- Substrate tokens (theme-aware) -------------------------- */
-	--paper-grid: oklch(0.488 0.243 264.376 / 0.045);
+	/* ---------- Substrate tokens (theme-aware) --------------------------
+	   Paper-grid alpha is nudged down (0.045 → 0.04) because violet has
+	   slightly higher perceived chroma than the previous indigo at the
+	   same alpha; this keeps grid intensity matched to the prior look. */
+	--paper-grid: oklch(0.55 0.21 295 / 0.04);
 	--paper-grain: oklch(0.2 0 0 / 0.025);
 }
 
 :root[data-theme="dark"] {
-	--sl-color-accent-low: oklch(0.28 0.12 264);
-	--sl-color-accent: oklch(0.62 0.2 264);
-	--sl-color-accent-high: oklch(0.82 0.08 264);
-	--sl-color-text-accent: oklch(0.72 0.16 264);
+	--sl-color-accent-low: oklch(0.30 0.10 295);
+	--sl-color-accent: oklch(0.62 0.18 295);
+	--sl-color-accent-high: oklch(0.82 0.08 295);
+	--sl-color-text-accent: oklch(0.7 0.18 295);
 
-	--cta-on-accent: oklch(0.16 0.04 264);
+	--cta-on-accent: oklch(0.16 0.04 295);
 
-	--paper-grid: oklch(0.72 0.16 264 / 0.06);
+	--paper-grid: oklch(0.7 0.18 295 / 0.05);
 	--paper-grain: oklch(1 0 0 / 0.02);
 }
 

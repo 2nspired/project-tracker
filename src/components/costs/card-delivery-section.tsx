@@ -15,6 +15,15 @@
  * model-output spend per card.
  */
 
+import { ChevronDown } from "lucide-react";
+import { SectionHelpLink } from "@/components/costs/section-help-link";
+import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatCost } from "@/lib/format-cost";
 import type { RouterOutputs } from "@/trpc/react";
 
@@ -23,35 +32,79 @@ type Metrics = RouterOutputs["tokenUsage"]["getCardDeliveryMetrics"];
 type CardDeliverySectionProps = {
 	metrics: Metrics;
 	projectId: string;
+	boardId?: string;
 };
 
-export function CardDeliverySection({ metrics, projectId }: CardDeliverySectionProps) {
+// Build the `?projectId=…&format=…&boardId=…` query string consumed by
+// `/api/export/costs`. Centralized here so the dropdown's two items stay
+// in sync — no ad-hoc string concat at each click site.
+function exportHref(projectId: string, format: "csv" | "md", boardId?: string): string {
+	const params = new URLSearchParams({ projectId, format });
+	if (boardId) params.set("boardId", boardId);
+	return `/api/export/costs?${params.toString()}`;
+}
+
+export function CardDeliverySection({ metrics, projectId, boardId }: CardDeliverySectionProps) {
 	if (metrics.topCards.length === 0) return null;
 
 	return (
 		<section className="space-y-3">
 			<header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
 				<div>
-					<h2 className="text-sm font-medium">Card delivery</h2>
+					<div className="flex items-center gap-1.5">
+						<h2 className="text-sm font-medium">Card delivery</h2>
+						<SectionHelpLink
+							anchor="card-delivery"
+							label="How are card delivery metrics calculated?"
+						/>
+					</div>
 					<p className="text-2xs text-muted-foreground">
 						Per-card spend across attributed sessions. Direct attribution only (post-#269).
 					</p>
 				</div>
-				{metrics.medianShippedCardCostUsd !== null ? (
-					<div className="text-right">
-						<div className="font-mono text-2xl tabular-nums">
-							{formatCost(metrics.medianShippedCardCostUsd)}
+				<div className="flex items-baseline gap-3">
+					{metrics.medianShippedCardCostUsd !== null ? (
+						<div className="text-right">
+							<div className="font-mono text-2xl tabular-nums">
+								{formatCost(metrics.medianShippedCardCostUsd)}
+							</div>
+							<div className="text-2xs text-muted-foreground">
+								median across {metrics.shippedCardCount}{" "}
+								{metrics.shippedCardCount === 1 ? "shipped card" : "shipped cards"}
+							</div>
 						</div>
-						<div className="text-2xs text-muted-foreground">
-							median across {metrics.shippedCardCount}{" "}
-							{metrics.shippedCardCount === 1 ? "shipped card" : "shipped cards"}
+					) : (
+						<div className="text-right text-2xs text-muted-foreground">
+							No shipped cards yet — median will populate once a Done-column card has attributed
+							cost.
 						</div>
-					</div>
-				) : (
-					<div className="text-right text-2xs text-muted-foreground">
-						No shipped cards yet — median will populate once a Done-column card has attributed cost.
-					</div>
-				)}
+					)}
+					{/* #136 — download menu. Plain `<a download>` per spec; the
+					    Route Handler emits `Content-Disposition: attachment` so
+					    the browser handles the save dialog without a client
+					    fetch. `boardId` mirrors the Costs page scope (export
+					    follows what's on screen). */}
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="outline" size="sm">
+								Export
+								<ChevronDown className="ml-1 h-3 w-3" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem asChild>
+								<a href={exportHref(projectId, "csv", boardId)} download>
+									Download CSV
+								</a>
+							</DropdownMenuItem>
+							<DropdownMenuItem asChild>
+								<a href={exportHref(projectId, "md", boardId)} download>
+									Download Markdown
+								</a>
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
 			</header>
 
 			<div className="overflow-hidden rounded-md border">

@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { Sparkline } from "@/components/ui/sparkline";
 import { formatCost } from "@/lib/format-cost";
 import { formatRelative } from "@/lib/format-date";
@@ -63,53 +64,49 @@ export function SummaryStrip({
 	const inBoardMode = !!boardId && !!projectWideSummary;
 
 	return (
-		<dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-			<Cell label="Lifetime cost">
-				<span className="font-mono text-2xl tabular-nums">{formatCost(lifetimeCost)}</span>
-			</Cell>
+		<section className="space-y-2">
+			<header className="flex items-center gap-1.5">
+				<h2 className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+					Summary
+				</h2>
+				<SectionHelpLink anchor="summary-strip" label="How is the summary strip calculated?" />
+			</header>
+			<dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+				<Cell label="Lifetime cost">
+					<span className="font-mono text-2xl tabular-nums">{formatCost(lifetimeCost)}</span>
+				</Cell>
 
-			<Cell label="Last 7 days">
-				<div className="flex items-baseline gap-2">
-					<span className="font-mono text-2xl tabular-nums">{formatCost(weekCost)}</span>
-					<Sparkline
-						data={dailyCost.dailyCostUsd}
-						strokeClassName="stroke-violet-500"
-						fillClassName="fill-violet-500/10"
-						dotClassName="fill-violet-500"
-						label="Daily cost sparkline"
-					/>
-				</div>
-			</Cell>
-
-			<Cell label="Sessions">
-				<span className="font-mono text-2xl tabular-nums">{sessionCount}</span>
-			</Cell>
-
-			{inBoardMode ? (
-				<Cell label="Board's share">
+				<Cell label="Last 7 days">
 					<div className="flex items-baseline gap-2">
-						<span className="font-mono text-2xl tabular-nums">
-							{formatBoardShare(projectSummary.totalCostUsd, projectWideSummary.totalCostUsd)}
-						</span>
-						{dailyShare && dailyShare.length === 7 ? (
-							<Sparkline
-								data={dailyShare}
-								strokeClassName="stroke-violet-500"
-								fillClassName="fill-violet-500/10"
-								dotClassName="fill-violet-500"
-								label="Daily share sparkline"
-							/>
-						) : null}
+						<span className="font-mono text-2xl tabular-nums">{formatCost(weekCost)}</span>
+						<Sparkline data={dailyCost.dailyCostUsd} tone="cost" label="Daily cost sparkline" />
 					</div>
 				</Cell>
-			) : (
-				<Cell label="Tracking since">
-					<span className="text-sm text-muted-foreground">
-						{trackingSince ? formatRelative(trackingSince) : "—"}
-					</span>
+
+				<Cell label="Sessions">
+					<span className="font-mono text-2xl tabular-nums">{sessionCount}</span>
 				</Cell>
-			)}
-		</dl>
+
+				{inBoardMode ? (
+					<Cell label="Board's share">
+						<div className="flex items-baseline gap-2">
+							<span className="font-mono text-2xl tabular-nums">
+								{formatBoardShare(projectSummary.totalCostUsd, projectWideSummary.totalCostUsd)}
+							</span>
+							{dailyShare && dailyShare.length === 7 ? (
+								<Sparkline data={dailyShare} tone="cost" label="Daily share sparkline" />
+							) : null}
+						</div>
+					</Cell>
+				) : (
+					<Cell label="Tracking since">
+						<span className="text-sm text-muted-foreground">
+							{trackingSince ? formatRelative(trackingSince) : "—"}
+						</span>
+					</Cell>
+				)}
+			</dl>
+		</section>
 	);
 }
 

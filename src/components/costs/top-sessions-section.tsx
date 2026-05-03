@@ -15,6 +15,7 @@
  * Hidden when there are zero sessions.
  */
 
+import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { formatCost } from "@/lib/format-cost";
 import { formatRelativeCompact } from "@/lib/format-date";
 import type { RouterOutputs } from "@/trpc/react";
@@ -32,7 +33,10 @@ export function TopSessionsSection({ topSessions, projectId }: TopSessionsSectio
 	return (
 		<section className="space-y-3">
 			<header>
-				<h2 className="text-sm font-medium">Top sessions by cost</h2>
+				<div className="flex items-center gap-1.5">
+					<h2 className="text-sm font-medium">Top sessions by cost</h2>
+					<SectionHelpLink anchor="top-sessions" label="How are top sessions calculated?" />
+				</div>
 				<p className="text-2xs text-muted-foreground">
 					The {topSessions.length === 1 ? "session" : `${topSessions.length} sessions`} that
 					accounted for the most spend. Click an attributed card to dive in.

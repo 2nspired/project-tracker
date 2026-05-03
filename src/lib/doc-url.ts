@@ -17,3 +17,13 @@ export function slashCommandDocUrl(commandName: string): string {
 	const anchor = commandName.replace(/^\//, "");
 	return `${base}/slash-commands/#${anchor}`;
 }
+
+// Costs explainer (#276) — the per-section "How is this calculated?"
+// helper deep-links from each Costs page section header to the matching
+// anchor on `/costs`. Anchor is Starlight's slugified heading; e.g. the
+// `## Pricing model` heading becomes `#pricing-model`. Pass `""` for
+// the page root.
+export function costsExplainerUrl(anchor = ""): string {
+	const base = process.env.NEXT_PUBLIC_DOCS_BASE ?? DEFAULT_DOCS_BASE;
+	return anchor ? `${base}/costs/#${anchor}` : `${base}/costs/`;
+}

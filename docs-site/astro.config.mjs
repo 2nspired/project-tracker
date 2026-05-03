@@ -58,6 +58,9 @@ export default defineConfig({
 				},
 			],
 			customCss: ["./src/styles/custom.css"],
+			components: {
+				Footer: "./src/components/SiteFooter.astro",
+			},
 			sidebar: [
 				{
 					label: "Start here",
@@ -83,13 +86,23 @@ export default defineConfig({
 					],
 				},
 				{
+					label: "Architecture",
+					items: [
+						{ label: "Three-layer architecture", slug: "architecture" },
+						{ label: "Data model", slug: "data-model" },
+						{ label: "Attribution engine", slug: "attribution" },
+					],
+				},
+				{
 					label: "Reference",
 					items: [
 						{ label: "MCP tools", slug: "tools" },
+						{ label: "tRPC API", slug: "api" },
 						{ label: "Slash commands", slug: "slash-commands" },
 						{ label: "Cost tracking", slug: "costs" },
 						{ label: "Integration — /api/state", slug: "integration" },
 						{ label: "Troubleshooting", slug: "troubleshooting" },
+						{ label: "Changelog", slug: "changelog" },
 					],
 				},
 			],

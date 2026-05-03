@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest an idea or improvement.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Lead with the problem, not the solution — it makes the conversation easier.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What's the user-facing pain or gap? Who hits it, and when?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Sketch the shape of the fix. UI, API, MCP tool, doc — whatever applies.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you weighed, and why this one wins.
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mockups, related cards, prior art, anything else.
+    validations:
+      required: false

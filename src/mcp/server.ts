@@ -714,13 +714,13 @@ server.registerTool(
 			if (state === "returning") {
 				options.push({
 					action:
-						"Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer",
+						"Use MCP prompt 'resume-board' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer",
 					description: "Continue where you left off",
 				});
 			} else if (state === "existing") {
 				options.push({
 					action:
-						"Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer",
+						"Use MCP prompt 'resume-board' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer",
 					description: "Start working on a board",
 				});
 			}
@@ -1237,9 +1237,9 @@ function registerPromptTracked(...args: Parameters<typeof server.registerPrompt>
 }
 
 registerPromptTracked(
-	"resume-session",
+	"resume-board",
 	{
-		title: "Resume Session",
+		title: "Resume Board",
 		description: "Load board state + last handoff + diff. Use at the start of every conversation.",
 		argsSchema: {
 			boardId: z.string().describe("Board ID"),
@@ -1834,7 +1834,7 @@ registerPromptTracked(
 				const text = [
 					"# Welcome to Pigeon! 🎓",
 					"",
-					`I've created the Learn Pigeon tutorial project for you. Use the **resume-session** prompt with boardId \`${result.boardId}\` to load the board.`,
+					`I've created the Learn Pigeon tutorial project for you. Use the **resume-board** prompt with boardId \`${result.boardId}\` to load the board.`,
 					"",
 					"## What's inside",
 					"",
@@ -1852,7 +1852,7 @@ registerPromptTracked(
 					"",
 					"## Try these",
 					"",
-					`1. \`resume-session\` with boardId \`${result.boardId}\` to load the full board`,
+					`1. \`resume-board\` with boardId \`${result.boardId}\` to load the full board`,
 					"2. Drag card #3 (briefMe) to Done, then pull #4 from Backlog into In Progress",
 					"3. Work cards 4 → 9 top-to-bottom — each one's Try it (agent) call works against this board",
 					"4. When you're done, follow card #10 to graduate",
@@ -1871,7 +1871,7 @@ registerPromptTracked(
 						role: "user" as const,
 						content: {
 							type: "text" as const,
-							text: `Tutorial project already exists. Use **resume-session** with boardId \`${boardId}\` to explore it.`,
+							text: `Tutorial project already exists. Use **resume-board** with boardId \`${boardId}\` to explore it.`,
 						},
 					},
 				],
@@ -1891,7 +1891,7 @@ registerPromptTracked(
 			"Once you tell me the project name, I'll:",
 			"- Create the project with `createProject`",
 			"- The board and columns are created automatically",
-			"- Then use `resume-session` to load the board",
+			"- Then use `resume-board` to load the board",
 			"",
 			"## After setup",
 			"",

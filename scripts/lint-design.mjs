@@ -5,11 +5,16 @@
  *   npm run lint:design                      # check (CI gate)
  *   npm run lint:design -- --update-baseline # rewrite the known-violations baseline (use sparingly)
  *
- * Three rules, all matched by regex against `src/**\/*.{ts,tsx}`:
+ * Five rules, all matched by regex against `src/**\/*.{ts,tsx}`:
  *
  * 1. arbitrary-text-size  : `text-\[\d+(?:px|rem)\]` — bypasses the type scale.
  * 2. raw-priority-color   : `text-(?:emerald|green|amber|orange|red)-\d+` outside priority-colors.ts.
  * 3. raw-animate-pulse    : `animate-pulse` outside the Skeleton primitive.
+ * 4. raw-transition-all   : `transition-all` outside ui/button.tsx — too broad; use an
+ *                           explicit transition list (`transition-[box-shadow,opacity]`,
+ *                           `transition-[width]`, `transition-transform`, …) so layout-y
+ *                           properties don't get pulled into the animation by accident.
+ * 5. raw-violet-class     : `(stroke|fill|bg|border|text)-violet-\d+` — use `--accent-violet` token (`bg-accent-violet`, `stroke-accent-violet`, …) or the <Dot tone="agent"> / <Sparkline tone="cost"> primitives. Allowlisted in `priority-colors.ts` (palette mapping) and `project-colors.ts` (user-pickable project palette).
  *
  * Ratchet pattern (Stripe/Linear): existing violations are recorded in
  * `scripts/design-lint-baseline.json` and ignored. New violations fail the
@@ -45,6 +50,19 @@ const RULES = [
 		pattern: /animate-pulse/g,
 		reason: "use the <Skeleton> primitive from src/components/ui/skeleton.tsx instead of raw animate-pulse",
 		allowFiles: ["src/components/ui/skeleton.tsx"],
+	},
+	{
+		id: "raw-transition-all",
+		pattern: /transition-all\b/g,
+		reason: "use an explicit transition list (transition-[box-shadow,opacity], transition-[width], transition-transform, …) — `transition-all` is too broad and animates layout properties by accident",
+		allowFiles: ["src/components/ui/button.tsx"],
+	},
+	{
+		id: "raw-violet-class",
+		pattern: /(?:stroke|fill|bg|border|text)-violet-\d+/g,
+		reason:
+			"use the --accent-violet token (`bg-accent-violet`, `stroke-accent-violet`, …) or the <Dot tone=\"agent\"> / <Sparkline tone=\"cost\"> primitives instead of raw violet-* classes",
+		allowFiles: ["src/lib/priority-colors.ts", "src/lib/project-colors.ts"],
 	},
 ];
 

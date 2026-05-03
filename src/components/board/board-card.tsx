@@ -88,7 +88,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 			role="button"
 			tabIndex={0}
 			data-card-id={card.id}
-			className={`relative cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-ring/20 ${card.stale ? "opacity-60" : ""} ${priority !== "NONE" ? `border-l-[3px] ${PRIORITY_BORDER[priority]}` : ""}`}
+			className={`relative cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-[box-shadow,border-color] hover:shadow-md hover:ring-1 hover:ring-ring/20 ${card.stale ? "opacity-60" : ""} ${priority !== "NONE" ? `border-l-[3px] ${PRIORITY_BORDER[priority]}` : ""}`}
 			onClick={onClick}
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") {

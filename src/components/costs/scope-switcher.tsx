@@ -13,6 +13,7 @@ import {
 	CommandList,
 	CommandSeparator,
 } from "@/components/ui/command";
+import { Dot } from "@/components/ui/dot";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
@@ -60,12 +61,12 @@ export function ScopeSwitcher({ projectId: _projectId, boards, currentBoardId }:
 					className={cn(
 						"inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm transition-colors",
 						activeBoard
-							? "border-violet-500/30 bg-violet-500/[0.06] text-foreground"
+							? "border-accent-violet/30 bg-accent-violet/[0.06] text-foreground"
 							: "border-border bg-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground"
 					)}
 					aria-label={`Scope: ${triggerLabel}`}
 				>
-					{activeBoard ? <ViolaDot /> : null}
+					{activeBoard ? <Dot tone="agent" /> : null}
 					<span className="truncate max-w-[12rem]">{triggerLabel}</span>
 					<ChevronDown className="size-3.5 text-muted-foreground" aria-hidden />
 				</button>
@@ -96,7 +97,7 @@ export function ScopeSwitcher({ projectId: _projectId, boards, currentBoardId }:
 										onSelect={() => navigate(b.id)}
 										className="cursor-pointer"
 									>
-										{active ? <ViolaDot /> : <span className="size-2" aria-hidden />}
+										{active ? <Dot tone="agent" /> : <span className="size-2" aria-hidden />}
 										<span className="flex-1 truncate">{b.name}</span>
 										{active ? <Check className="size-4" /> : null}
 									</CommandItem>
@@ -108,10 +109,6 @@ export function ScopeSwitcher({ projectId: _projectId, boards, currentBoardId }:
 			</PopoverContent>
 		</Popover>
 	);
-}
-
-function ViolaDot() {
-	return <span aria-hidden className="inline-block size-2 rounded-full bg-violet-500" />;
 }
 
 // Pure helper — exported for unit testing. Builds the next URL the

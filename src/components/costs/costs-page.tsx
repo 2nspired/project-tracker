@@ -1,5 +1,7 @@
 "use client";
 
+import { BookOpen } from "lucide-react";
+
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
 import { CostsBreadcrumb } from "@/components/costs/breadcrumb";
 import { CardDeliverySection } from "@/components/costs/card-delivery-section";
@@ -12,6 +14,7 @@ import { UnattributedGapCard } from "@/components/costs/unattributed-gap-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { costsExplainerUrl } from "@/lib/doc-url";
 import { api } from "@/trpc/react";
 
 type LightBoard = { id: string; name: string };
@@ -109,12 +112,31 @@ export function CostsPage({
 				fromBoard={fromBoard}
 			/>
 
-			<div>
-				<h1 className="text-2xl font-bold tracking-tight">Costs</h1>
-				<p className="text-sm text-muted-foreground">
-					Token usage and spend for {projectName}
-					{boardId ? ` · scoped to ${boards.find((b) => b.id === boardId)?.name ?? "board"}` : ""}.
-				</p>
+			<div className="flex items-start justify-between gap-4">
+				<div>
+					<h1 className="text-2xl font-bold tracking-tight">Costs</h1>
+					<p className="text-sm text-muted-foreground">
+						Token usage and spend for {projectName}
+						{boardId ? ` · scoped to ${boards.find((b) => b.id === boardId)?.name ?? "board"}` : ""}
+						.
+					</p>
+				</div>
+				{/* #276 — Resources link. Deep-links to the cost-tracking
+				    explainer in docs-site. Each section below also carries a
+				    `?` icon that targets the matching anchor on the same page
+				    (see `<SectionHelpLink>`). External link by design — the
+				    docs-site is a separate Astro build. */}
+				<Button asChild variant="ghost" size="sm" className="text-muted-foreground">
+					<a
+						href={costsExplainerUrl()}
+						target="_blank"
+						rel="noopener noreferrer"
+						aria-label="How is this calculated? Open the cost-tracking explainer in docs."
+					>
+						<BookOpen className="size-3.5" aria-hidden />
+						How is this calculated?
+					</a>
+				</Button>
 			</div>
 
 			{isLoading ? (
@@ -155,7 +177,7 @@ export function CostsPage({
 					) : null}
 					{pigeonOverhead ? <PigeonOverheadSection overhead={pigeonOverhead} /> : null}
 					{cardDelivery ? (
-						<CardDeliverySection metrics={cardDelivery} projectId={projectId} />
+						<CardDeliverySection metrics={cardDelivery} projectId={projectId} boardId={boardId} />
 					) : null}
 					{topSessions ? (
 						<TopSessionsSection topSessions={topSessions} projectId={projectId} />

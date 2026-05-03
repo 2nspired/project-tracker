@@ -29,7 +29,17 @@ vi.mock("@/mcp/db", () => ({
 		toolCallLog: {
 			create: vi.fn().mockResolvedValue(undefined),
 		},
+		project: {
+			findUnique: vi.fn().mockResolvedValue(null),
+		},
 	},
+}));
+
+// Mock resolveProjectIdFromCwd so instrumentation.ts's per-process
+// projectId resolver doesn't spawn `git rev-parse` in unit tests
+// (#277 — project_id stamping on tool_call_log writes).
+vi.mock("@/lib/services/resolve-project", () => ({
+	resolveProjectIdFromCwd: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock utils err/AGENT_NAME so we don't pull in the rest of utils

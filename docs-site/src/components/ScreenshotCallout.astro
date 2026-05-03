@@ -11,7 +11,7 @@
  * Pure CSS; absolutely positioned overlays. Works at any image
  * aspect ratio because positions are %-based.
  */
-import { Image } from "astro:assets";
+import { Image, getImage } from "astro:assets";
 import type { ImageMetadata } from "astro";
 
 interface Callout {
@@ -25,14 +25,36 @@ interface Callout {
 
 interface Props {
 	src: ImageMetadata;
+	srcDark?: ImageMetadata; // optional dark-mode variant; renders <picture>
 	alt: string;
 	caption?: string; // figure caption (e.g. "FIG.02 — Board view")
 	subcaption?: string; // small text under caption
 	callouts: Callout[];
 }
 
-const { src, alt, caption, subcaption, callouts } = Astro.props;
+const { src, srcDark, alt, caption, subcaption, callouts } = Astro.props;
 const id = `screenshot-${Math.random().toString(36).slice(2, 8)}`;
+
+// When a dark variant is provided, pre-resolve both at the same widths so the
+// <picture> sources line up. Otherwise fall through to the single <Image>.
+const widths = [640, 960, 1280, 1600];
+const sizes = "(min-width: 80rem) 60rem, (min-width: 50rem) 50rem, 100vw";
+
+const hasDark = Boolean(srcDark);
+
+const lightVariants = hasDark
+	? await Promise.all(
+			widths.map((w) => getImage({ src, width: w, format: "webp" })),
+		)
+	: [];
+const darkVariants = hasDark && srcDark
+	? await Promise.all(
+			widths.map((w) => getImage({ src: srcDark, width: w, format: "webp" })),
+		)
+	: [];
+
+const buildSrcset = (variants: { src: string }[]) =>
+	variants.map((v, i) => `${v.src} ${widths[i]}w`).join(", ");
 ---
 
 <figure class="shot" aria-labelledby={`${id}-title`}>
@@ -68,14 +90,36 @@ const id = `screenshot-${Math.random().toString(36).slice(2, 8)}`;
 		</svg>
 
 		<div class="shot__image">
-			<Image
-				src={src}
-				alt={alt}
-				loading="eager"
-				decoding="async"
-				widths={[640, 960, 1280, 1600]}
-				sizes="(min-width: 80rem) 60rem, (min-width: 50rem) 50rem, 100vw"
-			/>
+			{hasDark ? (
+				<picture>
+					<source
+						media="(prefers-color-scheme: dark)"
+						srcset={buildSrcset(darkVariants)}
+						sizes={sizes}
+						type="image/webp"
+					/>
+					<source
+						srcset={buildSrcset(lightVariants)}
+						sizes={sizes}
+						type="image/webp"
+					/>
+					<img
+						src={lightVariants[lightVariants.length - 1]?.src}
+						alt={alt}
+						loading="eager"
+						decoding="async"
+					/>
+				</picture>
+			) : (
+				<Image
+					src={src}
+					alt={alt}
+					loading="eager"
+					decoding="async"
+					widths={widths}
+					sizes={sizes}
+				/>
+			)}
 
 			{
 				callouts.map((c) => (

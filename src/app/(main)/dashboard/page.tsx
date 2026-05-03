@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { BoardHygienePanel } from "@/components/dashboard/board-hygiene-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -245,7 +246,7 @@ export default function DashboardPage() {
 																<div className="flex" style={{ width: `${donePct + remainPct}%` }}>
 																	{donePct > 0 && (
 																		<div
-																			className={`${green} h-full transition-all`}
+																			className={`${green} h-full transition-[width]`}
 																			style={{
 																				width: `${(donePct / (donePct + remainPct)) * 100}%`,
 																			}}
@@ -253,7 +254,7 @@ export default function DashboardPage() {
 																	)}
 																	{remainPct > 0 && (
 																		<div
-																			className={`${gray} h-full transition-all`}
+																			className={`${gray} h-full transition-[width]`}
 																			style={{
 																				width: `${(remainPct / (donePct + remainPct)) * 100}%`,
 																			}}
@@ -361,6 +362,12 @@ export default function DashboardPage() {
 					</div>
 				</div>
 			)}
+
+			{/* ─── Board Hygiene Panel (#173) ─────────────────────── */}
+			{/* Renders below Focus; recessive vs. Pulse — hygiene is */}
+			{/* weekly cleanup work, not flow work. Self-hides on cold */}
+			{/* mount until at least one signal has loaded.            */}
+			{!hasFilters && cards && cards.length > 0 && <BoardHygienePanel />}
 
 			{/* ─── Filters ────────────────────────────────────────── */}
 			<div className="mb-4 flex items-center gap-3">

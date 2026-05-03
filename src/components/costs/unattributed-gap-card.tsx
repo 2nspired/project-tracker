@@ -19,6 +19,7 @@
  */
 
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
+import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { Button } from "@/components/ui/button";
 import { formatCost } from "@/lib/format-cost";
 import type { RouterOutputs } from "@/trpc/react";
@@ -42,7 +43,13 @@ export function UnattributedGapCard({ projectSummary }: UnattributedGapCardProps
 		<section className="rounded-lg border border-dashed bg-muted/30 px-5 py-4">
 			<div className="flex items-baseline justify-between gap-4">
 				<div>
-					<h2 className="text-sm font-medium">Attribution gap</h2>
+					<div className="flex items-center gap-1.5">
+						<h2 className="text-sm font-medium">Attribution gap</h2>
+						<SectionHelpLink
+							anchor="the-3-bucket-gap"
+							label="How is the attribution gap calculated?"
+						/>
+					</div>
 					<p className="mt-0.5 text-2xs text-muted-foreground">
 						{totalGapSessions} {totalGapSessions === 1 ? "session" : "sessions"} (
 						{formatCost(totalGapCost)}) not attributed to any card.

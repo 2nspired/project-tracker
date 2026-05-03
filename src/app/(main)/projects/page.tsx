@@ -64,7 +64,7 @@ function ColorPicker({
 					key={color}
 					type="button"
 					onClick={() => onChange(color)}
-					className={`h-6 w-6 rounded-full ${COLOR_CLASSES[color].bg} transition-all ${
+					className={`h-6 w-6 rounded-full ${COLOR_CLASSES[color].bg} transition-[transform,box-shadow] ${
 						value === color
 							? "ring-2 ring-ring ring-offset-2 ring-offset-background"
 							: "hover:scale-110"

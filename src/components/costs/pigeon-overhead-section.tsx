@@ -15,6 +15,7 @@
  * dense; an empty state would be noise.
  */
 
+import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { formatCost } from "@/lib/format-cost";
 import type { RouterOutputs } from "@/trpc/react";
 
@@ -31,7 +32,10 @@ export function PigeonOverheadSection({ overhead }: PigeonOverheadSectionProps) 
 		<section className="rounded-md border bg-muted/20 px-5 py-4">
 			<header className="flex items-baseline justify-between gap-4">
 				<div>
-					<h2 className="text-sm font-medium">Pigeon overhead</h2>
+					<div className="flex items-center gap-1.5">
+						<h2 className="text-sm font-medium">Pigeon overhead</h2>
+						<SectionHelpLink anchor="pigeon-overhead" label="How is Pigeon overhead calculated?" />
+					</div>
 					<p className="mt-0.5 text-2xs text-muted-foreground">
 						What this project paid in `outputPerMTok` to read Pigeon's MCP tool responses. Lifetime.
 					</p>

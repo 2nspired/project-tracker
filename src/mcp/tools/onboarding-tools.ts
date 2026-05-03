@@ -25,7 +25,7 @@ registerExtendedTool("seedTutorial", {
 				projectId: result.projectId,
 				boardId: result.boardId,
 				message:
-					"Tutorial project created! Use `resume-session` prompt with the boardId to explore it.",
+					"Tutorial project created! Use `resume-board` prompt with the boardId to explore it.",
 			});
 		}),
 });

@@ -1,10 +1,18 @@
 "use client";
 
-import { Activity, AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
+import { Activity, AlertTriangle, Ban, Hourglass } from "lucide-react";
+import type { ReactNode } from "react";
 
+import { PULSE_EXPLAINERS, type PulseExplainer } from "@/components/board/pulse-explainers";
+import {
+	PULSE_STRIP_ORDER,
+	type PulseMetricId,
+	type PulseStripMetricId,
+} from "@/components/board/pulse-metric-id";
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sparkline } from "@/components/ui/sparkline";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCost } from "@/lib/format-cost";
 import { formatRelative } from "@/lib/format-date";
 import { STATUS_TEXT } from "@/lib/priority-colors";
@@ -16,6 +24,21 @@ function formatHours(hours: number): string {
 	if (hours < 24) return `${hours}h`;
 	const days = Math.round((hours / 24) * 10) / 10;
 	return `${days}d`;
+}
+
+/** Days between now and the given ISO timestamp; floor to whole days. */
+function daysSince(iso: string): number {
+	const ms = Date.now() - new Date(iso).getTime();
+	return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+}
+
+/** Hours-or-days compact age: "3h", "2d", etc. Matches Pulse v2 spec. */
+function formatAge(iso: string): string {
+	const ms = Date.now() - new Date(iso).getTime();
+	const hours = ms / (1000 * 60 * 60);
+	if (hours < 1) return `${Math.max(0, Math.round(ms / 60000))}m`;
+	if (hours < 24) return `${Math.floor(hours)}h`;
+	return `${Math.floor(hours / 24)}d`;
 }
 
 export function BoardPulse({ boardId, projectId }: { boardId: string; projectId: string }) {
@@ -59,113 +82,171 @@ export function BoardPulse({ boardId, projectId }: { boardId: string; projectId:
 	const wowDelta = totalCompleted - metrics.previousWeekCompleted;
 	const costPerCompleted = totalCompleted > 0 && hasWeekCost ? weekCost / totalCompleted : null;
 
+	// Pulse v2 strip cells (#157). Each cell binds against its `PulseMetricId`
+	// so the explainer lookup is type-checked. `null` = don't render that
+	// metric (handles conditional renders for blockers + staleInProgress
+	// when count === 0, and the empty-flow / empty-cost cases for the always-
+	// on cells).
+	const stripCells: Record<PulseStripMetricId, ReactNode | null> = {
+		throughput: hasFlowData ? (
+			<>
+				<Sparkline data={metrics.throughput} label="Throughput sparkline" />
+				<span className="tabular-nums text-muted-foreground">
+					<span className="font-medium text-foreground">{totalCompleted}</span> done
+				</span>
+			</>
+		) : null,
+		weekCost:
+			hasWeekCost && dailyCost ? (
+				<>
+					<Sparkline data={dailyCost.dailyCostUsd} tone="cost" label="Daily cost sparkline" />
+					<span className="tabular-nums text-muted-foreground">
+						<span className="font-medium text-foreground">{formatCost(weekCost)}</span> spent
+					</span>
+				</>
+			) : null,
+		bottleneck: metrics.bottleneck ? (
+			<>
+				<AlertTriangle className={`h-3 w-3 ${STATUS_TEXT.warning}`} />
+				<span className="text-muted-foreground">
+					{metrics.bottleneck.column}{" "}
+					<span className={`font-medium ${STATUS_TEXT.warning} tabular-nums`}>
+						~{formatHours(metrics.bottleneck.avgHours)}
+					</span>{" "}
+					avg
+				</span>
+			</>
+		) : null,
+		// Conditional render: only when count > 0 (#167 spec).
+		blockers:
+			metrics.blockers.count > 0 ? (
+				<>
+					<Ban className={`h-3 w-3 ${STATUS_TEXT.warning}`} />
+					<span className="text-muted-foreground">
+						<span className={`font-medium ${STATUS_TEXT.warning} tabular-nums`}>
+							{metrics.blockers.count}
+						</span>{" "}
+						blocked
+						{metrics.blockers.oldestBlockedAt && (
+							<>
+								{" · oldest "}
+								<span className="tabular-nums">{daysSince(metrics.blockers.oldestBlockedAt)}d</span>
+							</>
+						)}
+					</span>
+				</>
+			) : null,
+		// Conditional render: only when count > 0 (#167 spec).
+		staleInProgress:
+			metrics.staleInProgressCount > 0 ? (
+				<>
+					<Hourglass className={`h-3 w-3 ${STATUS_TEXT.warning}`} />
+					<span className="text-muted-foreground">
+						<span className={`font-medium ${STATUS_TEXT.warning} tabular-nums`}>
+							{metrics.staleInProgressCount}
+						</span>{" "}
+						stalled
+					</span>
+				</>
+			) : null,
+	};
+
+	// Open the pulse popover when *any* strip cell is clicked. The whole row
+	// is one trigger; per-cell tooltips render on hover.
 	return (
-		<Popover>
-			<div className="flex items-center gap-3 bg-muted/20 px-4 py-2.5 text-xs">
-				<PopoverTrigger asChild>
-					<button
-						type="button"
-						className="flex flex-1 items-center gap-5 text-left transition-colors hover:opacity-80"
-						aria-label="Open pulse details"
-					>
-						<span className="flex items-center gap-2 text-muted-foreground">
-							<Activity className="h-3 w-3" />
-							Pulse
-						</span>
+		<TooltipProvider>
+			<Popover>
+				<div className="flex items-center gap-3 bg-muted/20 px-4 py-2.5 text-xs">
+					<PopoverTrigger asChild>
+						<button
+							type="button"
+							className="flex flex-1 items-center gap-5 overflow-x-auto text-left transition-colors hover:opacity-80"
+							aria-label="Open pulse details"
+						>
+							<span className="flex shrink-0 items-center gap-2 text-muted-foreground">
+								<Activity className="h-3 w-3" />
+								Pulse
+							</span>
 
-						{hasFlowData && (
-							<div
-								className="flex items-center gap-2"
-								title={`${totalCompleted} cards completed this week`}
-							>
-								<Sparkline data={metrics.throughput} label="Throughput sparkline" />
-								<span className="tabular-nums text-muted-foreground">
-									<span className="font-medium text-foreground">{totalCompleted}</span> done
-								</span>
-							</div>
-						)}
+							{PULSE_STRIP_ORDER.map((id) => {
+								const cell = stripCells[id];
+								if (cell === null) return null;
+								return (
+									<PulseStripCell key={id} metricId={id} explainer={PULSE_EXPLAINERS[id]}>
+										{cell}
+									</PulseStripCell>
+								);
+							})}
+						</button>
+					</PopoverTrigger>
 
-						{hasWeekCost && dailyCost && (
-							<div className="flex items-center gap-2" title={`${formatCost(weekCost)} this week`}>
-								<Sparkline
-									data={dailyCost.dailyCostUsd}
-									strokeClassName="stroke-violet-500"
-									fillClassName="fill-violet-500/10"
-									dotClassName="fill-violet-500"
-									label="Daily cost sparkline"
-								/>
-								<span className="tabular-nums text-muted-foreground">
-									<span className="font-medium text-foreground">{formatCost(weekCost)}</span> spent
-								</span>
-							</div>
-						)}
-
-						{hasFlowData && (
-							<div className="flex items-center gap-2 text-muted-foreground">
-								<span
-									className={`flex items-center gap-1 ${STATUS_TEXT.done}`}
-									title={`${metrics.forwardMoves} forward moves`}
+					{showCostSetupCta && (
+						<TokenTrackingSetupDialog
+							trigger={
+								<button
+									type="button"
+									className="flex shrink-0 items-center gap-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
 								>
-									<ArrowRight className="h-3 w-3" />
-									<span className="tabular-nums">{metrics.forwardMoves}</span>
-								</span>
-								{metrics.backwardMoves > 0 && (
-									<span
-										className={`flex items-center gap-1 ${STATUS_TEXT.warning}`}
-										title={`${metrics.backwardMoves} regressions`}
-									>
-										<ArrowLeft className="h-3 w-3" />
-										<span className="tabular-nums">{metrics.backwardMoves}</span>
-									</span>
-								)}
-							</div>
-						)}
+									Set up token tracking
+								</button>
+							}
+						/>
+					)}
+				</div>
 
-						{metrics.bottleneck && (
-							<div
-								className="flex items-center gap-1.5 text-muted-foreground"
-								title={`Cards spend an average of ${formatHours(metrics.bottleneck.avgHours)} in ${metrics.bottleneck.column}`}
-							>
-								<AlertTriangle className={`h-3 w-3 ${STATUS_TEXT.warning}`} />
-								<span>
-									{metrics.bottleneck.column}{" "}
-									<span className={`font-medium ${STATUS_TEXT.warning} tabular-nums`}>
-										~{formatHours(metrics.bottleneck.avgHours)}
-									</span>{" "}
-									avg
-								</span>
-							</div>
-						)}
-					</button>
-				</PopoverTrigger>
-
-				{showCostSetupCta && (
-					<TokenTrackingSetupDialog
-						trigger={
-							<button
-								type="button"
-								className="flex shrink-0 items-center gap-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-							>
-								Set up token tracking
-							</button>
-						}
+				<PopoverContent className="w-96 p-0" align="start" sideOffset={2}>
+					<PulseDetails
+						metrics={metrics}
+						dailyCost={dailyCost ?? null}
+						projectSummary={projectSummary ?? null}
+						totalCompleted={totalCompleted}
+						weekCost={weekCost}
+						lifetimeCost={lifetimeCost}
+						wowDelta={wowDelta}
+						costPerCompleted={costPerCompleted}
 					/>
-				)}
-			</div>
+				</PopoverContent>
+			</Popover>
+		</TooltipProvider>
+	);
+}
 
-			<PopoverContent className="w-96 p-0" align="start" sideOffset={2}>
-				<PulseDetails
-					metrics={metrics}
-					dailyCost={dailyCost ?? null}
-					projectSummary={projectSummary ?? null}
-					totalCompleted={totalCompleted}
-					weekCost={weekCost}
-					lifetimeCost={lifetimeCost}
-					wowDelta={wowDelta}
-					costPerCompleted={costPerCompleted}
-				/>
-			</PopoverContent>
-		</Popover>
+/**
+ * One cell in the strip — wraps the cell contents with a hover Tooltip
+ * keyed off the metric's stable `PulseMetricId`. The cell is a `<span>`
+ * (not a button) so the parent <PopoverTrigger> button still owns the click.
+ */
+function PulseStripCell({
+	metricId,
+	explainer,
+	children,
+}: {
+	metricId: PulseMetricId;
+	explainer: PulseExplainer;
+	children: ReactNode;
+}) {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span
+					className="flex shrink-0 items-center gap-2"
+					data-pulse-metric={metricId}
+					data-testid={`pulse-metric-${metricId}`}
+				>
+					{children}
+				</span>
+			</TooltipTrigger>
+			<TooltipContent
+				className="max-w-xs space-y-1 p-3 text-left"
+				side="bottom"
+				data-pulse-tooltip={metricId}
+			>
+				<div className="text-2xs font-medium uppercase tracking-wide opacity-80">
+					{explainer.label}
+				</div>
+				<div className="text-xs leading-snug">{explainer.body}</div>
+			</TooltipContent>
+		</Tooltip>
 	);
 }
 
@@ -308,6 +389,34 @@ function PulseDetails({
 					/>
 				</div>
 			)}
+
+			{/* Activity section — handoffAge is popover-only per Pulse v2 spec
+			    (#167). Lives here, not in the strip, because it's a
+			    session-boundary signal not a flow signal. Always renders the
+			    row so absence ("never") is itself a signal. */}
+			<div className="space-y-2 p-4">
+				<div className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+					Activity
+				</div>
+				<dl className="space-y-1 text-sm">
+					<div className="flex items-baseline justify-between gap-3">
+						<dt className="text-muted-foreground">Last handoff</dt>
+						<dd
+							className="tabular-nums"
+							data-testid="pulse-popover-handoff-age"
+							data-pulse-metric="handoffAge"
+						>
+							{metrics.latestHandoffAt ? (
+								<span title={new Date(metrics.latestHandoffAt).toISOString()}>
+									{formatAge(metrics.latestHandoffAt)} ago
+								</span>
+							) : (
+								<span className="text-muted-foreground">never</span>
+							)}
+						</dd>
+					</div>
+				</dl>
+			</div>
 		</div>
 	);
 }

@@ -51,6 +51,18 @@
 	--radius-xl: calc(var(--radius) + 4px);
 	--text-2xs: 0.6875rem;
 	--text-2xs--line-height: 0.875rem;
+
+	/* Motion tokens (#278) — pattern: Linear / Vercel / shadcn expose
+	   `--duration-*` and `--ease-*` and reserve them for state changes.
+	   Three durations for the common "instant / smooth / deliberate" buckets;
+	   one easing curve for everything that isn't a custom keyframe. Source
+	   of truth lives below in :root as `--motion-*` / `--ease-standard`;
+	   the `@theme inline` aliases here drive the Tailwind utilities
+	   (`duration-fast` / `duration-base` / `duration-slow` / `ease-standard`). */
+	--duration-fast: var(--motion-fast);
+	--duration-base: var(--motion-base);
+	--duration-slow: var(--motion-slow);
+	--ease-standard: var(--motion-ease-standard);
 }
 
 :root {
@@ -96,6 +108,15 @@
 	--danger: oklch(0.58 0.22 28); /* red, matches --destructive hue */
 	--info: oklch(0.58 0.18 252); /* blue */
 	--accent-violet: oklch(0.55 0.21 295); /* violet — agent / AI surface */
+
+	/* Motion tokens (#278). Mode-agnostic — same values in light + dark.
+	   `--motion-*` are the canonical names; `@theme inline` exposes them
+	   as Tailwind `duration-*` / `ease-*` utilities. Easing curve is
+	   Linear's standard (gentle in, fast out — better than CSS `ease`). */
+	--motion-fast: 120ms;
+	--motion-base: 180ms;
+	--motion-slow: 280ms;
+	--motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
 .dark {

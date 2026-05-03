@@ -573,7 +573,7 @@ function ListRowContent({ card }: { card: ListCard }) {
 						<span className="flex items-center gap-1.5">
 							<span className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
 								<span
-									className={`block h-full rounded-full transition-all ${
+									className={`block h-full rounded-full transition-[width,background-color] ${
 										checklistDone === checklistTotal ? "bg-success" : "bg-primary/50"
 									}`}
 									style={{ width: `${(checklistDone / checklistTotal) * 100}%` }}

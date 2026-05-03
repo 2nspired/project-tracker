@@ -35,32 +35,38 @@ export const DESIGN_NAV: DesignNavSection[] = [
 			{
 				label: "Typography",
 				href: "/dev/design/foundations/typography",
-				built: false,
+				built: true,
 			},
 			{
 				label: "Spacing",
 				href: "/dev/design/foundations/spacing",
-				built: false,
+				built: true,
 			},
 			{
 				label: "Radius",
 				href: "/dev/design/foundations/radius",
-				built: false,
+				built: true,
 			},
 			{
 				label: "Icons",
 				href: "/dev/design/foundations/icons",
-				built: false,
+				built: true,
+			},
+			{
+				label: "Motion",
+				href: "/dev/design/foundations/motion",
+				built: true,
 			},
 		],
 	},
 	{
 		heading: "Primitives",
 		items: [
-			{ label: "Button", href: "/dev/design/primitives/button", built: false },
-			{ label: "Input", href: "/dev/design/primitives/input", built: false },
-			{ label: "Badge", href: "/dev/design/primitives/badge", built: false },
-			{ label: "Card", href: "/dev/design/primitives/card", built: false },
+			{ label: "Button", href: "/dev/design/primitives/button", built: true },
+			{ label: "Input", href: "/dev/design/primitives/input", built: true },
+			{ label: "Badge", href: "/dev/design/primitives/badge", built: true },
+			{ label: "Card", href: "/dev/design/primitives/card", built: true },
+			{ label: "Dot", href: "/dev/design/primitives/dot", built: true },
 			{
 				label: "Segmented Control",
 				href: "/dev/design/primitives/segmented-control",
@@ -69,7 +75,7 @@ export const DESIGN_NAV: DesignNavSection[] = [
 			{
 				label: "Skeleton",
 				href: "/dev/design/primitives/skeleton",
-				built: false,
+				built: true,
 			},
 		],
 	},
@@ -84,7 +90,7 @@ export const DESIGN_NAV: DesignNavSection[] = [
 			{
 				label: "Step Section",
 				href: "/dev/design/patterns/step-section",
-				built: false,
+				built: true,
 			},
 		],
 	},

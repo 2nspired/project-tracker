@@ -8,8 +8,21 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [6.4.0] — 2026-05-02
+
+The "Talkable" charter — Pigeon repositioned as a self-hosting MCP for AI-assisted development. 21 cards: PO export (#136) and Pulse v2 (#157) feature builds; 4 design-system codify cards (#278 motion tokens, #279 design showcase, #280 Dot/Sparkline + violet, #287 docs accent); 5 documentation cards (G1 README #285, G2 #283, G3 docs-site rewrite #286, G4 core docs #284, G5 hygiene #282); 4 architectural decisions (#209, #266, #167, #281); polish (#165 drawer mobile, #169 resume rename, #173 hygiene panel, #265 board screenshot, #276 Costs explainer); bug fix #277 (PigeonOverhead schema migration). `npm run service:update` runs `prisma db push` automatically.
+
+### Fixed
+
+- PigeonOverheadSection no longer silently hides when TokenUsageEvent ingestion is sparse — `tool_call_log` now carries `projectId` directly (stamped at write time by the MCP server) instead of bridging through `token_usage_event` for project discovery. The bridge collapsed to `[]` when the Stop hook didn't fire (or `resolveProjectIdFromCwd` returned null at hook time), zeroing the section even when MCP overhead was real. `npm run service:update` runs `prisma db push` automatically; run `npx tsx scripts/backfill-tool-call-log-projectid.ts` once after to attribute historical rows. (#277)
+- Migrated raw `violet-500` utilities to the `--accent-violet` token across the Costs page summary strip, scope switcher, board pulse, card-detail-sheet AGENT-comment styling, step-section anchor tone, and pricing-override-table overridden-field accent — dark mode now flips automatically. New `raw-violet-class` rule in `scripts/lint-design.mjs` ratchets future regressions; only `priority-colors.ts` and `project-colors.ts` (user-pickable palette) are allowlisted. (#280)
+
 ### Added
 
+- Dashboard board-hygiene panel — 5 cleanup signals (missing tags, untriaged Backlog, overdue milestones, tag drift, stale decisions). Recessive collapsed accordion below Pulse. (#173)
+- Filled all ten `<ComingSoon>` `/dev/design` placeholders — typography, spacing, radius, icons, motion, button, input, badge, card, skeleton, step-section pages now render live demos. (#279)
+- Motion tokens (`--motion-fast: 120ms` / `--motion-base: 180ms` / `--motion-slow: 280ms` / `--motion-ease-standard: cubic-bezier(0.2, 0, 0, 1)`) registered via `@theme inline` so Tailwind exposes `duration-fast` / `duration-base` / `duration-slow` / `ease-standard` utilities. Pattern follows Linear / Vercel / shadcn — three durations for the common state-change buckets, one easing curve. Backed by a new `raw-transition-all` design-lint rule (allowlist: `ui/button.tsx`) so the next casual `transition-all` fails CI. (#278)
+- `<Dot>` primitive at `src/components/ui/dot.tsx` — semantic status dot with `tone` (`agent` / `success` / `warning` / `danger` / `info` / `neutral`) and `size` (`sm` / `md`) props. Replaces the inline `<span size-2 rounded-full bg-…>` pattern (notably `<ViolaDot>` in the Costs scope switcher) so dark-mode flips for free via the role-token CSS vars. Showcased at `/dev/design/primitives/dot`. (#280)
 - Landed the Attribution Engine pure-function core (`src/lib/services/attribution.ts`) — picks one card per session via a 5-tier heuristic (explicit → single In-Progress → session-recent-touch → session-commit → unattributed). Multi-In-Progress sessions short-circuit to `unattributed` per the orchestrator-mode gate. Cluster head for the v6.3 charter; write-path wiring + backfill follow in #269 and #270. (#268)
 - Wired the Attribution Engine into both `recordTokenUsage` paths (`recordManual` + `recordFromTranscript`); each write now persists `signal` + `signalConfidence` columns on `TokenUsageEvent` for the #213 unattributed-gap counter. Stop-hook re-runs prefer fresh single-In-Progress attribution over stale `attributeSession` cardIds while still preserving prior attribution when the engine returns null. Tail signals 3+4 deferred to #272. `npm run service:update` runs `prisma db push` automatically. (#269)
 - Added the unattributed-gap card to the Costs page — splits the gap into two architecturally distinct buckets (engine-decided `unattributed` vs pre-engine `preEngine` rows) so the user sees whether a gap is "review your workflow" or "old data from before #269." Hidden when both buckets are empty. Backed by a new `attributionBreakdown` field on `getProjectSummary`. Unblocks the 30-day re-evaluation window for #270 (historical backfill) and #272 (tail signals 3+4). (#213)
@@ -18,6 +31,28 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 - Revived the project-wide Pigeon overhead section on the Costs page — surfaces what this project paid in `outputPerMTok` to read MCP tool responses, lifetime-scoped, priced per-session by primary model. Backed by a new `getProjectPigeonOverhead` tRPC procedure that mirrors the surviving per-card/per-session chip variants. Was dropped in #236; restored now that the Attribution Engine provides the per-session pricing rule cleanly. (#274)
 - Revived the Pigeon savings section on the Costs page — surfaces the briefMe vs naive `getBoard` bootstrap comparison persisted on `Project.metadata.tokenBaseline`. Cheap to render (one read, no recomputation); a "Recalibrate" button triggers the existing `recalibrateBaseline` mutation and the section refetches. Was dropped in #236; the underlying data primitive (`recalibrateBaseline`) survived. (#273)
 - Revived the Card Delivery section on the Costs page — surfaces median cost-per-shipped-card and the top-5 most expensive cards by aggregated cost. Uses direct cardId attribution only (no session-expansion); post-#269 attribution makes the simpler aggregation honest. Distinct from the per-session Top-N lens (#211) — different unit, different question. Was dropped in #236. (#275)
+- PO export — download Costs page card-delivery data as CSV or Markdown (#136).
+- MIT LICENSE file (#282).
+- Costs page Resources link + cost-attribution explainer in docs-site (#276). The Costs page header carries a "How is this calculated?" link to the existing `/costs` Starlight page; each section header (`<SummaryStrip>`, `<UnattributedGapCard>`, `<SavingsSection>`, `<PigeonOverheadSection>`, `<CardDeliverySection>`, `<TopSessionsSection>`, `<PricingOverrideTable>`) carries a `?` icon that deep-links to the matching anchor. The explainer was rewritten end-to-end to cover the Attribution Engine (#268, #269), the 3-bucket gap (#213), per-section math, and the orphan-tool-call-log overhead drag introduced by #277, with a mermaid decision-tree diagram and file:line references throughout.
+- `docs/ARCHITECTURE.md`, `docs/DATA-MODEL.md`, `docs/ATTRIBUTION-ENGINE.md`, and `docs/README.md` — fills the four narrative gaps the audit (#253) flagged on the in-repo doc tree. ARCHITECTURE codifies the #260 boundary rule with the lint citation; DATA-MODEL is a domain-grouped tour of all 18 Prisma models plus `knowledge_fts`; ATTRIBUTION-ENGINE collects the #268-#272 subsystem (5-tier heuristic, three-bucket gap, deferral rationale). Light edits in `commands.md` add the four post-#255 lint scripts and the FTS-drift caveat on `db:push`. (#284)
+- docs-site: architecture, data-model, attribution, api, and changelog mirror pages (#286 G3a). Public-facing editorial versions of the in-repo docs landed in #284, plus a tRPC reference page (one row per procedure across 15 routers) and a build-time mirror of `CHANGELOG.md` rendered through the docs-site's own typography. New "Architecture" sidebar group; `tRPC API` and `Changelog` slot into Reference. Site-wide footer added with GitHub + MIT-license links via a `Footer` component override.
+
+### Changed
+
+- Card detail drawer — unified padding/spacing across regions; mobile pass for narrow viewports + iOS safe-area (#165). Header / body / metadata strips share a single `px-4 sm:px-6` horizontal token (matched to the spacing-showcase rhythm landed in #279); body switches to `flex flex-col gap-6` for consistent vertical rhythm; long titles wrap on narrow viewports instead of truncating off-screen; checklist-add and delete-card buttons get full-height (`h-9`) touch targets; SheetContent gains `pb-[max(env(safe-area-inset-bottom),1rem)]` so iOS notch viewports don't clip the last action.
+- Pulse v2 — 6-metric strip per #167 decision, with explainers (#157). Strip cells iterate over a stable `PulseMetricId` union (throughput, weekCost, bottleneck, blockers, staleInProgress) so tooltip lookups can't drift on rename; the popover gains an Activity row for handoff age. Blockers and stale-in-progress only render when count > 0. Each cell carries a hover tooltip with the locked explainer text from #167. `getFlowMetrics` now returns blocker count + oldest-blocker timestamp, stale-in-progress count, and the latest handoff timestamp in one round-trip.
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+- docs-site accent retargeted from indigo to `--accent-violet` (#287, implements decision from #281). Six accent tokens on `:root` and `:root[data-theme="dark"]` in `docs-site/src/styles/custom.css` now reference the same violet hue (oklch ~295) the app uses for AI/agent semantic surfaces; component files are unchanged because they were already token-driven. Paper-grid substrate survives at slightly lower alpha to match prior intensity.
+- `<Sparkline>` API codified — new `tone` prop (`cost` / `success` / `info` / `warning` / `danger`) replaces the per-class `strokeClassName` / `fillClassName` / `dotClassName` overrides. Default flipped from raw `stroke-emerald-500` to `stroke-success` (token-backed). The pre-#280 string-class path is preserved as `unsafeStrokeClass` / `unsafeFillClass` / `unsafeDotClass` with deprecation notes — no production callers use it. (#280)
+- Renamed the `resume-session` MCP prompt to `resume-board` to avoid collision with Claude Code's built-in `/resume` slash command. The Pigeon flow loads board state for a fresh chat — semantically distinct from Claude's chat-resume — so the new name disambiguates without changing behavior. Hand-maintained references in `tools.mdx`, onboarding copy, and the tutorial seeder were updated alongside the registration. (#169)
+- AGENTS.md split: contributor reference vs. universal AGENT-GUIDE.md (#246 finished). CLAUDE.md tightened to lead with self-hosting + #260 layering rule (#283).
+- Replaced casual `transition-all` callsites with explicit transition lists (`transition-[width]` on progress bars, `transition-[transform,opacity]` on the theme-toggle icons, `transition-[box-shadow,border-color]` on board cards, etc.) so layout properties don't get pulled into the animation by accident. `ui/button.tsx` keeps `transition-all` intentionally and is allowlisted by the new lint rule. (#278)
+- README rewrite — hero, badge row, comparison table, persona block (#285). Asset-blocked items (demo GIF, dark logo, product-screenshot OG) flagged as TODOs.
+- docs-site index hero refresh + dark-mode screenshot variants (#286 G3b). Hero copy retargeted to the v6.4 charter ("self-hosting MCP integration, real-time SSE board updates, audit-grade attribution") and the FeatureGrid swapped its fourth tile from "Local-first by design" to "Audit-grade attribution" (the local-first framing now lives on `/why/`). `<ScreenshotCallout>` grew an optional `srcDark` prop that emits a `<picture>` element with `(prefers-color-scheme: dark)`-keyed `<source>` tags — wiring is in place; real dark captures pending screenshot refresh.
+
+### Chore
+
+- GitHub issue templates, PR template, CONTRIBUTING.md, SECURITY.md scaffolds (#282). CODE_OF_CONDUCT.md deferred.
 
 ## [6.2.1] — 2026-05-02
 
@@ -157,6 +192,8 @@ Both are non-destructive — `prisma db push` applies cleanly. `service:update` 
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - **`token-usage-service.ts` housekeeping bundle.** Five small cleanups in the same file, none individually card-worthy:
 	- `getSavingsSummary`: dropped the dead `> existing` guard in the per-session loop — `eventRows` is already `orderBy: { recordedAt: "desc" }`, so the first occurrence of a sessionId is the most-recent and the comparison never overwrote. Replaced with a plain `has()` check + comment.
 	- `getSavingsSummary`: parallelized the trimmed top-10 `getSessionPigeonOverhead` lookups via `Promise.all` (was sequential `await` inside the loop, up to 10 round-trips per Costs-page render).
@@ -221,6 +258,8 @@ Phase 1 of #179 (note-list default filter, #108) and the `endSession` deprecatio
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - **BREAKING — handoffs extracted from `Note` table.** `note.list`, `listNotes` MCP tool, and the public `NOTE_KINDS` enum no longer accept `kind: "handoff"`. Reads/writes go through `db.handoff`, the existing `handoff.*` tRPC router, and the `saveHandoff` MCP tool (wire shape unchanged for callers — `agentName` / `summary` / `workingOn` / `findings` / `nextSteps` / `blockers`). Sessions Sheet UI sources from the new table. (#179)
 - Header "MCP" pill renamed to "Commands" (`Command` icon); popover/sheet title and copy lead with slash commands. Cmd-K search pill gains a tooltip pointing at `?` for the full catalog. (#156)
 
@@ -272,6 +311,8 @@ Two adoption-friction reports landed in the same week — both traced to the sam
 - **CI: MCP registration check workflow** (#146). Extracts the tool registration into a barrel + adds a CI gate so a tool added to a registry but missing from the catalog fails the build.
 
 ### Changed
+
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
 
 - **Essential tool `endSession` → `saveHandoff`.** Same shape, same semantics. Essential tool count stays at 10. Tool description, MCP catalog row, and onboarding strings updated.
 - **`/handoff` slash command** now calls `saveHandoff`. No user-facing change to the keystroke.
@@ -347,6 +388,8 @@ First post-rebrand release. Focus: install-health diagnostics (so the v5.0 migra
   - `[Unreleased]` link footer compared from `v4.0.0`; rebased to `v5.1.0...HEAD`. Added missing `[5.1.0]`, `[5.0.0]`, `[4.2.0]`, `[4.1.0]` link references.
 
 ### Changed
+
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
 
 - `package.json` `version` 5.0.0 → 5.1.0.
 
@@ -606,6 +649,8 @@ The backfill is idempotent — rows already migrated are skipped. The script now
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - `SCHEMA_VERSION` 8 → 9.
 - `MCP_SERVER_VERSION` 2.5.0 → 3.0.0.
 - `getCard` MCP tool now reads decisions from `Claim` (same response shape — `{id, title, status}`).
@@ -627,6 +672,8 @@ The Note table widens to carry any author/kind/metadata payload. Still additive 
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - `SCHEMA_VERSION` 6 → 7.
 - `MCP_SERVER_VERSION` 2.4.0 → 2.5.0.
 
@@ -641,6 +688,8 @@ First cut of the unified knowledge primitive — the `Claim` row type, with MCP 
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - `SCHEMA_VERSION` 5 → 6.
 - `MCP_SERVER_VERSION` 2.3.0 → 2.4.0.
 
@@ -652,6 +701,8 @@ First cut of the unified knowledge primitive — the `Claim` row type, with MCP 
 - `briefMe` essential tool (session primer with pulse, handoff, top work, open decisions).
 
 ### Changed
+
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
 
 - `MCP_SERVER_VERSION` 2.2.0 → 2.3.0.
 

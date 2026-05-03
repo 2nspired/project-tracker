@@ -29,19 +29,25 @@ The persistent background service runs on `:3100` so the UI is always available 
 
 | Script | When to run | What it does |
 |---|---|---|
-| `npm run db:push` | When `CHANGELOG` says `SCHEMA_VERSION` bumped | Applies the Prisma schema to `data/tracker.db`. Drops removed columns/tables. |
+| `npm run db:push` | When `CHANGELOG` says `SCHEMA_VERSION` bumped | Applies the Prisma schema to `data/tracker.db`. Drops removed columns/tables. **Note:** the `knowledge_fts` virtual table lives outside `schema.prisma`; Prisma sees it as drift and refuses to push if it's present. `service:update` drops it (and its 5 shadow tables) automatically — if you're running `db:push` standalone after a fresh schema change, drop `knowledge_fts*` first or run `service:update` instead. The FTS index rebuilds itself lazily on first knowledge search per project. |
 | `npm run db:generate` | Rarely (Prisma postinstall handles it) | Regenerates the Prisma client. |
 | `npm run db:migrate` | Schema authoring | Creates a Prisma migration for the current schema diff. |
 | `npm run db:seed` | Fresh install only | Seeds the Learn Pigeon tutorial project. Idempotent. |
 | `npm run db:studio` | Debugging | Opens Prisma Studio to inspect the DB. |
+| `npm run db:cleanup-orphan-boards` | One-shot maintenance | Removes Board rows with no parent Project. |
 
 ## Quality gates
 
 | Script | What it does |
 |---|---|
 | `npm run test` | Vitest run (unit + integration tests against an in-memory DB). |
+| `npm run test:coverage` | Vitest with v8 coverage (30% floor on `src/lib/`, see #255). |
 | `npm run lint` | Biome check on `src/`. |
 | `npm run lint:fix` | Biome auto-fix. |
+| `npm run lint:design` | Regex design-token ratchet — blocks raw `text-(emerald\|green\|amber\|orange\|red)-\d+` outside `priority-colors.ts`. Baseline at `scripts/design-lint-baseline.json`. |
+| `npm run lint:design:update-baseline` | Rewrites the design-lint baseline. Use only when removing a grandfathered violation, never to silence a new one. |
+| `npm run lint:boundary` | Module-boundary lint — `src/server/` and `src/mcp/` must not import each other (decision a5a4cde6 / #260). Baseline at `scripts/boundary-lint-baseline.json`. See [`ARCHITECTURE.md`](ARCHITECTURE.md). |
+| `npm run lint:boundary:update-baseline` | Rewrites the boundary-lint baseline. Same caveat as the design ratchet. |
 | `npm run format` | Biome formatter. |
 | `npm run type-check` | `tsc --noEmit`. |
 
