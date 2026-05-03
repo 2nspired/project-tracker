@@ -155,7 +155,7 @@ export function CostsPage({
 					) : null}
 					{pigeonOverhead ? <PigeonOverheadSection overhead={pigeonOverhead} /> : null}
 					{cardDelivery ? (
-						<CardDeliverySection metrics={cardDelivery} projectId={projectId} />
+						<CardDeliverySection metrics={cardDelivery} projectId={projectId} boardId={boardId} />
 					) : null}
 					{topSessions ? (
 						<TopSessionsSection topSessions={topSessions} projectId={projectId} />

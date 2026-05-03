@@ -18,6 +18,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 - Revived the project-wide Pigeon overhead section on the Costs page — surfaces what this project paid in `outputPerMTok` to read MCP tool responses, lifetime-scoped, priced per-session by primary model. Backed by a new `getProjectPigeonOverhead` tRPC procedure that mirrors the surviving per-card/per-session chip variants. Was dropped in #236; restored now that the Attribution Engine provides the per-session pricing rule cleanly. (#274)
 - Revived the Pigeon savings section on the Costs page — surfaces the briefMe vs naive `getBoard` bootstrap comparison persisted on `Project.metadata.tokenBaseline`. Cheap to render (one read, no recomputation); a "Recalibrate" button triggers the existing `recalibrateBaseline` mutation and the section refetches. Was dropped in #236; the underlying data primitive (`recalibrateBaseline`) survived. (#273)
 - Revived the Card Delivery section on the Costs page — surfaces median cost-per-shipped-card and the top-5 most expensive cards by aggregated cost. Uses direct cardId attribution only (no session-expansion); post-#269 attribution makes the simpler aggregation honest. Distinct from the per-session Top-N lens (#211) — different unit, different question. Was dropped in #236. (#275)
+- PO export — download Costs page card-delivery data as CSV or Markdown (#136).
 
 ## [6.2.1] — 2026-05-02
 
