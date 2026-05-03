@@ -8,6 +8,20 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [6.5.0] — 2026-05-02
+
+Polish + hygiene cleanup on top of v6.4.0 — clears the 8 deferred user-input asks (CoC, security reporting, logos, real dark screenshots) and refreshes the SECURITY.md supported-versions table.
+
+### Added
+
+- `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1) and a CoC link in `CONTRIBUTING.md`. Closes the v6.4.0 hygiene gap deferred from #282 (sub-agent content filter blocked inline drafting; pulled the canonical text from contributor-covenant.org instead).
+- README hero now uses a light/dark `<picture>` element with proper logo art (`docs-site/public/pigeon-logo-light.png` / `pigeon-logo-dark.png`) instead of the single OG card placeholder. Closes the dark-mode logo TODO from #285.
+
+### Changed
+
+- `.github/SECURITY.md` now points reporters at GitHub's private vulnerability reporting (Security tab → "Report a vulnerability") rather than an email TODO. Removed `.github/FUNDING.yml` — no funding channel yet (tracked as #288). Refreshed the supported-versions table from the stale 6.2.x/6.1.x rows to 6.5.x (Yes) / 6.4.x (Best-effort) / < 6.4 (No).
+- Replaced placeholder `board-overview-dark.png` with a real dark-mode capture of the Pigeon Dev board (Parking Lot / Backlog / In Progress / Done columns with priority stripes, tags, and card numbers). Added 4 net-new dark/light captures: `card-detail-dark.png`, `costs-page-light.png`, `costs-page-dark.png`, and `command-palette.png` for future docs use.
+
 ## [6.4.0] — 2026-05-02
 
 The "Talkable" charter — Pigeon repositioned as a self-hosting MCP for AI-assisted development. 21 cards: PO export (#136) and Pulse v2 (#157) feature builds; 4 design-system codify cards (#278 motion tokens, #279 design showcase, #280 Dot/Sparkline + violet, #287 docs accent); 5 documentation cards (G1 README #285, G2 #283, G3 docs-site rewrite #286, G4 core docs #284, G5 hygiene #282); 4 architectural decisions (#209, #266, #167, #281); polish (#165 drawer mobile, #169 resume rename, #173 hygiene panel, #265 board screenshot, #276 Costs explainer); bug fix #277 (PigeonOverhead schema migration). `npm run service:update` runs `prisma db push` automatically.

@@ -1,8 +1,9 @@
 <div align="center">
 
-<!-- TODO(user): supply a dark-mode logo SVG; wrap brand image in <picture> with light/dark <source> elements (e.g. <source media="(prefers-color-scheme: dark)" srcset="docs-site/public/og-dark.png">). Current asset is a single light/neutral OG card. -->
-<!-- TODO(user): replace docs-site/public/og.png with a product-screenshot variant of the OG card. Current asset is logo-only. -->
-<img src="docs-site/public/og.png" alt="Pigeon — carry context between AI coding sessions" width="900" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs-site/public/pigeon-logo-dark.png">
+  <img src="docs-site/public/pigeon-logo-light.png" alt="Pigeon" width="240" />
+</picture>
 
 # Pigeon
 

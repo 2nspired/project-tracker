@@ -58,6 +58,10 @@ Blank issues are disabled to keep triage signal high; the templates ask the ques
 - **One card per PR** is the default. Multi-card PRs are okay if they're tightly coupled — call that out in the description.
 - **Self-review before requesting review.** Read your own diff in the PR view; it usually catches a quartile of the noise.
 
+## Code of Conduct
+
+This project follows the [Contributor Covenant 2.1](CODE_OF_CONDUCT.md). By participating, you agree to uphold it. Conduct concerns route through the same private channel as security reports — see `CODE_OF_CONDUCT.md` for details.
+
 ## A friendly note
 
 Pigeon is a small project run by a junior dev who's leaning on AI for architecture decisions. Suggestions, polish PRs, and "this could be simpler" critiques are all welcome — there's no review committee, just a person trying to keep things tidy. If something feels rough, open an issue and we'll talk it through.
