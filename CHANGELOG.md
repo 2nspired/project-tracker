@@ -27,6 +27,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Changed
 
 - Renamed the `resume-session` MCP prompt to `resume-board` to avoid collision with Claude Code's built-in `/resume` slash command. The Pigeon flow loads board state for a fresh chat — semantically distinct from Claude's chat-resume — so the new name disambiguates without changing behavior. Hand-maintained references in `tools.mdx`, onboarding copy, and the tutorial seeder were updated alongside the registration. (#169)
+- AGENTS.md split: contributor reference vs. universal AGENT-GUIDE.md (#246 finished). CLAUDE.md tightened to lead with self-hosting + #260 layering rule (#283).
 
 ## [6.2.1] — 2026-05-02
 
