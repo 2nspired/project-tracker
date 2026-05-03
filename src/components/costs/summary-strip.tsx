@@ -79,13 +79,7 @@ export function SummaryStrip({
 				<Cell label="Last 7 days">
 					<div className="flex items-baseline gap-2">
 						<span className="font-mono text-2xl tabular-nums">{formatCost(weekCost)}</span>
-						<Sparkline
-							data={dailyCost.dailyCostUsd}
-							strokeClassName="stroke-violet-500"
-							fillClassName="fill-violet-500/10"
-							dotClassName="fill-violet-500"
-							label="Daily cost sparkline"
-						/>
+						<Sparkline data={dailyCost.dailyCostUsd} tone="cost" label="Daily cost sparkline" />
 					</div>
 				</Cell>
 
@@ -100,13 +94,7 @@ export function SummaryStrip({
 								{formatBoardShare(projectSummary.totalCostUsd, projectWideSummary.totalCostUsd)}
 							</span>
 							{dailyShare && dailyShare.length === 7 ? (
-								<Sparkline
-									data={dailyShare}
-									strokeClassName="stroke-violet-500"
-									fillClassName="fill-violet-500/10"
-									dotClassName="fill-violet-500"
-									label="Daily share sparkline"
-								/>
+								<Sparkline data={dailyShare} tone="cost" label="Daily share sparkline" />
 							) : null}
 						</div>
 					</Cell>

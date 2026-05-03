@@ -61,6 +61,7 @@ export const DESIGN_NAV: DesignNavSection[] = [
 			{ label: "Input", href: "/dev/design/primitives/input", built: false },
 			{ label: "Badge", href: "/dev/design/primitives/badge", built: false },
 			{ label: "Card", href: "/dev/design/primitives/card", built: false },
+			{ label: "Dot", href: "/dev/design/primitives/dot", built: true },
 			{
 				label: "Segmented Control",
 				href: "/dev/design/primitives/segmented-control",

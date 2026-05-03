@@ -604,7 +604,7 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 											key={comment.id}
 											className={`rounded-lg border p-3 ${
 												comment.authorType === "AGENT"
-													? "border-violet-500/20 bg-violet-500/5"
+													? "border-accent-violet/20 bg-accent-violet/5"
 													: "border-border bg-muted/50"
 											}`}
 										>

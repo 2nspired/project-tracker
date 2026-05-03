@@ -87,13 +87,7 @@ export function BoardPulse({ boardId, projectId }: { boardId: string; projectId:
 
 						{hasWeekCost && dailyCost && (
 							<div className="flex items-center gap-2" title={`${formatCost(weekCost)} this week`}>
-								<Sparkline
-									data={dailyCost.dailyCostUsd}
-									strokeClassName="stroke-violet-500"
-									fillClassName="fill-violet-500/10"
-									dotClassName="fill-violet-500"
-									label="Daily cost sparkline"
-								/>
+								<Sparkline data={dailyCost.dailyCostUsd} tone="cost" label="Daily cost sparkline" />
 								<span className="tabular-nums text-muted-foreground">
 									<span className="font-medium text-foreground">{formatCost(weekCost)}</span> spent
 								</span>

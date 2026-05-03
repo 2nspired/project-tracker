@@ -545,7 +545,7 @@ function RateCell({
 				name={field}
 				className={cn(
 					"font-mono text-2xs tabular-nums w-20 bg-transparent border-b focus:outline-none",
-					isOverridden ? "border-b-violet-500" : "border-border/50",
+					isOverridden ? "border-b-accent-violet" : "border-border/50",
 					"focus:border-foreground/50"
 				)}
 			/>

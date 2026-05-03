@@ -56,7 +56,7 @@ export function StepSection({
 			className={cn(
 				"space-y-2.5 pt-4",
 				isAnchor
-					? "border-t-2 border-violet-500/40 bg-violet-500/[0.015] px-4 pb-4 sm:px-6"
+					? "border-t-2 border-accent-violet/40 bg-accent-violet/[0.015] px-4 pb-4 sm:px-6"
 					: "border-t border-border/50",
 				flush && !isAnchor && "first:border-t-0 first:pt-0"
 			)}
