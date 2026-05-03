@@ -11,6 +11,13 @@ export type CardSummary = { id: string; number: number; title: string };
 export type BlockerEntry = {
 	card: CardSummary;
 	blockedBy: CardSummary[];
+	/**
+	 * Earliest `CardRelation.createdAt` among the active `blocks` relations
+	 * pointing at this card. Used by the Pulse v2 strip's "blockers" cell to
+	 * surface the oldest blocker age — `Date | null` keeps the type safe for
+	 * any future caller that filters all relations out (e.g. all done-shipped).
+	 */
+	oldestBlockedAt: Date | null;
 };
 
 export type LinkResult = {
@@ -178,13 +185,20 @@ export async function getBlockers(db: PrismaClient, boardId?: string): Promise<B
 			blockerMap.set(key, {
 				card: { id: rel.toCard.id, number: rel.toCard.number, title: rel.toCard.title },
 				blockedBy: [],
+				oldestBlockedAt: rel.createdAt,
 			});
 		}
-		blockerMap.get(key)?.blockedBy.push({
-			id: rel.fromCard.id,
-			number: rel.fromCard.number,
-			title: rel.fromCard.title,
-		});
+		const entry = blockerMap.get(key);
+		if (entry) {
+			entry.blockedBy.push({
+				id: rel.fromCard.id,
+				number: rel.fromCard.number,
+				title: rel.fromCard.title,
+			});
+			if (entry.oldestBlockedAt === null || rel.createdAt < entry.oldestBlockedAt) {
+				entry.oldestBlockedAt = rel.createdAt;
+			}
+		}
 	}
 
 	return Array.from(blockerMap.values());

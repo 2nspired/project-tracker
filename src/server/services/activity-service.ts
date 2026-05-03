@@ -1,5 +1,8 @@
 import type { Activity } from "prisma/generated/client";
+import { getLatestHandoff } from "@/lib/services/handoff";
+import { getBlockers } from "@/lib/services/relations";
 import { db } from "@/server/db";
+import { findStaleInProgress } from "@/server/services/stale-cards";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
 async function listByCard(cardId: string): Promise<ServiceResult<Activity[]>> {
@@ -82,6 +85,32 @@ export type FlowMetrics = {
 	bottleneck: { column: string; avgHours: number } | null;
 	/** Cards completed in the prior 7-day window (days 8–14 ago) — used for WoW delta */
 	previousWeekCompleted: number;
+	/**
+	 * Active blocker count and oldest-blocker timestamp for the Pulse v2
+	 * "blockers" cell (#157 / #167). Source of truth is `lib/services/relations`'s
+	 * `getBlockers` — same filter (excludes done-side relations) so the strip
+	 * count matches the briefMe blockers list. `oldestBlockedAt` is null when
+	 * count is 0; the strip cell is conditionally hidden in that case.
+	 */
+	blockers: {
+		count: number;
+		oldestBlockedAt: string | null;
+	};
+	/**
+	 * Stale-in-progress count for the Pulse v2 "stalled" cell (#157 / #167).
+	 * Source: `findStaleInProgress` — same sweep used by `briefMe`'s
+	 * `staleInProgress` field, so the strip count matches the briefMe payload.
+	 * Cell is conditionally hidden when count is 0.
+	 */
+	staleInProgressCount: number;
+	/**
+	 * Latest handoff timestamp for the Pulse v2 popover-only "handoff age" row
+	 * (#157 / #167). Mirrors the value already used by briefMe's pulse-text
+	 * `handoff Xh ago` token (#167 inventory called this asymmetry out — text
+	 * had it, strip didn't). `null` when no handoff has ever been saved on
+	 * this board.
+	 */
+	latestHandoffAt: string | null;
 };
 
 async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetrics>> {
@@ -226,9 +255,39 @@ async function getFlowMetrics(boardId: string): Promise<ServiceResult<FlowMetric
 			if (match && doneColumnNames.has(match[2])) previousWeekCompleted++;
 		}
 
+		// Pulse v2 (#157 / #167) — fold blockers, stale-in-progress, and the
+		// latest-handoff timestamp into the same payload so the strip renders
+		// from one round-trip. All three reuse existing services for parity
+		// with the briefMe payload (no recomputation drift between surfaces).
+		const [blockerEntries, staleMap, latestHandoff] = await Promise.all([
+			getBlockers(db, boardId),
+			findStaleInProgress(db, boardId),
+			getLatestHandoff(db, boardId),
+		]);
+
+		let oldestBlockedAt: Date | null = null;
+		for (const entry of blockerEntries) {
+			if (entry.oldestBlockedAt === null) continue;
+			if (oldestBlockedAt === null || entry.oldestBlockedAt < oldestBlockedAt) {
+				oldestBlockedAt = entry.oldestBlockedAt;
+			}
+		}
+
 		return {
 			success: true,
-			data: { throughput, forwardMoves, backwardMoves, bottleneck, previousWeekCompleted },
+			data: {
+				throughput,
+				forwardMoves,
+				backwardMoves,
+				bottleneck,
+				previousWeekCompleted,
+				blockers: {
+					count: blockerEntries.length,
+					oldestBlockedAt: oldestBlockedAt ? oldestBlockedAt.toISOString() : null,
+				},
+				staleInProgressCount: staleMap.size,
+				latestHandoffAt: latestHandoff ? latestHandoff.createdAt.toISOString() : null,
+			},
 		};
 	} catch (error) {
 		console.error("[ACTIVITY_SERVICE] getFlowMetrics error:", error);

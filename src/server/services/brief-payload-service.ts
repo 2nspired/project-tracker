@@ -180,11 +180,18 @@ export async function buildBriefPayload(
 	const inProgressCount = allCards.filter(({ column }) => hasRole(column, "active")).length;
 
 	const handoffAge = lastHandoff ? humanizeAge(lastHandoff.createdAt) : null;
+	// Pulse v2 (#157 / #167) — keep the briefMe pulse text in sync with the
+	// visual strip's load-bearing signals. Strip surfaces `staleInProgress`
+	// as a top-tier behavior-changing signal (count > 0 means ghost work);
+	// the text omitted it pre-#157, so the agent reading briefMe couldn't
+	// see what the human reading the strip saw. Conditional render mirrors
+	// the strip rule (only when count > 0).
 	const pulseParts = [
 		`${openCards.length} open`,
 		`${inProgressCount} in progress`,
 		`${blockerEntries.length} blocked`,
 	];
+	if (staleInProgressMap.size > 0) pulseParts.push(`${staleInProgressMap.size} stalled`);
 	if (handoffAge) pulseParts.push(`handoff ${handoffAge} ago`);
 	const pulse = `${board.project.name} / ${board.name} · ${pulseParts.join(" · ")}`;
 
