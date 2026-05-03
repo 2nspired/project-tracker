@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced placeholder `board-overview-dark.png` with a real dark-mode capture of the Pigeon Dev board (Parking Lot / Backlog / In Progress / Done columns with priority stripes, tags, and card numbers). Added 4 net-new dark/light captures: `card-detail-dark.png`, `costs-page-light.png`, `costs-page-dark.png`, and `command-palette.png` for future docs use.
+
 ## [6.4.0] — 2026-05-02
 
 The "Talkable" charter — Pigeon repositioned as a self-hosting MCP for AI-assisted development. 21 cards: PO export (#136) and Pulse v2 (#157) feature builds; 4 design-system codify cards (#278 motion tokens, #279 design showcase, #280 Dot/Sparkline + violet, #287 docs accent); 5 documentation cards (G1 README #285, G2 #283, G3 docs-site rewrite #286, G4 core docs #284, G5 hygiene #282); 4 architectural decisions (#209, #266, #167, #281); polish (#165 drawer mobile, #169 resume rename, #173 hygiene panel, #265 board screenshot, #276 Costs explainer); bug fix #277 (PigeonOverhead schema migration). `npm run service:update` runs `prisma db push` automatically.
