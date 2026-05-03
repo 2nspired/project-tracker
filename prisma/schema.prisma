@@ -370,6 +370,19 @@ model ToolCallLog {
   toolType       String   @map("tool_type")
   agentName      String   @map("agent_name")
   sessionId      String   @map("session_id")
+  // Project this tool call was attributed to. Resolved once per MCP server
+  // process from `MCP_CALLER_CWD` (or `process.cwd()`) via
+  // `resolveProjectIdFromCwd`, then attached to every write — independent
+  // of the TokenUsageEvent ingestion pipeline. Nullable because:
+  //   - Pre-#277 rows have no resolvable project (backfilled best-effort
+  //     via the token_usage_event bridge; rows whose sessions never emitted
+  //     a TokenUsageEvent stay NULL).
+  //   - The MCP server may run from a `cwd` outside any registered repo
+  //     (e.g. raw `npm run mcp:dev`), or the repo may not be bound to a
+  //     project — those calls are still logged for `getToolUsageStats`
+  //     analytics but excluded from project-scoped overhead aggregations.
+  // Project-scoped readers (`getProjectPigeonOverhead`) filter NULLs out.
+  projectId      String?  @map("project_id")
   durationMs     Int      @map("duration_ms")
   success        Boolean
   errorMessage   String?  @map("error_message")
@@ -378,6 +391,8 @@ model ToolCallLog {
 
   @@index([agentName])
   @@index([sessionId])
+  @@index([projectId])
+  @@index([projectId, createdAt])
   @@index([createdAt])
   @@index([toolName, createdAt])
   @@index([agentName, createdAt])

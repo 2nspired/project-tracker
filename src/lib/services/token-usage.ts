@@ -1847,14 +1847,63 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		opts?: { boardId?: string }
 	): Promise<ServiceResult<{ totalCostUsd: number; callCount: number }>> {
 		try {
-			const where = await resolveBoardScopeWhere(projectId, opts?.boardId);
+			// #277: query `tool_call_log` directly via its `projectId` column
+			// instead of bridging through `token_usage_event`. The bridge
+			// silently dropped sessions whose Stop hook never fired (or
+			// resolved no project), causing `<PigeonOverheadSection>` to
+			// render $0 even when MCP overhead was real. The MCP server now
+			// stamps `projectId` on every `tool_call_log` row at write time
+			// (see `src/mcp/instrumentation.ts`), so the project bridge is
+			// no longer needed for in-scope discovery.
+			//
+			// `token_usage_event` is still consulted, but only to pick the
+			// representative model per session for pricing — and only for
+			// sessions that already have at least one `tool_call_log` row in
+			// this project. Sessions without a TokenUsageEvent fall back to
+			// the pricing default (`__default__` or DEFAULT_PRICING_DEFAULT)
+			// so they still contribute a callCount and a best-effort cost
+			// rather than disappearing.
+			//
+			// `boardId` still routes through `resolveBoardScopeWhere` to
+			// preserve the session-expansion rule: any session that touched
+			// a card on the board is in-scope, even if some of that
+			// session's logs predated the touch. We compute the
+			// session-set here on `token_usage_event` (the only place that
+			// knows about cards), then intersect with the project-scoped
+			// `tool_call_log` query.
+			const sessionWhere = await resolveBoardScopeWhere(projectId, opts?.boardId);
+
+			let logWhere: Prisma.ToolCallLogWhereInput = { projectId };
+
+			if (opts?.boardId) {
+				const boardSessions = await prisma.tokenUsageEvent.findMany({
+					where: sessionWhere,
+					select: { sessionId: true },
+				});
+				const boardSessionIds = Array.from(new Set(boardSessions.map((r) => r.sessionId)));
+				if (boardSessionIds.length === 0) {
+					return { success: true, data: { totalCostUsd: 0, callCount: 0 } };
+				}
+				logWhere = { projectId, sessionId: { in: boardSessionIds } };
+			}
+
+			const logs = await prisma.toolCallLog.findMany({
+				where: logWhere,
+				select: { sessionId: true, responseTokens: true },
+			});
+
+			if (logs.length === 0) {
+				return { success: true, data: { totalCostUsd: 0, callCount: 0 } };
+			}
 
 			// Pick a representative model per session — first event's model
 			// wins (matches the per-card variant). Project-scoped so a
 			// session-id collision across projects can't pull pricing from
-			// the wrong project.
+			// the wrong project. Sessions with no TokenUsageEvent in this
+			// project resolve to pricing defaults below.
+			const sessionIdsInLogs = Array.from(new Set(logs.map((l) => l.sessionId)));
 			const eventRows = await prisma.tokenUsageEvent.findMany({
-				where,
+				where: { projectId, sessionId: { in: sessionIdsInLogs } },
 				select: { sessionId: true, model: true },
 				orderBy: { recordedAt: "asc" },
 			});
@@ -1862,24 +1911,14 @@ export function createTokenUsageService(prisma: PrismaClient) {
 			for (const row of eventRows) {
 				if (!sessionModel.has(row.sessionId)) sessionModel.set(row.sessionId, row.model);
 			}
-			const sessionIds = Array.from(sessionModel.keys());
-			if (sessionIds.length === 0) {
-				return { success: true, data: { totalCostUsd: 0, callCount: 0 } };
-			}
 
-			const [logs, pricing] = await Promise.all([
-				prisma.toolCallLog.findMany({
-					where: { sessionId: { in: sessionIds } },
-					select: { sessionId: true, responseTokens: true },
-				}),
-				loadPricing(),
-			]);
+			const pricing = await loadPricing();
+			const fallback = pricing.__default__ ?? DEFAULT_PRICING_DEFAULT;
 
 			let totalCostUsd = 0;
 			for (const log of logs) {
 				const model = sessionModel.get(log.sessionId);
-				if (!model) continue;
-				const rates = pricing[model] ?? pricing.__default__ ?? DEFAULT_PRICING_DEFAULT;
+				const rates = (model && pricing[model]) || fallback;
 				totalCostUsd += (log.responseTokens / 1_000_000) * rates.outputPerMTok;
 			}
 			return { success: true, data: { totalCostUsd, callCount: logs.length } };

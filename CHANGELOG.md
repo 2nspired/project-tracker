@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Fixed
+
+- PigeonOverheadSection no longer silently hides when TokenUsageEvent ingestion is sparse — `tool_call_log` now carries `projectId` directly (stamped at write time by the MCP server) instead of bridging through `token_usage_event` for project discovery. The bridge collapsed to `[]` when the Stop hook didn't fire (or `resolveProjectIdFromCwd` returned null at hook time), zeroing the section even when MCP overhead was real. `npm run service:update` runs `prisma db push` automatically; run `npx tsx scripts/backfill-tool-call-log-projectid.ts` once after to attribute historical rows. (#277)
+
 ### Added
 
 - Landed the Attribution Engine pure-function core (`src/lib/services/attribution.ts`) — picks one card per session via a 5-tier heuristic (explicit → single In-Progress → session-recent-touch → session-commit → unattributed). Multi-In-Progress sessions short-circuit to `unattributed` per the orchestrator-mode gate. Cluster head for the v6.3 charter; write-path wiring + backfill follow in #269 and #270. (#268)

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolveProjectIdFromCwd } from "@/lib/services/resolve-project";
 import { db } from "./db.js";
 import { requireIntentIfPolicyRequires, resolvePolicyForCall } from "./policy-enforcement.js";
 import type { ToolResult } from "./utils.js";
@@ -7,6 +8,45 @@ import { AGENT_NAME, err } from "./utils.js";
 // ─── Session Identity ────────────────────────────────────────────────
 // One UUID per MCP server process — matches the MCP session lifecycle.
 export const SESSION_ID = randomUUID();
+
+// ─── Project Identity (#277) ─────────────────────────────────────────
+// Resolve the calling repo's projectId once per process and stamp every
+// `tool_call_log` row with it. This decouples project attribution for
+// MCP overhead from the Stop-hook ingestion path: previously
+// `getProjectPigeonOverhead` discovered project-scoped sessions by
+// joining `token_usage_event WHERE projectId = ?` and then filtering
+// `tool_call_log WHERE sessionId IN (…)`. When the Stop hook didn't fire
+// (or `resolveProjectIdFromCwd` returned null at TokenUsageEvent write
+// time), the bridge collapsed to `[]` and `<PigeonOverheadSection>`
+// silently rendered $0. Stamping `tool_call_log.projectId` directly at
+// write time removes the bridge entirely.
+//
+// Resolution is cached for the lifetime of the MCP server process — the
+// caller cwd is fixed at process start (via `MCP_CALLER_CWD` or the
+// inherited `process.cwd()`), so re-resolving per call would be wasted
+// `git rev-parse` subprocesses. Resolution is best-effort: if the cwd
+// isn't inside a registered repo, the column stays NULL and the row is
+// excluded from project-scoped readers. Analytics-only readers
+// (`getToolUsageStats`) continue to see every row.
+let resolvedProjectIdPromise: Promise<string | null> | null = null;
+
+function getProjectIdForLogs(): Promise<string | null> {
+	if (resolvedProjectIdPromise) return resolvedProjectIdPromise;
+	const cwd = process.env.MCP_CALLER_CWD || process.cwd();
+	resolvedProjectIdPromise = resolveProjectIdFromCwd(cwd, db).catch((e) => {
+		console.error("[MCP] projectId resolve for instrumentation failed:", e);
+		return null;
+	});
+	return resolvedProjectIdPromise;
+}
+
+/**
+ * Test-only: reset the cached projectId so unit tests can re-stub the
+ * resolver between cases. No production caller should touch this.
+ */
+export function __resetResolvedProjectIdForTests(): void {
+	resolvedProjectIdPromise = null;
+}
 
 // ─── Fire-and-Forget Logger ──────────────────────────────────────────
 
@@ -20,19 +60,24 @@ interface LogEntry {
 }
 
 function record(entry: LogEntry): void {
-	db.toolCallLog
-		.create({
-			data: {
-				toolName: entry.toolName,
-				toolType: entry.toolType,
-				agentName: AGENT_NAME,
-				sessionId: SESSION_ID,
-				durationMs: entry.durationMs,
-				success: entry.success,
-				errorMessage: entry.errorMessage ?? null,
-				responseTokens: entry.responseTokens ?? 0,
-			},
-		})
+	// Resolve projectId asynchronously, then write. The resolve is cached
+	// so steady-state cost is one `await` on an already-settled promise.
+	getProjectIdForLogs()
+		.then((projectId) =>
+			db.toolCallLog.create({
+				data: {
+					toolName: entry.toolName,
+					toolType: entry.toolType,
+					agentName: AGENT_NAME,
+					sessionId: SESSION_ID,
+					projectId,
+					durationMs: entry.durationMs,
+					success: entry.success,
+					errorMessage: entry.errorMessage ?? null,
+					responseTokens: entry.responseTokens ?? 0,
+				},
+			})
+		)
 		.catch((e) => console.error("[MCP] instrumentation write failed:", e));
 }
 
