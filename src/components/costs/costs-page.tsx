@@ -4,6 +4,7 @@ import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setu
 import { CostsBreadcrumb } from "@/components/costs/breadcrumb";
 import { PricingOverrideTable } from "@/components/costs/pricing-override-table";
 import { SummaryStrip } from "@/components/costs/summary-strip";
+import { TopSessionsSection } from "@/components/costs/top-sessions-section";
 import { UnattributedGapCard } from "@/components/costs/unattributed-gap-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -65,6 +66,11 @@ export function CostsPage({
 		{ projectId, boardId: boardId! },
 		{ staleTime: 60_000, enabled: !!boardId }
 	);
+	// Top-N expensive sessions lens (#211).
+	const { data: topSessions } = api.tokenUsage.getTopSessions.useQuery(
+		{ projectId, limit: 10 },
+		{ staleTime: 60_000 }
+	);
 
 	const isLoading = summaryLoading || dailyLoading;
 	const hasNoData =
@@ -123,6 +129,9 @@ export function CostsPage({
 						dailyShare={dailyShare?.dailyShare}
 					/>
 					<UnattributedGapCard projectSummary={projectSummary} />
+					{topSessions ? (
+						<TopSessionsSection topSessions={topSessions} projectId={projectId} />
+					) : null}
 					<PricingOverrideTable projectId={projectId} projectSummary={projectSummary} />
 				</>
 			) : null}
