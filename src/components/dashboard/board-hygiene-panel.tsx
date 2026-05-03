@@ -61,17 +61,21 @@ const SIGNAL_ICON: Record<SignalKey, React.ComponentType<{ className?: string }>
 	staleDecisions: Lightbulb,
 };
 
-function cardHref(cardRef: { projectId: string; boardId: string }): string {
-	return `/projects/${cardRef.projectId}/boards/${cardRef.boardId}`;
+// Next 16 typedRoutes treats `<Link href={string}>` as an error unless the
+// string narrows to a known Route. These hrefs are dynamic at runtime, so
+// we cast through `never` to opt out of the static check while keeping the
+// runtime URL shape obvious to readers.
+function cardHref(cardRef: { projectId: string; boardId: string }) {
+	return `/projects/${cardRef.projectId}/boards/${cardRef.boardId}` as never;
 }
 
-function projectHref(projectId: string): string {
-	return `/projects/${projectId}`;
+function projectHref(projectId: string) {
+	return `/projects/${projectId}` as never;
 }
 
-function projectTagsHref(projectId: string): string {
+function projectTagsHref(projectId: string) {
 	// Project page hosts the tag manager — taxonomy drift drills in here.
-	return `/projects/${projectId}`;
+	return `/projects/${projectId}` as never;
 }
 
 export function BoardHygienePanel() {
