@@ -1,0 +1,76 @@
+---
+/**
+ * Changelog — renders the repo-root CHANGELOG.md.
+ *
+ * Reads the file via Vite's `?raw` import (build-time), runs it through
+ * `marked` (already a transitive dep of the docs-site toolchain), and
+ * drops the resulting HTML into a styled wrapper. The content is mirrored
+ * from `CHANGELOG.md` at build time, so updates to the source land here
+ * on the next build with no extra wiring.
+ *
+ * No dynamic JS — pure server render.
+ */
+import { marked } from "marked";
+// Vite resolves `?raw` to the file's text contents.
+// Path is relative to this file → up to docs-site → up to repo root.
+import changelogSource from "../../../CHANGELOG.md?raw";
+
+// Strip the leading "# Changelog" heading + the "All notable changes…"
+// blurb — Starlight already renders the page title, and the page's own
+// MDX prose carries the framing copy. Drop everything before the first
+// `## ` (the first version header).
+const firstVersionIdx = changelogSource.indexOf("\n## ");
+const body =
+	firstVersionIdx >= 0 ? changelogSource.slice(firstVersionIdx + 1) : changelogSource;
+
+// Configure marked: GFM tables on, line-breaks off (markdown standard).
+marked.use({
+	gfm: true,
+	breaks: false,
+});
+
+const html = marked.parse(body) as string;
+---
+
+<div class="changelog" set:html={html} />
+
+<style>
+	/* Inherit Starlight's prose styles where possible; fine-tune
+	   for the changelog's heavy heading-density. */
+	.changelog :global(h2) {
+		margin-top: var(--space-7);
+		padding-top: var(--space-4);
+		border-top: 1px solid var(--sl-color-gray-5);
+		font-family: var(--font-mono);
+		font-size: 1.05rem;
+		letter-spacing: 0.04em;
+	}
+
+	.changelog :global(h2:first-of-type) {
+		margin-top: 0;
+		padding-top: 0;
+		border-top: none;
+	}
+
+	.changelog :global(h3) {
+		margin-top: var(--space-5);
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		color: var(--sl-color-text-accent);
+	}
+
+	.changelog :global(li) {
+		margin-block: 0.4rem;
+	}
+
+	.changelog :global(li > p) {
+		margin-block: 0.2rem;
+	}
+
+	/* Make card refs (#212) feel like inline tags */
+	.changelog :global(li code) {
+		font-size: 0.86em;
+	}
+</style>
