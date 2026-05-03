@@ -11,14 +11,15 @@ import SectionHeader from "../../components/SectionHeader.astro";
 import FeatureGrid from "../../components/FeatureGrid.astro";
 import NextRead from "../../components/NextRead.astro";
 import boardOverview from "../../assets/screenshots/board-overview.png";
+import boardOverviewDark from "../../assets/screenshots/board-overview-dark.png";
 import cardDetail from "../../assets/screenshots/card-detail.png";
 
 <div class="landing">
 
 <Hero
-	eyebrow="Pigeon // local-first MCP kanban"
+	eyebrow="Pigeon // self-hosting MCP kanban"
 	titleHtml={`A kanban board that <em>carries context</em><br /> between AI coding sessions.`}
-	tagline="You see a board. The agent reads and writes the same board through MCP. Nothing leaves your machine."
+	tagline="Self-hosting MCP integration, real-time SSE board updates, audit-grade attribution. You see a board. The agent reads and writes the same board over MCP. Nothing leaves your machine."
 	actions={[
 		{
 			text: "60-second install",
@@ -34,9 +35,9 @@ import cardDetail from "../../assets/screenshots/card-detail.png";
 	]}
 	statusItems={[
 		{ label: "Storage", value: "SQLite, on disk" },
-		{ label: "Network", value: "None" },
+		{ label: "Updates", value: "Real-time SSE" },
 		{ label: "Surface", value: "MCP + Web UI" },
-		{ label: "License", value: "Open source" },
+		{ label: "License", value: "MIT, open source" },
 	]}
 >
 	<SessionLoop slot="aside" />
@@ -54,13 +55,13 @@ import cardDetail from "../../assets/screenshots/card-detail.png";
 <FeatureGrid items={[
 	{
 		tag: "01",
-		title: "You see a board",
-		body: "Cards, columns, priorities, checklists, comments, activity. Drag-and-drop in your browser. Everything the agent does shows up live.",
+		title: "You see a board, live",
+		body: "Cards, columns, priorities, checklists, comments, activity. Drag-and-drop in your browser. Real-time SSE updates — everything the agent does shows up live, no refresh.",
 	},
 	{
 		tag: "02",
 		title: "The agent sees structure",
-		body: "Essential MCP tools are always on. Extended tools are discoverable on demand. Context footprint stays small.",
+		body: "10 essential MCP tools always on. 65+ extended tools discoverable on demand via getTools / runTool. Context footprint stays small.",
 	},
 	{
 		tag: "03",
@@ -69,8 +70,8 @@ import cardDetail from "../../assets/screenshots/card-detail.png";
 	},
 	{
 		tag: "04",
-		title: "Local-first by design",
-		body: "SQLite file on disk. No accounts, no cloud sync, no server to babysit. You own the data and the history.",
+		title: "Audit-grade attribution",
+		body: "The Attribution Engine picks one card per session via a 5-tier heuristic. Every TokenUsageEvent row carries the signal that produced its cardId — see exactly why a session was attributed.",
 	},
 ]} />
 
@@ -85,6 +86,7 @@ import cardDetail from "../../assets/screenshots/card-detail.png";
 
 <ScreenshotCallout
 	src={boardOverview}
+	srcDark={boardOverviewDark}
 	alt="Pigeon board view with Backlog, In Progress, Review, Done, and Parking Lot columns. Cards show priority-colored stripes, tags, and stable card numbers."
 	caption="FIG.02 — Board view"
 	subcaption="Tutorial board, fresh install"
@@ -209,15 +211,21 @@ back is the handoff plus the current board pulse plus any open blockers.
 		time: "~7 min",
 	},
 	{
-		href: "./anti-patterns/",
-		label: "Anti-patterns",
-		desc: "How people trip themselves up, and how to avoid it.",
-		time: "~4 min",
+		href: "./architecture/",
+		label: "Architecture",
+		desc: "Two server processes, three layers, one rule the lint enforces.",
+		time: "~6 min",
 	},
 	{
 		href: "./tools/",
 		label: "MCP tools",
 		desc: "Reference for every tool the agent can call.",
+		time: "reference",
+	},
+	{
+		href: "./api/",
+		label: "tRPC API",
+		desc: "Every web-app procedure, grouped by router.",
 		time: "reference",
 	},
 ]} />

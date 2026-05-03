@@ -1,0 +1,80 @@
+---
+/**
+ * SiteFooter — overrides Starlight's default <Footer/> slot.
+ *
+ * Renders the same per-page meta strip Starlight ships with (edit-this-page,
+ * last-updated, prev/next pager) and then drops a minimal site-wide credit
+ * line: "Built with Pigeon" + repo + license link. Keeps the upstream
+ * components by re-rendering them — we just append a tagline.
+ */
+import Default from "@astrojs/starlight/components/Footer.astro";
+---
+
+<Default><slot /></Default>
+
+<aside class="site-footer" aria-label="Site credits">
+	<p class="site-footer__line">
+		<span class="site-footer__brand">Built with Pigeon</span>
+		<span class="site-footer__sep" aria-hidden="true">·</span>
+		<a class="site-footer__link" href="https://github.com/2nspired/pigeon">
+			GitHub
+		</a>
+		<span class="site-footer__sep" aria-hidden="true">·</span>
+		<a
+			class="site-footer__link"
+			href="https://github.com/2nspired/pigeon/blob/main/LICENSE"
+		>
+			MIT license
+		</a>
+		<span class="site-footer__sep" aria-hidden="true">·</span>
+		<span class="site-footer__by">by 2nspired</span>
+	</p>
+</aside>
+
+<style>
+	.site-footer {
+		margin-top: 2.5rem;
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+		font-family: var(--font-mono, ui-monospace, monospace);
+	}
+
+	.site-footer__line {
+		margin: 0;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.55rem;
+		font-size: 0.74rem;
+		letter-spacing: 0.06em;
+		color: var(--sl-color-gray-3);
+	}
+
+	.site-footer__brand {
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.14em;
+		color: var(--sl-color-text-accent);
+	}
+
+	.site-footer__sep {
+		opacity: 0.6;
+	}
+
+	.site-footer__link {
+		color: var(--sl-color-gray-2);
+		text-decoration: none;
+		border-bottom: 1px dotted color-mix(in oklab, currentColor 60%, transparent);
+		transition: color 160ms ease, border-color 160ms ease;
+	}
+
+	.site-footer__link:hover,
+	.site-footer__link:focus-visible {
+		color: var(--sl-color-text-accent);
+		border-bottom-color: var(--sl-color-text-accent);
+	}
+
+	.site-footer__by {
+		opacity: 0.85;
+	}
+</style>
