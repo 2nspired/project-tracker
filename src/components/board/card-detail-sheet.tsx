@@ -292,10 +292,10 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 				if (!open) onClose();
 			}}
 		>
-			<SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+			<SheetContent className="flex w-full flex-col gap-0 overflow-y-auto p-0 pb-[max(env(safe-area-inset-bottom),1rem)] sm:max-w-2xl">
 				{!card ? (
-					<div className="space-y-6 pt-6">
-						<SheetHeader>
+					<div className="flex flex-col gap-6 px-4 pt-6 sm:px-6">
+						<SheetHeader className="p-0">
 							<SheetTitle>
 								<Skeleton className="h-6 w-48" />
 							</SheetTitle>
@@ -317,9 +317,9 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 					</div>
 				) : (
 					<>
-						<SheetHeader className="px-6">
-							<SheetTitle className="pr-6">
-								<div className="flex items-center gap-2">
+						<SheetHeader className="space-y-1.5 border-b px-4 pt-4 pb-3 sm:px-6 sm:pt-6 sm:pb-4">
+							<SheetTitle className="pr-8">
+								<div className="flex min-w-0 items-center gap-2">
 									<span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
 										#{card.number}
 									</span>
@@ -336,7 +336,7 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 													setIsEditingTitle(false);
 												}
 											}}
-											className="border-0 p-0 text-lg font-semibold shadow-none focus-visible:ring-0"
+											className="min-w-0 border-0 p-0 text-lg font-semibold shadow-none focus-visible:ring-0"
 											autoFocus
 										/>
 									) : (
@@ -346,9 +346,11 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 												setLocalTitle(card.title);
 												setIsEditingTitle(true);
 											}}
-											className="group flex min-w-0 items-center gap-1.5 text-left"
+											className="group flex min-w-0 flex-1 items-center gap-1.5 text-left"
 										>
-											<span className="truncate text-lg font-semibold">{card.title}</span>
+											<span className="min-w-0 break-words text-lg font-semibold sm:truncate">
+												{card.title}
+											</span>
 											<Pencil className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
 										</button>
 									)}
@@ -362,9 +364,9 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 							</p>
 						</SheetHeader>
 
-						<div className="space-y-8 px-6 pb-8">
+						<div className="flex flex-col gap-6 px-4 py-4 sm:px-6 sm:py-6">
 							{/* Metadata badges */}
-							<div className="flex flex-wrap items-center gap-2">
+							<div className="flex min-w-0 flex-wrap items-center gap-2">
 								{/* Priority */}
 								<Select
 									value={card.priority}
@@ -575,8 +577,9 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 									<Button
 										type="submit"
 										variant="outline"
-										size="sm"
+										size="icon"
 										disabled={!newChecklistItem.trim()}
+										aria-label="Add checklist item"
 									>
 										<Plus className="h-4 w-4" />
 									</Button>
@@ -647,7 +650,7 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 										placeholder="Add a comment..."
 										className="text-sm"
 									/>
-									<Button type="submit" variant="outline" size="sm" disabled={!newComment.trim()}>
+									<Button type="submit" variant="outline" disabled={!newComment.trim()}>
 										Send
 									</Button>
 								</form>
@@ -747,10 +750,10 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 							)}
 
 							{/* Delete */}
-							<div className="pt-4">
+							<div className="pt-2">
 								<AlertDialog>
 									<AlertDialogTrigger asChild>
-										<Button variant="destructive" size="sm">
+										<Button variant="destructive">
 											<Trash2 className="mr-2 h-4 w-4" />
 											Delete Card
 										</Button>
