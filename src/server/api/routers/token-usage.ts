@@ -212,6 +212,29 @@ export const tokenUsageRouter = createTRPCRouter({
 			return result.data;
 		}),
 
+	// Card Delivery metrics — backs `<CardDeliverySection>` on the Costs
+	// page (revived in #275 after #236 dropped it). Top-N expensive cards
+	// + median cost-per-shipped-card. Direct cardId attribution only
+	// (post-#269 attribution makes session-expansion unnecessary).
+	getCardDeliveryMetrics: publicProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				boardId: z.string().uuid().optional(),
+				limit: z.number().int().min(1).max(100).optional(),
+			})
+		)
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getCardDeliveryMetrics(input.projectId, {
+				boardId: input.boardId,
+				limit: input.limit,
+			});
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
+
 	// Project-wide Pigeon overhead — backs `<PigeonOverheadSection>` on
 	// the Costs page (revived in #274 after #236 dropped it). Aggregates
 	// `ToolCallLog.responseTokens` across every session in the project,
