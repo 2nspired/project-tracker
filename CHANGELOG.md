@@ -15,6 +15,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ### Added
 
+- Dashboard board-hygiene panel — 5 cleanup signals (missing tags, untriaged Backlog, overdue milestones, tag drift, stale decisions). Recessive collapsed accordion below Pulse. (#173)
 - Filled all ten `<ComingSoon>` `/dev/design` placeholders — typography, spacing, radius, icons, motion, button, input, badge, card, skeleton, step-section pages now render live demos. (#279)
 - Motion tokens (`--motion-fast: 120ms` / `--motion-base: 180ms` / `--motion-slow: 280ms` / `--motion-ease-standard: cubic-bezier(0.2, 0, 0, 1)`) registered via `@theme inline` so Tailwind exposes `duration-fast` / `duration-base` / `duration-slow` / `ease-standard` utilities. Pattern follows Linear / Vercel / shadcn — three durations for the common state-change buckets, one easing curve. Backed by a new `raw-transition-all` design-lint rule (allowlist: `ui/button.tsx`) so the next casual `transition-all` fails CI. (#278)
 - `<Dot>` primitive at `src/components/ui/dot.tsx` — semantic status dot with `tone` (`agent` / `success` / `warning` / `danger` / `info` / `neutral`) and `size` (`sm` / `md`) props. Replaces the inline `<span size-2 rounded-full bg-…>` pattern (notably `<ViolaDot>` in the Costs scope switcher) so dark-mode flips for free via the role-token CSS vars. Showcased at `/dev/design/primitives/dot`. (#280)

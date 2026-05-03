@@ -2,6 +2,7 @@ import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 
 import { activityRouter } from "@/server/api/routers/activity";
 import { boardRouter } from "@/server/api/routers/board";
+import { boardHealthRouter } from "@/server/api/routers/board-health";
 import { cardRouter } from "@/server/api/routers/card";
 import { checklistRouter } from "@/server/api/routers/checklist";
 import { columnRouter } from "@/server/api/routers/column";
@@ -20,6 +21,7 @@ import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 export const appRouter = createTRPCRouter({
 	project: projectRouter,
 	board: boardRouter,
+	boardHealth: boardHealthRouter,
 	card: cardRouter,
 	column: columnRouter,
 	comment: commentRouter,
