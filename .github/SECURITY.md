@@ -6,9 +6,9 @@ Pigeon is a small local-first project. Security fixes land on the latest minor r
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 6.2.x   | Yes                |
-| 6.1.x   | Best-effort        |
-| < 6.1   | No                 |
+| 6.5.x   | Yes                |
+| 6.4.x   | Best-effort        |
+| < 6.4   | No                 |
 
 ## Reporting a vulnerability
 
