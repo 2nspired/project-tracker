@@ -185,6 +185,32 @@ export type BaselineResult = {
 };
 
 /**
+ * Per-card row for the Card Delivery lens (#275 — revived from #236).
+ * Aggregates cost via direct `cardId` attribution only — session-
+ * expansion (the pre-engine hack to compensate for poor cardId coverage)
+ * is dropped now that the Attribution Engine writes `cardId`
+ * deterministically. `isShipped` reflects the card's current column role
+ * (not its history), which matches the user's mental model of "is this
+ * card done now?"
+ */
+export type CardDeliveryEntry = {
+	cardId: string;
+	cardRef: string;
+	cardTitle: string;
+	totalCostUsd: number;
+	sessionCount: number;
+	isShipped: boolean;
+	completedAt: Date | null;
+};
+
+export type CardDeliveryMetrics = {
+	topCards: CardDeliveryEntry[];
+	shippedCardCount: number;
+	/** Median cost of shipped cards. `null` when no shipped cards exist. */
+	medianShippedCardCostUsd: number | null;
+};
+
+/**
  * Pre-computed savings snapshot read straight from
  * `Project.metadata.tokenBaseline` (#274). The numbers are persisted by
  * `recalibrateBaseline`; this reader exists so the Costs page can render
@@ -500,6 +526,13 @@ function aggregateEvents(events: EventRow[], pricing: Record<string, ModelPricin
 		byModel: Array.from(byModelMap.values()).sort((a, b) => b.costUsd - a.costUsd),
 		attributionBreakdown,
 	};
+}
+
+function median(values: number[]): number {
+	if (values.length === 0) throw new Error("median: empty input");
+	const sorted = [...values].sort((a, b) => a - b);
+	const mid = Math.floor(sorted.length / 2);
+	return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 function safeParseJson(raw: string): Record<string, unknown> {
@@ -1429,6 +1462,117 @@ export function createTokenUsageService(prisma: PrismaClient) {
 	// (regex on static `from "@/server/..."` imports) is satisfied, and any
 	// MCP-side caller that invokes `recalibrateBaseline` resolves the server
 	// module in-process the same way the pre-refactor singleton did.
+	// Card Delivery lens (#275 — revived from #236). Aggregates per-card
+	// cost via direct `cardId` attribution and surfaces:
+	//   - `topCards` — top N by aggregated cost (any column)
+	//   - `shippedCardCount` — number of cards in `role: "done"` columns
+	//     that have any attributed cost
+	//   - `medianShippedCardCostUsd` — median across shipped cards' costs
+	//     (the headline metric: "what does it cost to ship a card here?")
+	//
+	// Session-expansion (cost from any session that touched a card) is
+	// intentionally NOT used. Pre-#269 it was a workaround for poor cardId
+	// coverage; post-engine, the Attribution Engine writes `cardId` once
+	// per session deterministically, so per-cardId aggregation is the
+	// honest measure. Multi-card sessions correctly classify as
+	// `cardId=null` (orchestrator gate) and are excluded from per-card
+	// rollups — that's the right behavior, not a regression.
+	async function getCardDeliveryMetrics(
+		projectId: string,
+		opts?: { boardId?: string; limit?: number }
+	): Promise<ServiceResult<CardDeliveryMetrics>> {
+		try {
+			const limit = Math.max(1, Math.min(100, opts?.limit ?? 5));
+			const baseWhere = await resolveBoardScopeWhere(projectId, opts?.boardId);
+
+			const events = await prisma.tokenUsageEvent.findMany({
+				where: { ...baseWhere, cardId: { not: null } },
+				select: {
+					sessionId: true,
+					cardId: true,
+					model: true,
+					inputTokens: true,
+					outputTokens: true,
+					cacheReadTokens: true,
+					cacheCreation1hTokens: true,
+					cacheCreation5mTokens: true,
+					recordedAt: true,
+				},
+			});
+			const pricing = await loadPricing();
+
+			type CardAcc = { totalCostUsd: number; sessionIds: Set<string> };
+			const byCard = new Map<string, CardAcc>();
+			for (const event of events) {
+				if (event.cardId === null) continue;
+				const acc = byCard.get(event.cardId) ?? {
+					totalCostUsd: 0,
+					sessionIds: new Set<string>(),
+				};
+				acc.totalCostUsd += computeCost(event, pricing);
+				acc.sessionIds.add(event.sessionId);
+				byCard.set(event.cardId, acc);
+			}
+
+			if (byCard.size === 0) {
+				return {
+					success: true,
+					data: { topCards: [], shippedCardCount: 0, medianShippedCardCostUsd: null },
+				};
+			}
+
+			// Hydrate card rows + their column role for the shipped flag.
+			const cards = await prisma.card.findMany({
+				where: { id: { in: Array.from(byCard.keys()) } },
+				select: {
+					id: true,
+					number: true,
+					title: true,
+					completedAt: true,
+					column: { select: { role: true } },
+				},
+			});
+			const cardMeta = new Map(cards.map((c) => [c.id, c]));
+
+			const allEntries: CardDeliveryEntry[] = [];
+			const shippedCosts: number[] = [];
+			for (const [cardId, acc] of byCard.entries()) {
+				const meta = cardMeta.get(cardId);
+				if (!meta) continue;
+				const isShipped = meta.column.role === "done";
+				allEntries.push({
+					cardId,
+					cardRef: `#${meta.number}`,
+					cardTitle: meta.title,
+					totalCostUsd: acc.totalCostUsd,
+					sessionCount: acc.sessionIds.size,
+					isShipped,
+					completedAt: meta.completedAt,
+				});
+				if (isShipped) shippedCosts.push(acc.totalCostUsd);
+			}
+
+			const topCards = allEntries.sort((a, b) => b.totalCostUsd - a.totalCostUsd).slice(0, limit);
+
+			const medianShippedCardCostUsd = shippedCosts.length > 0 ? median(shippedCosts) : null;
+
+			return {
+				success: true,
+				data: {
+					topCards,
+					shippedCardCount: shippedCosts.length,
+					medianShippedCardCostUsd,
+				},
+			};
+		} catch (error) {
+			console.error("[TOKEN_USAGE_SERVICE] getCardDeliveryMetrics error:", error);
+			return {
+				success: false,
+				error: { code: "QUERY_FAILED", message: "Failed to load card delivery metrics." },
+			};
+		}
+	}
+
 	// Cheap reader for the persisted baseline (#273). Returns whatever
 	// `recalibrateBaseline` last wrote to `Project.metadata.tokenBaseline`,
 	// or `null` if it's never been computed. Backs the Costs page's
@@ -1803,6 +1947,7 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		getSessionPigeonOverhead,
 		getCardPigeonOverhead,
 		getProjectPigeonOverhead,
+		getCardDeliveryMetrics,
 		// Internals exposed for tests that need to pin scope-resolution
 		// behavior without round-tripping through a query (#200 Phase 1a).
 		__resolveBoardScopeWhere: resolveBoardScopeWhere,

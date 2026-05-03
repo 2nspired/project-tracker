@@ -2,6 +2,7 @@
 
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
 import { CostsBreadcrumb } from "@/components/costs/breadcrumb";
+import { CardDeliverySection } from "@/components/costs/card-delivery-section";
 import { PigeonOverheadSection } from "@/components/costs/pigeon-overhead-section";
 import { PricingOverrideTable } from "@/components/costs/pricing-override-table";
 import { SavingsSection } from "@/components/costs/savings-section";
@@ -85,6 +86,12 @@ export function CostsPage({
 		{ projectId },
 		{ staleTime: 60_000 }
 	);
+	// Card Delivery metrics (#275 — revived from #236) — top-N expensive
+	// cards + median cost-per-shipped-card.
+	const { data: cardDelivery } = api.tokenUsage.getCardDeliveryMetrics.useQuery(
+		{ projectId, boardId, limit: 5 },
+		{ staleTime: 60_000 }
+	);
 
 	const isLoading = summaryLoading || dailyLoading;
 	const hasNoData =
@@ -147,6 +154,9 @@ export function CostsPage({
 						<SavingsSection projectId={projectId} summary={savingsSummary} />
 					) : null}
 					{pigeonOverhead ? <PigeonOverheadSection overhead={pigeonOverhead} /> : null}
+					{cardDelivery ? (
+						<CardDeliverySection metrics={cardDelivery} projectId={projectId} />
+					) : null}
 					{topSessions ? (
 						<TopSessionsSection topSessions={topSessions} projectId={projectId} />
 					) : null}
