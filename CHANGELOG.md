@@ -23,10 +23,15 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 - Revived the Pigeon savings section on the Costs page — surfaces the briefMe vs naive `getBoard` bootstrap comparison persisted on `Project.metadata.tokenBaseline`. Cheap to render (one read, no recomputation); a "Recalibrate" button triggers the existing `recalibrateBaseline` mutation and the section refetches. Was dropped in #236; the underlying data primitive (`recalibrateBaseline`) survived. (#273)
 - Revived the Card Delivery section on the Costs page — surfaces median cost-per-shipped-card and the top-5 most expensive cards by aggregated cost. Uses direct cardId attribution only (no session-expansion); post-#269 attribution makes the simpler aggregation honest. Distinct from the per-session Top-N lens (#211) — different unit, different question. Was dropped in #236. (#275)
 - PO export — download Costs page card-delivery data as CSV or Markdown (#136).
+- MIT LICENSE file (#282).
 
 ### Changed
 
 - Renamed the `resume-session` MCP prompt to `resume-board` to avoid collision with Claude Code's built-in `/resume` slash command. The Pigeon flow loads board state for a fresh chat — semantically distinct from Claude's chat-resume — so the new name disambiguates without changing behavior. Hand-maintained references in `tools.mdx`, onboarding copy, and the tutorial seeder were updated alongside the registration. (#169)
+
+### Chore
+
+- GitHub issue templates, PR template, CONTRIBUTING.md, SECURITY.md scaffolds (#282). CODE_OF_CONDUCT.md deferred.
 
 ## [6.2.1] — 2026-05-02
 

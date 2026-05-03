@@ -1,0 +1,67 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug! A few quick questions help us reproduce it fast.
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Pigeon version, Node version. `npm run doctor` prints most of this.
+      placeholder: |
+        - OS: macOS 15.2 (Apple Silicon)
+        - Pigeon version: 6.2.1
+        - Node version: 20.18.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered, minimal steps. Include any specific cards / boards / commands involved.
+      placeholder: |
+        1. `npm run dev`
+        2. Open http://localhost:3000
+        3. Click "..."
+        4. Observe error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include error messages, stack traces, and screenshots if helpful.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else — recent changes, related cards, hunches, logs from `npm run service:logs`.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: doctor
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I ran `npm run doctor` and the output is included above (or attached).
+          required: true
+        - label: I searched existing issues and didn't find a duplicate.
+          required: true
