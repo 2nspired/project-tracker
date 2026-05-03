@@ -194,4 +194,27 @@ export const tokenUsageRouter = createTRPCRouter({
 			}
 			return result.data;
 		}),
+
+	// Project-wide Pigeon overhead — backs `<PigeonOverheadSection>` on
+	// the Costs page (revived in #274 after #236 dropped it). Aggregates
+	// `ToolCallLog.responseTokens` across every session in the project,
+	// priced at each session's primary-model output rate. Optional
+	// `boardId` narrows scope via the same session-expansion rule as
+	// `getProjectSummary`.
+	getProjectPigeonOverhead: publicProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				boardId: z.string().uuid().optional(),
+			})
+		)
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getProjectPigeonOverhead(input.projectId, {
+				boardId: input.boardId,
+			});
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
 });

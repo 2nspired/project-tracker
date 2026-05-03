@@ -1622,6 +1622,70 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		}
 	}
 
+	// Project-wide variant — restored in #274 (was dropped in #236 along
+	// with the rest of `<PigeonOverheadSection>` because there was no
+	// signal substrate post-#225). The Attribution Engine (#268, #269)
+	// now writes per-session attribution deterministically, so the
+	// pricing-per-session-model rule the chip variants use can be applied
+	// project-wide too.
+	//
+	// `boardId` routes through `resolveBoardScopeWhere` — same session-
+	// expansion semantics as `getProjectSummary`. A multi-board session
+	// contributes its overhead cost to BOTH boards' rollups (consistent
+	// with the cost-inequality acceptance from #200).
+	//
+	// Lifetime-scoped for v1 — matches the Costs page's existing
+	// "Lifetime cost" cell tone. Period pills are a follow-up if asked.
+	async function getProjectPigeonOverhead(
+		projectId: string,
+		opts?: { boardId?: string }
+	): Promise<ServiceResult<{ totalCostUsd: number; callCount: number }>> {
+		try {
+			const where = await resolveBoardScopeWhere(projectId, opts?.boardId);
+
+			// Pick a representative model per session — first event's model
+			// wins (matches the per-card variant). Project-scoped so a
+			// session-id collision across projects can't pull pricing from
+			// the wrong project.
+			const eventRows = await prisma.tokenUsageEvent.findMany({
+				where,
+				select: { sessionId: true, model: true },
+				orderBy: { recordedAt: "asc" },
+			});
+			const sessionModel = new Map<string, string>();
+			for (const row of eventRows) {
+				if (!sessionModel.has(row.sessionId)) sessionModel.set(row.sessionId, row.model);
+			}
+			const sessionIds = Array.from(sessionModel.keys());
+			if (sessionIds.length === 0) {
+				return { success: true, data: { totalCostUsd: 0, callCount: 0 } };
+			}
+
+			const [logs, pricing] = await Promise.all([
+				prisma.toolCallLog.findMany({
+					where: { sessionId: { in: sessionIds } },
+					select: { sessionId: true, responseTokens: true },
+				}),
+				loadPricing(),
+			]);
+
+			let totalCostUsd = 0;
+			for (const log of logs) {
+				const model = sessionModel.get(log.sessionId);
+				if (!model) continue;
+				const rates = pricing[model] ?? pricing.__default__ ?? DEFAULT_PRICING_DEFAULT;
+				totalCostUsd += (log.responseTokens / 1_000_000) * rates.outputPerMTok;
+			}
+			return { success: true, data: { totalCostUsd, callCount: logs.length } };
+		} catch (error) {
+			console.error("[TOKEN_USAGE_SERVICE] getProjectPigeonOverhead error:", error);
+			return {
+				success: false,
+				error: { code: "QUERY_FAILED", message: "Failed to load project overhead." },
+			};
+		}
+	}
+
 	async function getSessionPigeonOverhead(
 		sessionId: string
 	): Promise<ServiceResult<{ totalCostUsd: number; callCount: number }>> {
@@ -1675,6 +1739,7 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		recalibrateBaseline,
 		getSessionPigeonOverhead,
 		getCardPigeonOverhead,
+		getProjectPigeonOverhead,
 		// Internals exposed for tests that need to pin scope-resolution
 		// behavior without round-tripping through a query (#200 Phase 1a).
 		__resolveBoardScopeWhere: resolveBoardScopeWhere,
