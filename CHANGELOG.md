@@ -8,6 +8,15 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Added
+
+- `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1) and a CoC link in `CONTRIBUTING.md`. Closes the v6.4.0 hygiene gap deferred from #282 (sub-agent content filter blocked inline drafting; pulled the canonical text from contributor-covenant.org instead).
+- README hero now uses a light/dark `<picture>` element with proper logo art (`docs-site/public/pigeon-logo-light.png` / `pigeon-logo-dark.png`) instead of the single OG card placeholder. Closes the dark-mode logo TODO from #285.
+
+### Changed
+
+- `.github/SECURITY.md` now points reporters at GitHub's private vulnerability reporting (Security tab → "Report a vulnerability") rather than an email TODO. Removed `.github/FUNDING.yml` — no funding channel yet (tracked as #288).
+
 ## [6.4.0] — 2026-05-02
 
 The "Talkable" charter — Pigeon repositioned as a self-hosting MCP for AI-assisted development. 21 cards: PO export (#136) and Pulse v2 (#157) feature builds; 4 design-system codify cards (#278 motion tokens, #279 design showcase, #280 Dot/Sparkline + violet, #287 docs accent); 5 documentation cards (G1 README #285, G2 #283, G3 docs-site rewrite #286, G4 core docs #284, G5 hygiene #282); 4 architectural decisions (#209, #266, #167, #281); polish (#165 drawer mobile, #169 resume rename, #173 hygiene panel, #265 board screenshot, #276 Costs explainer); bug fix #277 (PigeonOverhead schema migration). `npm run service:update` runs `prisma db push` automatically.

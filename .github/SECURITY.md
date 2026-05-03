@@ -12,10 +12,9 @@ Pigeon is a small local-first project. Security fixes land on the latest minor r
 
 ## Reporting a vulnerability
 
-Please **do not** open a public GitHub issue for security reports. Instead, contact the maintainer directly.
+Please **do not** open a public GitHub issue for security reports.
 
-<!-- TODO(orchestrator): user must supply security contact email -->
-Email: TODO@example.com — replaced before public release.
+Use GitHub's [private vulnerability reporting](https://github.com/2nspired/pigeon/security/advisories/new) — go to the **Security** tab on the repo and click **Report a vulnerability**. Reports are visible only to the maintainer and to anyone you invite as a collaborator on the advisory.
 
 When you report, please include:
 
