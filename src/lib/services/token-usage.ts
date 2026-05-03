@@ -120,6 +120,25 @@ export type UsageSummary = {
 	attributionBreakdown: AttributionBreakdown;
 };
 
+/**
+ * Per-session row for the Top-N expensive sessions lens (#211).
+ * Tight v1 scope — `byModelTotalsUsd` and `briefMeCallCount` from the
+ * original card description are deferred (separate queries, low value
+ * for the headline lens). The `cardId` reflects whatever attribution
+ * the engine produced; sessions touching multiple cards land on the
+ * first one alphabetically (deterministic; orchestrator sessions are
+ * the multi-card case and they should be `null` per #269).
+ */
+export type TopSessionEntry = {
+	sessionId: string;
+	totalCostUsd: number;
+	primaryModel: string;
+	mostRecentAt: Date;
+	cardId: string | null;
+	cardRef: string | null;
+	cardTitle: string | null;
+};
+
 export type DailyCostSeries = {
 	/**
 	 * Daily cost USD over the last 7 calendar days, bucketed by **UTC** day.
@@ -899,6 +918,123 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		}
 	}
 
+	// Top-N expensive sessions lens (#211). Aggregates per-session cost
+	// from `TokenUsageEvent` rows, sorts by cost desc, joins the attributed
+	// card metadata for the surface to render. `boardId` routes through
+	// `resolveBoardScopeWhere` so the lens follows the same scoping rule
+	// as `getProjectSummary` — board scope means "sessions that touched
+	// any card on this board," with the multi-board double-count quirk.
+	//
+	// Memory ceiling: same as `getProjectSummary` — unbounded findMany over
+	// the project's lifetime, aggregated in JS. Acceptable at current
+	// dogfooding scale; switch to a SQL `groupBy(sessionId)` if the
+	// per-project row count crosses 100k.
+	async function getTopSessions(
+		projectId: string,
+		opts?: { boardId?: string; limit?: number }
+	): Promise<ServiceResult<TopSessionEntry[]>> {
+		try {
+			const limit = Math.max(1, Math.min(100, opts?.limit ?? 10));
+			const where = await resolveBoardScopeWhere(projectId, opts?.boardId);
+			const [events, pricing] = await Promise.all([
+				prisma.tokenUsageEvent.findMany({
+					where,
+					select: {
+						sessionId: true,
+						model: true,
+						inputTokens: true,
+						outputTokens: true,
+						cacheReadTokens: true,
+						cacheCreation1hTokens: true,
+						cacheCreation5mTokens: true,
+						recordedAt: true,
+						cardId: true,
+					},
+					orderBy: { recordedAt: "asc" },
+				}),
+				loadPricing(),
+			]);
+
+			type SessionAcc = {
+				totalCostUsd: number;
+				modelCost: Map<string, number>;
+				mostRecentAt: Date;
+				cardId: string | null;
+			};
+			const sessions = new Map<string, SessionAcc>();
+			for (const event of events) {
+				const cost = computeCost(event, pricing);
+				const acc = sessions.get(event.sessionId) ?? {
+					totalCostUsd: 0,
+					modelCost: new Map<string, number>(),
+					mostRecentAt: event.recordedAt,
+					cardId: null,
+				};
+				acc.totalCostUsd += cost;
+				acc.modelCost.set(event.model, (acc.modelCost.get(event.model) ?? 0) + cost);
+				if (event.recordedAt > acc.mostRecentAt) acc.mostRecentAt = event.recordedAt;
+				// First non-null cardId wins. The Attribution Engine writes one
+				// card per session at write-time, so within a session all rows
+				// share the same cardId in practice. The "first wins" rule is
+				// just a defensive deterministic tiebreak for legacy rows.
+				if (acc.cardId === null && event.cardId !== null) acc.cardId = event.cardId;
+				sessions.set(event.sessionId, acc);
+			}
+
+			const ranked = Array.from(sessions.entries())
+				.map(([sessionId, acc]) => {
+					const primaryModel = Array.from(acc.modelCost.entries()).sort(
+						(a, b) => b[1] - a[1]
+					)[0]?.[0];
+					return {
+						sessionId,
+						totalCostUsd: acc.totalCostUsd,
+						primaryModel: primaryModel ?? "unknown",
+						mostRecentAt: acc.mostRecentAt,
+						cardId: acc.cardId,
+					};
+				})
+				.sort((a, b) => b.totalCostUsd - a.totalCostUsd)
+				.slice(0, limit);
+
+			// Hydrate card refs/titles for the rows that have a cardId. One
+			// findMany over the de-duped cardId set keeps it bounded by `limit`
+			// regardless of how many sessions share a card.
+			const cardIds = Array.from(
+				new Set(ranked.map((r) => r.cardId).filter((id): id is string => id !== null))
+			);
+			const cards =
+				cardIds.length > 0
+					? await prisma.card.findMany({
+							where: { id: { in: cardIds } },
+							select: { id: true, number: true, title: true },
+						})
+					: [];
+			const cardById = new Map(cards.map((c) => [c.id, c]));
+
+			const rows: TopSessionEntry[] = ranked.map((r) => {
+				const card = r.cardId ? cardById.get(r.cardId) : null;
+				return {
+					sessionId: r.sessionId,
+					totalCostUsd: r.totalCostUsd,
+					primaryModel: r.primaryModel,
+					mostRecentAt: r.mostRecentAt,
+					cardId: r.cardId,
+					cardRef: card ? `#${card.number}` : null,
+					cardTitle: card?.title ?? null,
+				};
+			});
+
+			return { success: true, data: rows };
+		} catch (error) {
+			console.error("[TOKEN_USAGE_SERVICE] getTopSessions error:", error);
+			return {
+				success: false,
+				error: { code: "QUERY_FAILED", message: "Failed to load top sessions." },
+			};
+		}
+	}
+
 	// Aggregates events scoped to "any session that touched this card". A
 	// session that touched multiple cards contributes to *each* card's total —
 	// no fictional split. Returns the same UsageSummary shape so the chip
@@ -1447,6 +1583,7 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		attributeSession,
 		getProjectSummary,
 		getSessionSummary,
+		getTopSessions,
 		getCardSummary,
 		getMilestoneSummary,
 		getDailyCostSeries,

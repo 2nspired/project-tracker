@@ -70,6 +70,25 @@ export const tokenUsageRouter = createTRPCRouter({
 			return result.data;
 		}),
 
+	getTopSessions: publicProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				boardId: z.string().uuid().optional(),
+				limit: z.number().int().min(1).max(100).optional(),
+			})
+		)
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getTopSessions(input.projectId, {
+				boardId: input.boardId,
+				limit: input.limit,
+			});
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
+
 	getDailyCostSeries: publicProcedure
 		.input(
 			z.object({
