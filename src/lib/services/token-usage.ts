@@ -163,6 +163,13 @@ export type SetupConfigPath = {
 	exists: boolean;
 	/** True when a Stop hook invoking `scripts/stop-hook.sh` is present. */
 	hasHook: boolean;
+	/**
+	 * Whether this is a user-level (covers all projects) or project-level
+	 * (only this repo) config file. The dialog renders user-level as the
+	 * recommended target so users don't paste into a project-scoped file
+	 * and then re-prompt on every other repo.
+	 */
+	scope: "user" | "project";
 };
 
 export type SetupDiagnostics = {
@@ -375,22 +382,32 @@ async function listSubAgentTranscripts(parentPath: string): Promise<string[]> {
 // shell env, so a CLAUDE_CONFIG_DIR set in ~/.zshrc won't be visible here
 // unless the user re-exports it via the plist. The standard-paths fallback
 // covers ~95% of installs without configuration.
-function resolveConfigCandidates(cwd: string = process.cwd()): string[] {
+type ConfigCandidate = { path: string; scope: "user" | "project" };
+
+function resolveConfigCandidates(cwd: string = process.cwd()): ConfigCandidate[] {
 	const home = homedir();
-	const candidates: string[] = [];
+	const candidates: ConfigCandidate[] = [];
 	const envOverride = process.env.CLAUDE_CONFIG_DIR;
 	if (envOverride?.trim()) {
-		candidates.push(path.join(envOverride, "settings.json"));
+		candidates.push({ path: path.join(envOverride, "settings.json"), scope: "user" });
 	}
-	candidates.push(path.join(home, ".claude", "settings.json"));
-	candidates.push(path.join(home, ".claude-alt", "settings.json"));
+	candidates.push({ path: path.join(home, ".claude", "settings.json"), scope: "user" });
+	candidates.push({ path: path.join(home, ".claude-alt", "settings.json"), scope: "user" });
 	// Project-scoped paths: launchd plist sets `WorkingDirectory` to the repo
 	// root (see `scripts/service.ts:74-75`), so `path.resolve(cwd, ".claude", ...)`
 	// hits the user's repo in both dev and service mode.
-	candidates.push(path.resolve(cwd, ".claude", "settings.json"));
-	candidates.push(path.resolve(cwd, ".claude", "settings.local.json"));
-	// Dedupe in case env override resolves to one of the standards.
-	return Array.from(new Set(candidates));
+	candidates.push({ path: path.resolve(cwd, ".claude", "settings.json"), scope: "project" });
+	candidates.push({
+		path: path.resolve(cwd, ".claude", "settings.local.json"),
+		scope: "project",
+	});
+	// Dedupe by path in case env override resolves to one of the standards.
+	const seen = new Set<string>();
+	return candidates.filter((c) => {
+		if (seen.has(c.path)) return false;
+		seen.add(c.path);
+		return true;
+	});
 }
 
 // Absolute path to this server's stop-hook entrypoint. The script lives at
@@ -427,13 +444,18 @@ function configHasTokenHook(json: unknown): boolean {
 	return false;
 }
 
-async function inspectConfigPath(absPath: string): Promise<SetupConfigPath> {
+async function inspectConfigPath(candidate: ConfigCandidate): Promise<SetupConfigPath> {
 	try {
-		const content = await readFile(absPath, "utf8");
+		const content = await readFile(candidate.path, "utf8");
 		const parsed = JSON.parse(content);
-		return { path: absPath, exists: true, hasHook: configHasTokenHook(parsed) };
+		return {
+			path: candidate.path,
+			exists: true,
+			hasHook: configHasTokenHook(parsed),
+			scope: candidate.scope,
+		};
 	} catch {
-		return { path: absPath, exists: false, hasHook: false };
+		return { path: candidate.path, exists: false, hasHook: false, scope: candidate.scope };
 	}
 }
 

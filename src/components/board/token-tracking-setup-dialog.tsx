@@ -41,12 +41,6 @@ type SetupState = "loading" | "not-configured" | "no-events" | "stale" | "workin
 // snippet treated as an editor block with a "tab" header showing the
 // destination path.
 
-// TODO(#217): teach the dialog the user-level vs project-level distinction
-// with two paste paths. The connect.sh side now installs the Stop hook into
-// `~/.claude-alt/settings.json` so this dialog should rarely surface for
-// connect.sh users — but for users who skip connect.sh we should make it
-// obvious that the user-level path is the right default.
-
 // All inline mentions go through `<InlineCode>` so paths, JSON keys, and
 // hint anchors render at one consistent weight instead of inheriting the
 // browser default `<code>` styling.
@@ -263,7 +257,14 @@ function HookSnippetSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 		}
 	};
 
-	const targetPath = diagnostics?.configPaths.find((c) => c.exists)?.path;
+	// Prefer an already-configured path so the snippet header matches the file
+	// the user is actually using; fall back to a user-level existing file
+	// (recommended target), then any existing file.
+	const configPaths = diagnostics?.configPaths ?? [];
+	const targetPath =
+		configPaths.find((c) => c.exists && c.hasHook)?.path ??
+		configPaths.find((c) => c.exists && c.scope === "user")?.path ??
+		configPaths.find((c) => c.exists)?.path;
 
 	return (
 		<StepSection step="01" title="The hook" flush>
@@ -308,6 +309,54 @@ function HookSnippetSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 }
 
 // ─── 02 — Where it goes (file + merge guidance) ────────────────────
+//
+// Three rendering states, ordered by user concern:
+//
+//   (A) `someConfigured && someUserConfigured` — user-level hook is in place,
+//       tracking is global. Show only the configured row(s); no nag copy.
+//
+//   (B) `someConfigured && !someUserConfigured` — only a project-scoped hook
+//       fires. Tracking works in this repo but every other repo will re-prompt
+//       this dialog. Show the configured project row + a one-line nudge to
+//       run `scripts/connect.sh` so the global path is also wired.
+//
+//   (C) `!someConfigured` — nothing is configured. Show paste targets, with
+//       user-level rows first labeled as the recommended target, and project
+//       rows below labeled as "this project only". Empty-tree branch (no
+//       existing files at all) renders a help block.
+
+function ConfigPathRow({
+	c,
+	mode,
+}: {
+	c: Diagnostics["configPaths"][number];
+	mode: "configured" | "needs-paste";
+}) {
+	return (
+		<li key={c.path} className="flex items-center gap-2.5 rounded-md border bg-card px-3 py-2">
+			<span
+				className={cn(
+					"h-1.5 w-1.5 shrink-0 rounded-full",
+					mode === "configured" ? "bg-success" : "bg-muted-foreground/40"
+				)}
+			/>
+			<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+				<code className="min-w-0 truncate font-mono text-2xs text-foreground/90">{c.path}</code>
+				<span className="font-mono text-2xs text-muted-foreground/60">
+					{c.scope === "user" ? "user-level — covers all projects" : "this project only"}
+				</span>
+			</div>
+			<span
+				className={cn(
+					"shrink-0 font-mono text-2xs uppercase tracking-wide",
+					mode === "configured" ? "text-success" : "text-muted-foreground"
+				)}
+			>
+				{mode === "configured" ? "configured" : "needs paste"}
+			</span>
+		</li>
+	);
+}
 
 function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefined }) {
 	if (!diagnostics) {
@@ -319,7 +368,44 @@ function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 	}
 
 	const existing = diagnostics.configPaths.filter((c) => c.exists);
+	const configured = existing.filter((c) => c.hasHook);
+	const userConfigured = configured.some((c) => c.scope === "user");
 
+	// State (A) — user-level configured, no nag.
+	if (userConfigured) {
+		return (
+			<StepSection step="02" title="Where it goes" flush>
+				<ul className="space-y-1.5">
+					{configured.map((c) => (
+						<ConfigPathRow key={c.path} c={c} mode="configured" />
+					))}
+				</ul>
+			</StepSection>
+		);
+	}
+
+	// State (B) — only project-scoped hook found. Tracking works here but
+	// other repos will re-prompt; surface the connect.sh fix.
+	if (configured.length > 0) {
+		return (
+			<StepSection step="02" title="Where it goes" flush>
+				<ul className="space-y-1.5">
+					{configured.map((c) => (
+						<ConfigPathRow key={c.path} c={c} mode="configured" />
+					))}
+				</ul>
+				<div className="rounded-md border-l-2 border-l-warning/60 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+					Configured for this repo only — every other project you open will re-prompt this dialog.
+					To globalize, run <InlineCode>scripts/connect.sh</InlineCode> from this repo root: it
+					merges the Stop hook into <InlineCode>~/.claude-alt/settings.json</InlineCode>{" "}
+					idempotently and covers every connected project at once.
+				</div>
+			</StepSection>
+		);
+	}
+
+	// State (C) — nothing configured anywhere. Help users pick the right
+	// paste target by sorting user-level (recommended) above project-level.
 	if (existing.length === 0) {
 		return (
 			<StepSection step="02" title="Where it goes" flush>
@@ -327,52 +413,31 @@ function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 					No <InlineCode>settings.json</InlineCode> found at the standard Claude Code locations
 					(user-level <InlineCode>~/.claude/settings.json</InlineCode>, project-level{" "}
 					<InlineCode>.claude/settings.json</InlineCode>, or per-machine{" "}
-					<InlineCode>.claude/settings.local.json</InlineCode>). Create one of those and paste the
-					snippet into its top-level <InlineCode>hooks</InlineCode> field. If you want the hook only
-					on this machine, prefer <InlineCode>.claude/settings.local.json</InlineCode> — it's
-					gitignored.
+					<InlineCode>.claude/settings.local.json</InlineCode>). Create the user-level file and
+					paste the snippet into its top-level <InlineCode>hooks</InlineCode> field — that wires
+					tracking for every project at once.
 				</div>
 			</StepSection>
 		);
 	}
 
-	const allConfigured = existing.every((c) => c.hasHook);
+	const sorted = [
+		...existing.filter((c) => c.scope === "user"),
+		...existing.filter((c) => c.scope === "project"),
+	];
 
 	return (
 		<StepSection step="02" title="Where it goes" flush>
 			<ul className="space-y-1.5">
-				{existing.map((c) => (
-					<li
-						key={c.path}
-						className="flex items-center gap-2.5 rounded-md border bg-card px-3 py-2"
-					>
-						<span
-							className={cn(
-								"h-1.5 w-1.5 shrink-0 rounded-full",
-								c.hasHook ? "bg-success" : "bg-muted-foreground/40"
-							)}
-						/>
-						<code className="min-w-0 flex-1 truncate font-mono text-2xs text-foreground/90">
-							{c.path}
-						</code>
-						<span
-							className={cn(
-								"shrink-0 font-mono text-2xs uppercase tracking-wide",
-								c.hasHook ? "text-success" : "text-muted-foreground"
-							)}
-						>
-							{c.hasHook ? "configured" : "needs paste"}
-						</span>
-					</li>
+				{sorted.map((c) => (
+					<ConfigPathRow key={c.path} c={c} mode="needs-paste" />
 				))}
 			</ul>
-			{!allConfigured && (
-				<div className="rounded-md border-l-2 border-l-muted-foreground/40 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-					Open the file above. Paste the snippet into the top-level <InlineCode>hooks</InlineCode>{" "}
-					field. If <InlineCode>hooks</InlineCode> already exists, merge the{" "}
-					<InlineCode>Stop</InlineCode> entry into it — don't replace the whole object.
-				</div>
-			)}
+			<div className="rounded-md border-l-2 border-l-muted-foreground/40 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+				Paste the snippet into the top-level <InlineCode>hooks</InlineCode> field of the user-level
+				file (recommended — covers all projects). If <InlineCode>hooks</InlineCode> already exists,
+				merge the <InlineCode>Stop</InlineCode> entry into it instead of replacing the whole object.
+			</div>
 		</StepSection>
 	);
 }

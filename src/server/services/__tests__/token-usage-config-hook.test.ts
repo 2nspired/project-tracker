@@ -85,13 +85,19 @@ describe("resolveConfigCandidates", () => {
 	const FAKE_CWD = "/tmp/fake-repo";
 	const home = homedir();
 
-	it("includes project-scoped <cwd>/.claude/settings.json and settings.local.json", () => {
+	it("includes project-scoped <cwd>/.claude/settings.json and settings.local.json with scope='project'", () => {
 		const prevOverride = process.env.CLAUDE_CONFIG_DIR;
 		delete process.env.CLAUDE_CONFIG_DIR;
 		try {
 			const candidates = resolveConfigCandidates(FAKE_CWD);
-			expect(candidates).toContain(path.resolve(FAKE_CWD, ".claude", "settings.json"));
-			expect(candidates).toContain(path.resolve(FAKE_CWD, ".claude", "settings.local.json"));
+			expect(candidates).toContainEqual({
+				path: path.resolve(FAKE_CWD, ".claude", "settings.json"),
+				scope: "project",
+			});
+			expect(candidates).toContainEqual({
+				path: path.resolve(FAKE_CWD, ".claude", "settings.local.json"),
+				scope: "project",
+			});
 		} finally {
 			if (prevOverride === undefined) {
 				delete process.env.CLAUDE_CONFIG_DIR;
@@ -101,13 +107,19 @@ describe("resolveConfigCandidates", () => {
 		}
 	});
 
-	it("includes user-scoped ~/.claude/settings.json and ~/.claude-alt/settings.json", () => {
+	it("includes user-scoped ~/.claude/settings.json and ~/.claude-alt/settings.json with scope='user'", () => {
 		const prevOverride = process.env.CLAUDE_CONFIG_DIR;
 		delete process.env.CLAUDE_CONFIG_DIR;
 		try {
 			const candidates = resolveConfigCandidates(FAKE_CWD);
-			expect(candidates).toContain(path.join(home, ".claude", "settings.json"));
-			expect(candidates).toContain(path.join(home, ".claude-alt", "settings.json"));
+			expect(candidates).toContainEqual({
+				path: path.join(home, ".claude", "settings.json"),
+				scope: "user",
+			});
+			expect(candidates).toContainEqual({
+				path: path.join(home, ".claude-alt", "settings.json"),
+				scope: "user",
+			});
 		} finally {
 			if (prevOverride === undefined) {
 				delete process.env.CLAUDE_CONFIG_DIR;
@@ -117,13 +129,16 @@ describe("resolveConfigCandidates", () => {
 		}
 	});
 
-	it("honors CLAUDE_CONFIG_DIR env override", () => {
+	it("honors CLAUDE_CONFIG_DIR env override as user-scoped", () => {
 		const prevOverride = process.env.CLAUDE_CONFIG_DIR;
 		const overrideDir = "/tmp/fake-claude-config";
 		process.env.CLAUDE_CONFIG_DIR = overrideDir;
 		try {
 			const candidates = resolveConfigCandidates(FAKE_CWD);
-			expect(candidates).toContain(path.join(overrideDir, "settings.json"));
+			expect(candidates).toContainEqual({
+				path: path.join(overrideDir, "settings.json"),
+				scope: "user",
+			});
 		} finally {
 			if (prevOverride === undefined) {
 				delete process.env.CLAUDE_CONFIG_DIR;
@@ -141,7 +156,7 @@ describe("resolveConfigCandidates", () => {
 		try {
 			const candidates = resolveConfigCandidates(FAKE_CWD);
 			const userDefault = path.join(home, ".claude", "settings.json");
-			const occurrences = candidates.filter((c) => c === userDefault).length;
+			const occurrences = candidates.filter((c) => c.path === userDefault).length;
 			expect(occurrences).toBe(1);
 		} finally {
 			if (prevOverride === undefined) {
