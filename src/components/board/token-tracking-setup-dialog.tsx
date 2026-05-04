@@ -371,12 +371,15 @@ function ConfigPathsSection({ diagnostics }: { diagnostics: Diagnostics | undefi
 	const configured = existing.filter((c) => c.hasHook);
 	const userConfigured = configured.some((c) => c.scope === "user");
 
-	// State (A) — user-level configured, no nag.
+	// State (A) — user-level configured, no nag. Only render user-scoped rows:
+	// when user-level covers all projects, a coexisting project-local hook is
+	// informationally redundant and visually reads as "still more to do."
 	if (userConfigured) {
+		const userRows = configured.filter((c) => c.scope === "user");
 		return (
 			<StepSection step="02" title="Where it goes" flush>
 				<ul className="space-y-1.5">
-					{configured.map((c) => (
+					{userRows.map((c) => (
 						<ConfigPathRow key={c.path} c={c} mode="configured" />
 					))}
 				</ul>

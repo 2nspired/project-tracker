@@ -10,7 +10,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ### Fixed
 
-- Token-tracking setup dialog no longer renders three "needs paste" rows when only the project-local hook is wired. Each `configPath` now carries a `scope` ("user" | "project") so the dialog can express the hierarchy: user-level configured = silent, project-only configured = single nudge to run `scripts/connect.sh` for global install, nothing configured = paste targets sorted user-level first with a "(recommended — covers all projects)" label. Closes the deferred Direction #2 from #217. (#290)
+- Token-tracking setup dialog no longer renders three "needs paste" rows when only the project-local hook is wired. Each `configPath` now carries a `scope` ("user" | "project") so the dialog can express the hierarchy: user-level configured = single confirmed user-level row (project-local rows are hidden as redundant when user-level covers them), project-only configured = single nudge to run `scripts/connect.sh` for global install, nothing configured = paste targets sorted user-level first with a "(recommended — covers all projects)" label. Closes the deferred Direction #2 from #217. (#290)
 - Browser tab title now reflects the current project, board, and surface (e.g. `Project Tracker Dev · Pigeon Dev - Pigeon`, `Roadmap · Retry Labs · Main - Pigeon`, `Costs · Project Tracker Dev - Pigeon`) instead of always showing `Pigeon`. Multiple Pigeon instances open across browser tabs are now distinguishable at a glance. Implemented via a `useDocumentTitle` hook that tolerates Next's App Router metadata sync via a `MutationObserver` re-apply, plus a project-name extension to the existing server-side `generateMetadata` on the Costs route. (#289)
 
 ## [6.5.0] — 2026-05-02
