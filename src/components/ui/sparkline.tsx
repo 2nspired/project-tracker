@@ -55,6 +55,18 @@ type SparklineProps = {
 	 */
 	tone?: SparklineTone;
 	/**
+	 * Width override (px). Defaults to 48 — the Pulse-strip thumbnail
+	 * scale. Larger callers like the briefMe trend chart in
+	 * `<SavingsSection>` (#293) pass ~160 to render at section scale.
+	 */
+	w?: number;
+	/**
+	 * Height override (px). Defaults to 18, paired with `w=48` for the
+	 * thumbnail aspect; pass roughly 1/5 of `w` to keep proportions when
+	 * scaling up.
+	 */
+	h?: number;
+	/**
 	 * @deprecated Prefer `tone="…"`. Escape hatch for callers that need a
 	 * one-off stroke colour outside the semantic palette. Removed once no
 	 * production callers remain — currently kept so an external diff doesn't
@@ -75,6 +87,8 @@ export function Sparkline({
 	data,
 	label,
 	tone = "success",
+	w = 48,
+	h = 18,
 	unsafeStrokeClass,
 	unsafeFillClass,
 	unsafeDotClass,
@@ -82,8 +96,6 @@ export function Sparkline({
 	if (data.length === 0) return null;
 
 	const max = Math.max(...data, 1);
-	const w = 48;
-	const h = 18;
 	const padding = 2;
 	const innerW = w - padding * 2;
 	const innerH = h - padding * 2;

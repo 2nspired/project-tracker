@@ -169,10 +169,25 @@ export const tokenUsageRouter = createTRPCRouter({
 			return result.data;
 		}),
 
-	// Measure briefMe payload vs. naive bootstrap and persist on
-	// Project.metadata.tokenBaseline. Backs the "Pigeon paid for itself"
-	// surface — invoked from the project settings page (and via the MCP
-	// recalibrateBaseline tool). #192
+	// Time-series read backing the briefMe-payload trend chart in
+	// `<SavingsSection>` (#293). Returns every snapshot ascending so the
+	// chart renders left-to-right without re-sorting. Empty array when
+	// the project has never recalibrated.
+	getBaselineHistory: publicProcedure
+		.input(z.object({ projectId: z.string().uuid() }))
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getBaselineHistory(input.projectId);
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
+
+	// Measure briefMe payload vs. naive bootstrap and persist as a new
+	// `BaselineSnapshot` row (#293 replaced the pre-#293
+	// `Project.metadata.tokenBaseline` singleton with the history table).
+	// Invoked from the Costs page Recalibrate button and via the MCP
+	// `recalibrateBaseline` tool. #192
 	recalibrateBaseline: publicProcedure
 		.input(z.object({ projectId: z.string().uuid() }))
 		.mutation(async ({ input }) => {

@@ -29,8 +29,9 @@ model Project {
   handoffs         Handoff[]
   milestones       Milestone[]
   gitLinks         GitLink[]
-  claims           Claim[]
-  tokenUsageEvents TokenUsageEvent[]
+  claims            Claim[]
+  tokenUsageEvents  TokenUsageEvent[]
+  baselineSnapshots BaselineSnapshot[]
 
   @@map("project")
 }
@@ -454,4 +455,29 @@ model TokenUsageEvent {
   @@index([cardId])
   @@index([signal])
   @@map("token_usage_event")
+}
+
+// Per-Recalibrate snapshot of the briefMe-vs-naive-bootstrap measurement
+// (#293). Replaces the prior `Project.metadata.tokenBaseline` singleton —
+// each Recalibrate inserts a row, so we can chart briefMe payload over
+// time to spot bloat (tag debt, stale cards, oversized descriptions) on a
+// per-project basis. The latest pointer is `ORDER BY measuredAt DESC
+// LIMIT 1` (covered by the composite index); the time-series read pulls
+// the full ordered set.
+model BaselineSnapshot {
+  id                   String   @id @default(uuid())
+  projectId            String   @map("project_id")
+  briefMeTokens        Int      @map("brief_me_tokens")
+  naiveBootstrapTokens Int      @map("naive_bootstrap_tokens")
+  // Latest-handoff body size at measure time. Nullable because
+  // recalibrateBaseline only counts it when a handoff exists for the
+  // project's canonical board.
+  latestHandoffTokens  Int?     @map("latest_handoff_tokens")
+  measuredAt           DateTime @default(now()) @map("measured_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectId, measuredAt])
+  @@map("baseline_snapshot")
 }

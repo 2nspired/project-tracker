@@ -192,6 +192,21 @@ export type BaselineResult = {
 };
 
 /**
+ * One row of the briefMe-payload trend chart (#293). Each
+ * `recalibrateBaseline` call inserts one snapshot; the time-series read
+ * returns them ordered by `measuredAt` ascending so the chart stays
+ * left-to-right chronological.
+ */
+export type BaselineHistoryEntry = {
+	measuredAt: string;
+	briefMeTokens: number;
+	naiveBootstrapTokens: number;
+	latestHandoffTokens: number | null;
+};
+
+export type BaselineHistory = BaselineHistoryEntry[];
+
+/**
  * Per-card row for the Card Delivery lens (#275 — revived from #236).
  * Aggregates cost via direct `cardId` attribution only — session-
  * expansion (the pre-engine hack to compensate for poor cardId coverage)
@@ -1902,48 +1917,50 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		}
 	}
 
-	// Cheap reader for the persisted baseline (#273). Returns whatever
-	// `recalibrateBaseline` last wrote to `Project.metadata.tokenBaseline`,
-	// or `null` if it's never been computed. Backs the Costs page's
-	// `<SavingsSection>` — the section calls this on every render, so
-	// keeping it a JSON parse (no re-measurement) is load-bearing.
+	// Cheap reader for the latest persisted baseline (#293 replaced the
+	// pre-#293 `Project.metadata.tokenBaseline` singleton with the
+	// `BaselineSnapshot` history table). Returns the most-recent snapshot
+	// or `null` if the project has never recalibrated. Backs the Costs
+	// page's `<SavingsSection>` — called on every render, so the read is
+	// a single covered query against the (projectId, measuredAt) index.
 	async function getSavingsSummary(projectId: string): Promise<ServiceResult<SavingsSummary>> {
 		try {
 			const project = await prisma.project.findUnique({
 				where: { id: projectId },
-				select: { metadata: true },
+				select: { id: true },
 			});
 			if (!project) {
 				return { success: false, error: { code: "NOT_FOUND", message: "Project not found." } };
 			}
-			const meta = safeParseJson(project.metadata ?? "{}");
-			const raw = meta.tokenBaseline;
-			if (!raw || typeof raw !== "object") {
-				return { success: true, data: null };
-			}
-			const tb = raw as Record<string, unknown>;
-			const briefMeTokens = typeof tb.briefMeTokens === "number" ? tb.briefMeTokens : null;
-			const naiveBootstrapTokens =
-				typeof tb.naiveBootstrapTokens === "number" ? tb.naiveBootstrapTokens : null;
-			const measuredAt = typeof tb.measuredAt === "string" ? tb.measuredAt : null;
-			if (briefMeTokens === null || naiveBootstrapTokens === null || measuredAt === null) {
-				// Partial / corrupted baseline — surface as "not yet measured"
-				// rather than fabricate numbers.
-				return { success: true, data: null };
-			}
-			const savings = naiveBootstrapTokens - briefMeTokens;
-			const savingsPct = naiveBootstrapTokens > 0 ? savings / naiveBootstrapTokens : 0;
+			// `ORDER BY measured_at DESC LIMIT 1` rather than `MAX()` — covered
+			// by the composite index, and dodges duplicate-timestamp ambiguity
+			// under SQLite WAL concurrency (two writers could land snapshots
+			// in the same millisecond).
+			const latest = await prisma.baselineSnapshot.findFirst({
+				where: { projectId },
+				orderBy: { measuredAt: "desc" },
+				select: {
+					briefMeTokens: true,
+					naiveBootstrapTokens: true,
+					latestHandoffTokens: true,
+					measuredAt: true,
+				},
+			});
+			if (!latest) return { success: true, data: null };
+			const savings = latest.naiveBootstrapTokens - latest.briefMeTokens;
+			const savingsPct =
+				latest.naiveBootstrapTokens > 0 ? savings / latest.naiveBootstrapTokens : 0;
 			return {
 				success: true,
 				data: {
-					briefMeTokens,
-					naiveBootstrapTokens,
-					...(typeof tb.latestHandoffTokens === "number"
-						? { latestHandoffTokens: tb.latestHandoffTokens }
+					briefMeTokens: latest.briefMeTokens,
+					naiveBootstrapTokens: latest.naiveBootstrapTokens,
+					...(latest.latestHandoffTokens !== null
+						? { latestHandoffTokens: latest.latestHandoffTokens }
 						: {}),
 					savings,
 					savingsPct,
-					measuredAt,
+					measuredAt: latest.measuredAt.toISOString(),
 				},
 			};
 		} catch (error) {
@@ -1951,6 +1968,39 @@ export function createTokenUsageService(prisma: PrismaClient) {
 			return {
 				success: false,
 				error: { code: "QUERY_FAILED", message: "Failed to load savings summary." },
+			};
+		}
+	}
+
+	// Time-series read for the trend chart (#293). Returns every snapshot
+	// for the project ordered ascending so the consumer can render a
+	// left-to-right line without re-sorting.
+	async function getBaselineHistory(projectId: string): Promise<ServiceResult<BaselineHistory>> {
+		try {
+			const rows = await prisma.baselineSnapshot.findMany({
+				where: { projectId },
+				orderBy: { measuredAt: "asc" },
+				select: {
+					briefMeTokens: true,
+					naiveBootstrapTokens: true,
+					latestHandoffTokens: true,
+					measuredAt: true,
+				},
+			});
+			return {
+				success: true,
+				data: rows.map((r) => ({
+					briefMeTokens: r.briefMeTokens,
+					naiveBootstrapTokens: r.naiveBootstrapTokens,
+					latestHandoffTokens: r.latestHandoffTokens,
+					measuredAt: r.measuredAt.toISOString(),
+				})),
+			};
+		} catch (error) {
+			console.error("[TOKEN_USAGE_SERVICE] getBaselineHistory error:", error);
+			return {
+				success: false,
+				error: { code: "QUERY_FAILED", message: "Failed to load baseline history." },
 			};
 		}
 	}
@@ -2024,24 +2074,34 @@ export function createTokenUsageService(prisma: PrismaClient) {
 				latestHandoffTokens = Math.ceil(handoffSerialized.length / 4);
 			}
 
-			const measuredAt = new Date().toISOString();
-			const tokenBaseline: Record<string, unknown> = {
-				briefMeTokens,
-				naiveBootstrapTokens,
-				...(latestHandoffTokens !== null ? { latestHandoffTokens } : {}),
-				measuredAt,
-			};
-
-			// Merge into existing metadata so other agent-written keys survive.
+			// #293: insert a snapshot row instead of overwriting
+			// `Project.metadata.tokenBaseline`. Same transaction also nulls
+			// the legacy metadata key so the one existing baseline data point
+			// (pre-#293) doesn't keep haunting reads — first Recalibrate
+			// after deploy is a self-contained forward-migrate.
 			const project = await prisma.project.findUnique({
 				where: { id: projectId },
 				select: { metadata: true },
 			});
 			const existing = safeParseJson(project?.metadata ?? "{}");
-			await prisma.project.update({
-				where: { id: projectId },
-				data: { metadata: JSON.stringify({ ...existing, tokenBaseline }) },
-			});
+			const { tokenBaseline: _legacy, ...remaining } = existing;
+			void _legacy;
+
+			const [snapshot] = await prisma.$transaction([
+				prisma.baselineSnapshot.create({
+					data: {
+						projectId,
+						briefMeTokens,
+						naiveBootstrapTokens,
+						latestHandoffTokens,
+					},
+					select: { measuredAt: true },
+				}),
+				prisma.project.update({
+					where: { id: projectId },
+					data: { metadata: JSON.stringify(remaining) },
+				}),
+			]);
 
 			const savings = naiveBootstrapTokens - briefMeTokens;
 			const savingsPct = naiveBootstrapTokens > 0 ? savings / naiveBootstrapTokens : 0;
@@ -2054,7 +2114,7 @@ export function createTokenUsageService(prisma: PrismaClient) {
 					...(latestHandoffTokens !== null ? { latestHandoffTokens } : {}),
 					savings,
 					savingsPct,
-					measuredAt,
+					measuredAt: snapshot.measuredAt.toISOString(),
 				},
 			};
 		} catch (error) {
@@ -2314,6 +2374,7 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		updatePricing,
 		recalibrateBaseline,
 		getSavingsSummary,
+		getBaselineHistory,
 		getSessionPigeonOverhead,
 		getCardPigeonOverhead,
 		getProjectPigeonOverhead,
