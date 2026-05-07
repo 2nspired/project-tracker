@@ -95,6 +95,10 @@ model Board {
   // the check for this board; any positive integer is the silence window
   // before a card in an `active`-role column is flagged as stalled.
   staleInProgressDays Int?     @default(3) @map("stale_in_progress_days")
+  // Optional 6-digit hex (e.g. "#3b82f6"). Renders as a left-stripe on the
+  // boards-list card and a top-strip inside the board, giving multi-board
+  // projects a glance-distinguishable accent. null = today's UI exactly.
+  accentColor         String?  @map("accent_color")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 

@@ -14,6 +14,7 @@ import {
 	Pencil,
 	Pin,
 	Users,
+	X,
 } from "lucide-react";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
@@ -123,6 +124,79 @@ function DefaultBoardToggle({
 			</TooltipTrigger>
 			<TooltipContent>Make briefMe auto-open this board when called from the repo</TooltipContent>
 		</Tooltip>
+	);
+}
+
+function BoardAccentPicker({
+	boardId,
+	accentColor,
+}: {
+	boardId: string;
+	accentColor: string | null;
+}) {
+	const utils = api.useUtils();
+	const updateBoard = api.board.update.useMutation({
+		onSuccess: () => {
+			utils.board.getFull.invalidate({ id: boardId });
+			utils.board.list.invalidate();
+		},
+		onError: (e) => toast.error(e.message),
+	});
+
+	// Native <input type="color"> always needs a string. Default the picker
+	// to a neutral mid-grey when the board has no accent saved so the swatch
+	// doesn't display the host browser's last-used color.
+	const value = accentColor ?? "#888888";
+
+	return (
+		<div className="flex items-center gap-1">
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<label
+						className="relative inline-flex h-6 w-6 cursor-pointer items-center justify-center overflow-hidden rounded border border-border bg-background"
+						aria-label="Board accent color"
+					>
+						<span
+							className={`block h-3.5 w-3.5 rounded-sm ${
+								accentColor ? "" : "border border-dashed border-muted-foreground/40"
+							}`}
+							style={{ backgroundColor: accentColor ?? "transparent" }}
+						/>
+						<input
+							type="color"
+							value={value}
+							onChange={(e) =>
+								updateBoard.mutate({ id: boardId, data: { accentColor: e.target.value } })
+							}
+							disabled={updateBoard.isPending}
+							className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+						/>
+					</label>
+				</TooltipTrigger>
+				<TooltipContent>
+					{accentColor
+						? `Accent color (${accentColor}) — click to change`
+						: "Set a board accent color"}
+				</TooltipContent>
+			</Tooltip>
+			{accentColor && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-6 w-6 text-muted-foreground"
+							disabled={updateBoard.isPending}
+							onClick={() => updateBoard.mutate({ id: boardId, data: { accentColor: null } })}
+							aria-label="Clear accent color"
+						>
+							<X className="h-3 w-3" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Clear accent color</TooltipContent>
+				</Tooltip>
+			)}
+		</div>
 	);
 }
 
@@ -299,6 +373,7 @@ export default function BoardPage({
 					<div className="flex items-center gap-1">
 						<EditableBoardName boardId={board.id} name={board.name} />
 						<CopyBoardIdButton boardId={board.id} />
+						<BoardAccentPicker boardId={board.id} accentColor={board.accentColor ?? null} />
 					</div>
 					<p className="text-xs text-muted-foreground">{board.project.name}</p>
 				</div>
@@ -404,6 +479,13 @@ export default function BoardPage({
 					<TooltipContent>Board activity feed</TooltipContent>
 				</Tooltip>
 			</div>
+			{board.accentColor && (
+				<div
+					aria-hidden
+					className="h-[3px] w-full shrink-0"
+					style={{ backgroundColor: board.accentColor }}
+				/>
+			)}
 			<ActivitySheet
 				boardId={board.id}
 				open={activityOpen}

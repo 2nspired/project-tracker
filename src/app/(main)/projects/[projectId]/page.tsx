@@ -376,6 +376,7 @@ type BoardListItem = {
 	id: string;
 	name: string;
 	description: string | null;
+	accentColor: string | null;
 	updatedAt: Date;
 	columns: Array<{
 		id: string;
@@ -457,7 +458,10 @@ function BoardsTab({
 						return (
 							<div key={board.id} className="group relative">
 								<Link href={`/projects/${projectId}/boards/${board.id}`}>
-									<Card className="transition-colors hover:bg-muted/50">
+									<Card
+										className="overflow-hidden border-l-[3px] border-l-transparent transition-colors hover:bg-muted/50"
+										style={board.accentColor ? { borderLeftColor: board.accentColor } : undefined}
+									>
 										<CardHeader className="pb-3">
 											<CardTitle className="text-lg">{board.name}</CardTitle>
 											{board.description && <CardDescription>{board.description}</CardDescription>}
