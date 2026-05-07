@@ -12,6 +12,14 @@
 export const TOKEN_TRACKING_DOCS_URL =
 	"https://github.com/2nspired/pigeon/blob/main/docs/token-tracking.md";
 
+// Energy methodology doc (#180) — coefficient sources, grid-intensity
+// assumption, the "approximate" caveat, and how to override coefficients.
+// Linked from the SummaryStrip's Energy cell tooltip and the RELEASES.md
+// highlight bullet. Same in-repo-Markdown convention as the token-tracking
+// link above; the doc renders on GitHub.
+export const ENERGY_METHODOLOGY_DOCS_URL =
+	"https://github.com/2nspired/pigeon/blob/main/docs/ENERGY-METHODOLOGY.md";
+
 // Docs-site page that explains the cost surface — what gets recorded, how
 // attribution works, what overhead/savings measure, and the input-rate
 // decision (#204). Linked from `<TokenTrackingSetupDialog>`'s "Read more"

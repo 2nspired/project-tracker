@@ -2,8 +2,11 @@
 
 import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { Sparkline } from "@/components/ui/sparkline";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatRelative } from "@/lib/format-date";
+import { formatCo2, formatEnergy } from "@/lib/format-energy";
 import { formatUsd } from "@/lib/format-usd";
+import { ENERGY_METHODOLOGY_DOCS_URL } from "@/lib/token-tracking-docs";
 import type { RouterOutputs } from "@/trpc/react";
 
 type ProjectSummary = RouterOutputs["tokenUsage"]["getProjectSummary"];
@@ -61,6 +64,8 @@ export function SummaryStrip({
 	const weekCost = dailyCost.weekTotalCostUsd;
 	const sessionCount = projectSummary.sessionCount;
 	const trackingSince = projectSummary.trackingSince;
+	const totalEnergyWh = projectSummary.totalEnergyWh;
+	const totalCo2g = projectSummary.totalCo2g;
 	const inBoardMode = !!boardId && !!projectWideSummary;
 
 	return (
@@ -71,7 +76,7 @@ export function SummaryStrip({
 				</h2>
 				<SectionHelpLink anchor="summary-strip" label="How is the summary strip calculated?" />
 			</header>
-			<dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+			<dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
 				<Cell label="Lifetime cost">
 					<span className="font-mono text-2xl tabular-nums">{formatUsd(lifetimeCost)}</span>
 				</Cell>
@@ -86,6 +91,8 @@ export function SummaryStrip({
 				<Cell label="Sessions">
 					<span className="font-mono text-2xl tabular-nums">{sessionCount}</span>
 				</Cell>
+
+				<EnergyCell totalEnergyWh={totalEnergyWh} totalCo2g={totalCo2g} />
 
 				{inBoardMode ? (
 					<Cell label="Board's share">
@@ -127,5 +134,43 @@ function Cell({ label, children }: { label: string; children: React.ReactNode })
 			</dt>
 			<dd>{children}</dd>
 		</div>
+	);
+}
+
+// Energy cell (#180) — primary value is kWh; the tooltip surfaces grams CO₂
+// and a link to the methodology doc so the assumptions behind the estimate
+// are one click away. CO₂ is hidden by default to keep the strip readable.
+function EnergyCell({ totalEnergyWh, totalCo2g }: { totalEnergyWh: number; totalCo2g: number }) {
+	return (
+		<Cell label="Energy">
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						className="cursor-help text-left font-mono text-2xl tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+					>
+						{formatEnergy(totalEnergyWh)}
+					</button>
+				</TooltipTrigger>
+				<TooltipContent
+					side="bottom"
+					sideOffset={6}
+					className="max-w-xs space-y-1 px-2.5 py-1.5 text-xs leading-snug normal-case tracking-normal"
+				>
+					<div className="font-mono tabular-nums">{formatCo2(totalCo2g)}</div>
+					<div className="text-muted-foreground">
+						Estimated from per-token coefficients × world-average grid intensity.{" "}
+						<a
+							href={ENERGY_METHODOLOGY_DOCS_URL}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="underline underline-offset-2 hover:text-foreground"
+						>
+							Methodology →
+						</a>
+					</div>
+				</TooltipContent>
+			</Tooltip>
+		</Cell>
 	);
 }

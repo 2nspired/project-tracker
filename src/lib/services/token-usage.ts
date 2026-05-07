@@ -28,6 +28,11 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { Prisma, PrismaClient } from "prisma/generated/client";
+import {
+	computeEnergy,
+	DEFAULT_COEFFICIENTS,
+	type EnergyCoefficient,
+} from "@/lib/energy-coefficients-defaults";
 import { attribute } from "@/lib/services/attribution";
 import { buildAttributionSnapshot } from "@/lib/services/attribution-snapshot";
 import { computeCost, type ModelPricing, resolvePricing } from "@/lib/token-pricing-defaults";
@@ -91,6 +96,10 @@ export type ModelTotals = {
 	cacheCreation1hTokens: number;
 	cacheCreation5mTokens: number;
 	costUsd: number;
+	/** Watt-hours derived from the model's per-token coefficients (#180). */
+	energyWh: number;
+	/** Grams CO₂ at the world-average grid intensity (#180). */
+	co2g: number;
 };
 
 /**
@@ -126,6 +135,10 @@ export type AttributionBreakdown = {
 
 export type UsageSummary = {
 	totalCostUsd: number;
+	/** Sum of `byModel[].energyWh` (#180). */
+	totalEnergyWh: number;
+	/** Sum of `byModel[].co2g` (#180). */
+	totalCo2g: number;
 	sessionCount: number;
 	eventCount: number;
 	trackingSince: Date | null;
@@ -145,6 +158,10 @@ export type UsageSummary = {
 export type TopSessionEntry = {
 	sessionId: string;
 	totalCostUsd: number;
+	/** Watt-hours derived from per-event `computeEnergy` (#180). */
+	energyWh: number;
+	/** Grams CO₂ at the world-average grid intensity (#180). */
+	co2g: number;
 	primaryModel: string;
 	mostRecentAt: Date;
 	cardId: string | null;
@@ -269,6 +286,10 @@ export type SavingsSummary = BaselineResult | null;
  */
 export type HandoffCost = {
 	costUsd: number;
+	/** Watt-hours summed across the handoff window (#180). */
+	energyWh: number;
+	/** Grams CO₂ summed across the handoff window (#180). */
+	co2g: number;
 	inputTokens: number;
 	outputTokens: number;
 	cacheReadTokens: number;
@@ -300,6 +321,10 @@ export type HandoffActivity = {
 	totalCostUsd: number;
 	/** Mean of per-handoff cost. `0` when `totalCount === 0`. */
 	avgCostUsd: number;
+	/** Sum of per-handoff watt-hours (#180). */
+	totalEnergyWh: number;
+	/** Sum of per-handoff grams CO₂ (#180). */
+	totalCo2g: number;
 };
 
 // ─── Internal: row insert shape (used by recordFromTranscript) ─────
@@ -599,17 +624,26 @@ type SessionAttrState = {
 	costUsd: number;
 };
 
-function aggregateEvents(events: EventRow[], pricing: Record<string, ModelPricing>): UsageSummary {
+function aggregateEvents(
+	events: EventRow[],
+	pricing: Record<string, ModelPricing>,
+	coefficients: Record<string, EnergyCoefficient> = DEFAULT_COEFFICIENTS
+): UsageSummary {
 	const sessions = new Set<string>();
 	const byModelMap = new Map<string, ModelTotals>();
 	const sessionAttr = new Map<string, SessionAttrState>();
 	let totalCost = 0;
+	let totalEnergyWh = 0;
+	let totalCo2g = 0;
 	let earliest: Date | null = null;
 
 	for (const event of events) {
 		sessions.add(event.sessionId);
 		const cost = computeCost(event, pricing);
+		const energy = computeEnergy(event, coefficients);
 		totalCost += cost;
+		totalEnergyWh += energy.wattHoursTotal;
+		totalCo2g += energy.gramsCO2;
 		if (!earliest || event.recordedAt < earliest) earliest = event.recordedAt;
 
 		const attr = sessionAttr.get(event.sessionId) ?? {
@@ -630,6 +664,8 @@ function aggregateEvents(events: EventRow[], pricing: Record<string, ModelPricin
 			cacheCreation1hTokens: 0,
 			cacheCreation5mTokens: 0,
 			costUsd: 0,
+			energyWh: 0,
+			co2g: 0,
 		};
 		existing.inputTokens += event.inputTokens;
 		existing.outputTokens += event.outputTokens;
@@ -637,6 +673,8 @@ function aggregateEvents(events: EventRow[], pricing: Record<string, ModelPricin
 		existing.cacheCreation1hTokens += event.cacheCreation1hTokens;
 		existing.cacheCreation5mTokens += event.cacheCreation5mTokens;
 		existing.costUsd += cost;
+		existing.energyWh += energy.wattHoursTotal;
+		existing.co2g += energy.gramsCO2;
 		byModelMap.set(event.model, existing);
 	}
 
@@ -657,6 +695,8 @@ function aggregateEvents(events: EventRow[], pricing: Record<string, ModelPricin
 
 	return {
 		totalCostUsd: totalCost,
+		totalEnergyWh,
+		totalCo2g,
 		sessionCount: sessions.size,
 		eventCount: events.length,
 		trackingSince: earliest,
@@ -1238,6 +1278,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 
 			type SessionAcc = {
 				totalCostUsd: number;
+				energyWh: number;
+				co2g: number;
 				modelCost: Map<string, number>;
 				mostRecentAt: Date;
 				cardId: string | null;
@@ -1245,13 +1287,18 @@ export function createTokenUsageService(prisma: PrismaClient) {
 			const sessions = new Map<string, SessionAcc>();
 			for (const event of events) {
 				const cost = computeCost(event, pricing);
+				const energy = computeEnergy(event);
 				const acc = sessions.get(event.sessionId) ?? {
 					totalCostUsd: 0,
+					energyWh: 0,
+					co2g: 0,
 					modelCost: new Map<string, number>(),
 					mostRecentAt: event.recordedAt,
 					cardId: null,
 				};
 				acc.totalCostUsd += cost;
+				acc.energyWh += energy.wattHoursTotal;
+				acc.co2g += energy.gramsCO2;
 				acc.modelCost.set(event.model, (acc.modelCost.get(event.model) ?? 0) + cost);
 				if (event.recordedAt > acc.mostRecentAt) acc.mostRecentAt = event.recordedAt;
 				// First non-null cardId wins. The Attribution Engine writes one
@@ -1270,6 +1317,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 					return {
 						sessionId,
 						totalCostUsd: acc.totalCostUsd,
+						energyWh: acc.energyWh,
+						co2g: acc.co2g,
 						primaryModel: primaryModel ?? "unknown",
 						mostRecentAt: acc.mostRecentAt,
 						cardId: acc.cardId,
@@ -1298,6 +1347,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 				return {
 					sessionId: r.sessionId,
 					totalCostUsd: r.totalCostUsd,
+					energyWh: r.energyWh,
+					co2g: r.co2g,
 					primaryModel: r.primaryModel,
 					mostRecentAt: r.mostRecentAt,
 					cardId: r.cardId,
@@ -1538,6 +1589,8 @@ export function createTokenUsageService(prisma: PrismaClient) {
 				success: true,
 				data: {
 					costUsd: summary.totalCostUsd,
+					energyWh: summary.totalEnergyWh,
+					co2g: summary.totalCo2g,
 					inputTokens,
 					outputTokens,
 					cacheReadTokens,
@@ -1578,26 +1631,42 @@ export function createTokenUsageService(prisma: PrismaClient) {
 			if (handoffs.length === 0) {
 				return {
 					success: true,
-					data: { totalCount: 0, totalCostUsd: 0, avgCostUsd: 0 },
+					data: {
+						totalCount: 0,
+						totalCostUsd: 0,
+						avgCostUsd: 0,
+						totalEnergyWh: 0,
+						totalCo2g: 0,
+					},
 				};
 			}
-			const costs = await Promise.all(
+			const perHandoff = await Promise.all(
 				handoffs.map(async (h) => {
 					const result = await getHandoffCost(h.id);
 					// Per-handoff failure (e.g. the handoff was deleted between
 					// the list and the per-row lookup) drops to 0 rather than
 					// failing the whole rollup. The activity section is a soft
 					// surface; partial data beats no data.
-					return result.success ? result.data.costUsd : 0;
+					return result.success
+						? {
+								costUsd: result.data.costUsd,
+								energyWh: result.data.energyWh,
+								co2g: result.data.co2g,
+							}
+						: { costUsd: 0, energyWh: 0, co2g: 0 };
 				})
 			);
-			const totalCostUsd = costs.reduce((sum, c) => sum + c, 0);
+			const totalCostUsd = perHandoff.reduce((sum, c) => sum + c.costUsd, 0);
+			const totalEnergyWh = perHandoff.reduce((sum, c) => sum + c.energyWh, 0);
+			const totalCo2g = perHandoff.reduce((sum, c) => sum + c.co2g, 0);
 			return {
 				success: true,
 				data: {
 					totalCount: handoffs.length,
 					totalCostUsd,
 					avgCostUsd: totalCostUsd / handoffs.length,
+					totalEnergyWh,
+					totalCo2g,
 				},
 			};
 		} catch (error) {

@@ -16,6 +16,7 @@
  */
 
 import { SectionHelpLink } from "@/components/costs/section-help-link";
+import { formatCo2, formatEnergy } from "@/lib/format-energy";
 import { formatUsd } from "@/lib/format-usd";
 import type { RouterOutputs } from "@/trpc/react";
 
@@ -43,10 +44,15 @@ export function HandoffActivitySection({ activity }: HandoffActivitySectionProps
 				</div>
 			</header>
 
-			<dl className="mt-4 grid grid-cols-3 gap-4">
+			<dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
 				<Stat label="Handoffs" primary={activity.totalCount.toLocaleString()} />
 				<Stat label="Total cost" primary={formatUsd(activity.totalCostUsd)} />
 				<Stat label="Avg per handoff" primary={formatUsd(activity.avgCostUsd)} />
+				<Stat
+					label="Energy"
+					primary={formatEnergy(activity.totalEnergyWh)}
+					secondary={formatCo2(activity.totalCo2g)}
+				/>
 			</dl>
 		</section>
 	);
