@@ -5,6 +5,7 @@ Human-readable highlights for each release — 3–5 bullets, headline-level onl
 ## [Unreleased]
 
 - Two-tier release notes — `RELEASES.md` (this file) for plain-language highlights; `CHANGELOG.md` keeps the forensic trail with card and PR refs.
+- Energy and CO₂ alongside dollars on the Costs page — kWh in the summary, per-row energy in Top Sessions, total energy across handoffs. Estimates only (~±50%), with the methodology written down at `docs/ENERGY-METHODOLOGY.md`.
 
 ## v6.5.0 — 2026-05-02
 

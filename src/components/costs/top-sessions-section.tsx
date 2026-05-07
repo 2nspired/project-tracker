@@ -17,6 +17,7 @@
 
 import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { formatRelativeCompact } from "@/lib/format-date";
+import { formatCo2, formatEnergy } from "@/lib/format-energy";
 import { formatUsd } from "@/lib/format-usd";
 import type { RouterOutputs } from "@/trpc/react";
 
@@ -51,6 +52,7 @@ export function TopSessionsSection({ topSessions, projectId }: TopSessionsSectio
 							<th className="px-3 py-2 text-left font-medium">Model</th>
 							<th className="px-3 py-2 text-left font-medium">Card</th>
 							<th className="px-3 py-2 text-right font-medium">Cost</th>
+							<th className="px-3 py-2 text-right font-medium">Energy</th>
 							<th className="px-3 py-2 text-right font-medium">When</th>
 						</tr>
 					</thead>
@@ -76,6 +78,12 @@ export function TopSessionsSection({ topSessions, projectId }: TopSessionsSectio
 								</td>
 								<td className="px-3 py-2 text-right font-mono tabular-nums">
 									{formatUsd(s.totalCostUsd)}
+								</td>
+								<td
+									className="px-3 py-2 text-right font-mono text-2xs tabular-nums text-muted-foreground"
+									title={formatCo2(s.co2g)}
+								>
+									{formatEnergy(s.energyWh, { compact: true })}
 								</td>
 								<td className="px-3 py-2 text-right text-2xs text-muted-foreground">
 									{formatRelativeCompact(s.mostRecentAt)}

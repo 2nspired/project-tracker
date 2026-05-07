@@ -702,7 +702,13 @@ describe("getHandoffActivity", () => {
 	it("returns zeros for a project with no handoffs", async () => {
 		const result = await tokenUsageService.getHandoffActivity(PROJECT_ID);
 		if (!result.success) throw new Error("expected success");
-		expect(result.data).toEqual({ totalCount: 0, totalCostUsd: 0, avgCostUsd: 0 });
+		expect(result.data).toEqual({
+			totalCount: 0,
+			totalCostUsd: 0,
+			avgCostUsd: 0,
+			totalEnergyWh: 0,
+			totalCo2g: 0,
+		});
 	});
 
 	it("counts handoffs across boards and computes the cost average", async () => {
