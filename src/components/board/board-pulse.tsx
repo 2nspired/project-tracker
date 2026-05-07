@@ -13,8 +13,8 @@ import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setu
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sparkline } from "@/components/ui/sparkline";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatCost } from "@/lib/format-cost";
 import { formatRelative } from "@/lib/format-date";
+import { formatUsd } from "@/lib/format-usd";
 import { STATUS_TEXT } from "@/lib/priority-colors";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
@@ -101,7 +101,7 @@ export function BoardPulse({ boardId, projectId }: { boardId: string; projectId:
 				<>
 					<Sparkline data={dailyCost.dailyCostUsd} tone="cost" label="Daily cost sparkline" />
 					<span className="tabular-nums text-muted-foreground">
-						<span className="font-medium text-foreground">{formatCost(weekCost)}</span> spent
+						<span className="font-medium text-foreground">{formatUsd(weekCost)}</span> spent
 					</span>
 				</>
 			) : null,
@@ -344,18 +344,18 @@ function PulseDetails({
 					<dl className="space-y-1 text-sm">
 						<div className="flex items-baseline justify-between gap-3">
 							<dt className="text-muted-foreground">This week</dt>
-							<dd className="tabular-nums font-medium">{formatCost(weekCost)}</dd>
+							<dd className="tabular-nums font-medium">{formatUsd(weekCost)}</dd>
 						</div>
 						{lifetimeCost > 0 && Math.abs(lifetimeCost - weekCost) > 0.0001 && (
 							<div className="flex items-baseline justify-between gap-3">
 								<dt className="text-muted-foreground">Lifetime</dt>
-								<dd className="tabular-nums">{formatCost(lifetimeCost)}</dd>
+								<dd className="tabular-nums">{formatUsd(lifetimeCost)}</dd>
 							</div>
 						)}
 						{costPerCompleted !== null && (
 							<div className="flex items-baseline justify-between gap-3">
 								<dt className="text-muted-foreground">Cost / completed card</dt>
-								<dd className="tabular-nums">{formatCost(costPerCompleted)}</dd>
+								<dd className="tabular-nums">{formatUsd(costPerCompleted)}</dd>
 							</div>
 						)}
 					</dl>
@@ -368,7 +368,7 @@ function PulseDetails({
 								{topModels.map((m) => (
 									<div key={m.model} className="flex items-baseline justify-between gap-2 text-xs">
 										<span className="truncate font-mono text-muted-foreground">{m.model}</span>
-										<span className="shrink-0 tabular-nums">{formatCost(m.costUsd)}</span>
+										<span className="shrink-0 tabular-nums">{formatUsd(m.costUsd)}</span>
 									</div>
 								))}
 							</div>

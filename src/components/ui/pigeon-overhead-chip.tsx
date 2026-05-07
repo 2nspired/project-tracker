@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { formatCost } from "@/lib/format-cost";
+import { formatUsd } from "@/lib/format-usd";
 import { cn } from "@/lib/utils";
 import { api } from "@/trpc/react";
 
@@ -77,7 +77,7 @@ function Chip({
 			title="Pigeon tool overhead this session"
 			className={cn("font-mono text-2xs tabular-nums", className)}
 		>
-			Pigeon: {formatCost(costUsd)}
+			Pigeon: {formatUsd(costUsd)}
 		</Badge>
 	);
 }

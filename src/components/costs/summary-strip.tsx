@@ -2,8 +2,8 @@
 
 import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { Sparkline } from "@/components/ui/sparkline";
-import { formatCost } from "@/lib/format-cost";
 import { formatRelative } from "@/lib/format-date";
+import { formatUsd } from "@/lib/format-usd";
 import type { RouterOutputs } from "@/trpc/react";
 
 type ProjectSummary = RouterOutputs["tokenUsage"]["getProjectSummary"];
@@ -73,12 +73,12 @@ export function SummaryStrip({
 			</header>
 			<dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
 				<Cell label="Lifetime cost">
-					<span className="font-mono text-2xl tabular-nums">{formatCost(lifetimeCost)}</span>
+					<span className="font-mono text-2xl tabular-nums">{formatUsd(lifetimeCost)}</span>
 				</Cell>
 
 				<Cell label="Last 7 days">
 					<div className="flex items-baseline gap-2">
-						<span className="font-mono text-2xl tabular-nums">{formatCost(weekCost)}</span>
+						<span className="font-mono text-2xl tabular-nums">{formatUsd(weekCost)}</span>
 						<Sparkline data={dailyCost.dailyCostUsd} tone="cost" label="Daily cost sparkline" />
 					</div>
 				</Cell>

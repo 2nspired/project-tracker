@@ -10,6 +10,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ### Changed
 
+- Standardized USD formatting via one `formatUsd` helper (`Intl.NumberFormat` + magnitude buckets: `$0.0042` / `$3.45` / `$3,023` / `$12.5K`). Replaces the ad-hoc `formatCost`; chips, BoardPulse, every Costs-page section now route through it. (#295)
 - `<SavingsSection>` empty state on the Costs page now renders as a prominent dashed-border setup card with a primary "Measure baseline now" button instead of burying a small outline-button CTA in the section header. Un-baselined projects previously read the section as configured-but-zero; the new framing mirrors `<UnattributedGapCard>` so "needs your attention" surfaces rhyme. No new tRPC — still fronts the existing `recalibrateBaseline` mutation. (#294)
 
 ### Added
