@@ -16,7 +16,7 @@
  */
 
 import { SectionHelpLink } from "@/components/costs/section-help-link";
-import { formatCost } from "@/lib/format-cost";
+import { formatUsd } from "@/lib/format-usd";
 import type { RouterOutputs } from "@/trpc/react";
 
 type ProjectOverhead = RouterOutputs["tokenUsage"]["getProjectPigeonOverhead"];
@@ -41,7 +41,7 @@ export function PigeonOverheadSection({ overhead }: PigeonOverheadSectionProps) 
 					</p>
 				</div>
 				<div className="text-right">
-					<div className="font-mono text-2xl tabular-nums">{formatCost(overhead.totalCostUsd)}</div>
+					<div className="font-mono text-2xl tabular-nums">{formatUsd(overhead.totalCostUsd)}</div>
 					<div className="text-2xs text-muted-foreground">
 						across {overhead.callCount.toLocaleString()}{" "}
 						{overhead.callCount === 1 ? "tool call" : "tool calls"}

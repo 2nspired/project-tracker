@@ -13,6 +13,7 @@
  * card ref / title / status / sessions / cost / completedAt.
  */
 
+import { formatUsd } from "@/lib/format-usd";
 import type { CardDeliveryEntry } from "@/lib/services/token-usage";
 
 export type ExportFormat = "csv" | "md";
@@ -45,7 +46,13 @@ function csvField(value: string | number | null | undefined): string {
 	return s;
 }
 
-function formatCost(value: number): string {
+// Numeric-only formatter used inside the CSV body and the MD table cell.
+// Stays pure-numeric (no `$`, no separator, no compact notation) so the
+// downstream is machine-readable — spreadsheet importers and `awk`
+// pipelines parse `3.4500` reliably; the same row formatted as `$3.45` or
+// `$3,023` would either fail to parse or be misinterpreted as text. The
+// MD preamble (human prose) uses `formatUsd` directly for display.
+function formatCostNumeric(value: number): string {
 	// 4 decimal places — sub-cent fidelity matters for short sessions
 	// (Haiku/cache-heavy runs sit well under a cent).
 	return value.toFixed(4);
@@ -74,7 +81,9 @@ export function toCsv(entries: CardDeliveryEntry[], summary: ExportSummary): str
 	lines.push(`# Total cards: ${summary.totalCardCount}`);
 	lines.push(`# Shipped cards: ${summary.shippedCardCount}`);
 	if (summary.medianShippedCardCostUsd !== null) {
-		lines.push(`# Median shipped card cost (USD): ${formatCost(summary.medianShippedCardCostUsd)}`);
+		lines.push(
+			`# Median shipped card cost (USD): ${formatCostNumeric(summary.medianShippedCardCostUsd)}`
+		);
 	} else {
 		lines.push(`# Median shipped card cost (USD): no shipped cards yet`);
 	}
@@ -87,7 +96,7 @@ export function toCsv(entries: CardDeliveryEntry[], summary: ExportSummary): str
 				csvField(entry.cardTitle),
 				csvField(entry.isShipped ? "shipped" : "in_flight"),
 				csvField(entry.sessionCount),
-				csvField(formatCost(entry.totalCostUsd)),
+				csvField(formatCostNumeric(entry.totalCostUsd)),
 				csvField(formatDate(entry.completedAt)),
 			].join(",")
 		);
@@ -128,7 +137,7 @@ export function toMarkdown(entries: CardDeliveryEntry[], summary: ExportSummary)
 	lines.push(`- Total cards: ${summary.totalCardCount}`);
 	lines.push(`- Shipped cards: ${summary.shippedCardCount}`);
 	if (summary.medianShippedCardCostUsd !== null) {
-		lines.push(`- Median shipped card cost: $${formatCost(summary.medianShippedCardCostUsd)} USD`);
+		lines.push(`- Median shipped card cost: ${formatUsd(summary.medianShippedCardCostUsd)} USD`);
 	} else {
 		lines.push(`- Median shipped card cost: no shipped cards yet`);
 	}
@@ -150,7 +159,7 @@ export function toMarkdown(entries: CardDeliveryEntry[], summary: ExportSummary)
 				mdCell(entry.cardTitle),
 				mdCell(entry.isShipped ? "shipped" : "in flight"),
 				mdCell(entry.sessionCount),
-				mdCell(formatCost(entry.totalCostUsd)),
+				mdCell(formatCostNumeric(entry.totalCostUsd)),
 				mdCell(formatDate(entry.completedAt)),
 				"",
 			].join(" | ")

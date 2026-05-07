@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { formatCost } from "@/lib/format-cost";
+import { formatUsd } from "@/lib/format-usd";
 import { cn } from "@/lib/utils";
 
 type TokenCostChipProps = {
@@ -11,8 +11,8 @@ type TokenCostChipProps = {
 
 // Compact dollar-cost pill for token usage. Renders nothing when there's no
 // data — projects without the Stop hook configured shouldn't see a $0 badge.
-// 4 significant figures so a $0.0042 chip doesn't round to $0.00 and look
-// like nothing happened.
+// `formatUsd`'s default magnitude buckets (#295) keep micro-costs ($0.0042)
+// readable while still collapsing big totals into compact `$12.5K` form.
 export function TokenCostChip({
 	costUsd,
 	sessionCount,
@@ -21,7 +21,7 @@ export function TokenCostChip({
 }: TokenCostChipProps) {
 	if (costUsd === null || costUsd === undefined || costUsd === 0) return null;
 
-	const formatted = formatCost(costUsd);
+	const formatted = formatUsd(costUsd);
 	const tooltip =
 		typeof sessionCount === "number"
 			? `${formatted} across ${sessionCount} session${sessionCount === 1 ? "" : "s"}`

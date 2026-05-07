@@ -16,8 +16,8 @@
  */
 
 import { SectionHelpLink } from "@/components/costs/section-help-link";
-import { formatCost } from "@/lib/format-cost";
 import { formatRelativeCompact } from "@/lib/format-date";
+import { formatUsd } from "@/lib/format-usd";
 import type { RouterOutputs } from "@/trpc/react";
 
 type TopSessions = RouterOutputs["tokenUsage"]["getTopSessions"];
@@ -75,7 +75,7 @@ export function TopSessionsSection({ topSessions, projectId }: TopSessionsSectio
 									)}
 								</td>
 								<td className="px-3 py-2 text-right font-mono tabular-nums">
-									{formatCost(s.totalCostUsd)}
+									{formatUsd(s.totalCostUsd)}
 								</td>
 								<td className="px-3 py-2 text-right text-2xs text-muted-foreground">
 									{formatRelativeCompact(s.mostRecentAt)}

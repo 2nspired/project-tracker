@@ -24,7 +24,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatCost } from "@/lib/format-cost";
+import { formatUsd } from "@/lib/format-usd";
 import type { RouterOutputs } from "@/trpc/react";
 
 type Metrics = RouterOutputs["tokenUsage"]["getCardDeliveryMetrics"];
@@ -66,7 +66,7 @@ export function CardDeliverySection({ metrics, projectId, boardId }: CardDeliver
 					{metrics.medianShippedCardCostUsd !== null ? (
 						<div className="text-right">
 							<div className="font-mono text-2xl tabular-nums">
-								{formatCost(metrics.medianShippedCardCostUsd)}
+								{formatUsd(metrics.medianShippedCardCostUsd)}
 							</div>
 							<div className="text-2xs text-muted-foreground">
 								median across {metrics.shippedCardCount}{" "}
@@ -143,7 +143,7 @@ export function CardDeliverySection({ metrics, projectId, boardId }: CardDeliver
 									{c.sessionCount}
 								</td>
 								<td className="px-3 py-2 text-right font-mono tabular-nums">
-									{formatCost(c.totalCostUsd)}
+									{formatUsd(c.totalCostUsd)}
 								</td>
 							</tr>
 						))}

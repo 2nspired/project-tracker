@@ -21,7 +21,7 @@
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
 import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { Button } from "@/components/ui/button";
-import { formatCost } from "@/lib/format-cost";
+import { formatUsd } from "@/lib/format-usd";
 import type { RouterOutputs } from "@/trpc/react";
 
 type ProjectSummary = RouterOutputs["tokenUsage"]["getProjectSummary"];
@@ -52,7 +52,7 @@ export function UnattributedGapCard({ projectSummary }: UnattributedGapCardProps
 					</div>
 					<p className="mt-0.5 text-2xs text-muted-foreground">
 						{totalGapSessions} {totalGapSessions === 1 ? "session" : "sessions"} (
-						{formatCost(totalGapCost)}) not attributed to any card.
+						{formatUsd(totalGapCost)}) not attributed to any card.
 					</p>
 				</div>
 				{unattributed.sessionCount > 0 ? (
@@ -108,7 +108,7 @@ function GapRow({
 			<dd className="flex items-baseline gap-2">
 				<span className="font-mono text-base tabular-nums">{sessionCount}</span>
 				<span className="font-mono text-sm tabular-nums text-muted-foreground">
-					{formatCost(costUsd)}
+					{formatUsd(costUsd)}
 				</span>
 			</dd>
 			<p className="text-2xs text-muted-foreground">{caption}</p>
