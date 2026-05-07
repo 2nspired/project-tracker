@@ -23,6 +23,7 @@ import { db } from "@/server/db";
 export type {
 	BaselineResult,
 	DailyCostSeries,
+	HandoffCost,
 	ManualRecordInput,
 	ModelTotals,
 	RecordResult,

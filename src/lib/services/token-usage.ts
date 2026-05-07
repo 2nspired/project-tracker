@@ -226,6 +226,40 @@ export type CardDeliveryMetrics = {
  */
 export type SavingsSummary = BaselineResult | null;
 
+/**
+ * Cost of authoring a single handoff (#292). Rolls up `TokenUsageEvent`
+ * rows in the window between the previous handoff (exclusive) and this one
+ * (inclusive), narrowed by `projectId` + `agentName`, plus an optional
+ * `cardId` narrow when `handoff.workingOn` resolved to exactly one card.
+ *
+ * The single-card narrow matters because a long-lived MCP server (the
+ * launchd service in this repo) handles many Claude Code sessions in a
+ * day; without it, sibling sessions' costs leak into the window.
+ *
+ * `confidence` collapses the per-event `signal` enum into three labels —
+ * see `mapHandoffConfidence` for the mapping rule.
+ */
+export type HandoffCost = {
+	costUsd: number;
+	inputTokens: number;
+	outputTokens: number;
+	cacheReadTokens: number;
+	cacheCreation1hTokens: number;
+	cacheCreation5mTokens: number;
+	sessionCount: number;
+	eventCount: number;
+	confidence: "attributed" | "estimated" | "no-data";
+	/** True iff `handoff.workingOn` had exactly one card and the query was
+	 * narrowed by it. False for multi-card or empty `workingOn`. */
+	cardScoped: boolean;
+	/** Inclusive boundary timestamp — the previous handoff's `createdAt`,
+	 * or `null` for a project's first handoff. The underlying SQL filter
+	 * is exclusive (`recordedAt > windowStart`); we expose the boundary
+	 * timestamp itself for display. */
+	windowStart: Date | null;
+	windowEnd: Date;
+};
+
 // ─── Internal: row insert shape (used by recordFromTranscript) ─────
 
 type InsertRow = {
@@ -548,6 +582,89 @@ function aggregateEvents(events: EventRow[], pricing: Record<string, ModelPricin
 		byModel: Array.from(byModelMap.values()).sort((a, b) => b.costUsd - a.costUsd),
 		attributionBreakdown,
 	};
+}
+
+// ─── Cost-window primitive (#292) ──────────────────────────────────
+
+type CostWindowOptions = {
+	projectId: string;
+	agentName?: string;
+	cardId?: string;
+	/** Exclusive lower bound on `recordedAt`. Omit for open-start. */
+	from?: Date;
+	/** Inclusive upper bound on `recordedAt`. Omit for open-end. */
+	to?: Date;
+};
+
+/**
+ * Generic primitive: scope `TokenUsageEvent` rows by `projectId` plus
+ * optional `agentName` / `cardId`, within a `(from, to]` window. Exclusive
+ * lower bound matches the handoff use case where adjacent windows share an
+ * endpoint (the previous handoff's `createdAt`) — an event recorded
+ * exactly at that boundary should fall on one side only.
+ *
+ * **Agent-rename caveat:** filter is verbatim. A session that started
+ * under `claude-code` and was later renamed (or reconnected with a
+ * different agent name) won't match an `agentName='claude-code'` window.
+ * There is no historical agent-name table; cross-rename rollups would
+ * need a snapshot.
+ */
+async function queryCostWindow(
+	prisma: PrismaClient,
+	options: CostWindowOptions
+): Promise<EventRow[]> {
+	const where: Prisma.TokenUsageEventWhereInput = { projectId: options.projectId };
+	if (options.agentName !== undefined) where.agentName = options.agentName;
+	if (options.cardId !== undefined) where.cardId = options.cardId;
+	if (options.from !== undefined || options.to !== undefined) {
+		const recordedAt: Prisma.DateTimeFilter = {};
+		if (options.from !== undefined) recordedAt.gt = options.from;
+		if (options.to !== undefined) recordedAt.lte = options.to;
+		where.recordedAt = recordedAt;
+	}
+	return prisma.tokenUsageEvent.findMany({
+		where,
+		select: {
+			sessionId: true,
+			model: true,
+			inputTokens: true,
+			outputTokens: true,
+			cacheReadTokens: true,
+			cacheCreation1hTokens: true,
+			cacheCreation5mTokens: true,
+			recordedAt: true,
+			cardId: true,
+			signal: true,
+		},
+	});
+}
+
+/**
+ * Collapse the per-event `signal` enum (`explicit | single-in-progress |
+ * session-recent-touch | session-commit | unattributed | null`) into a
+ * single handoff-level confidence label.
+ *
+ * Highest-quality wins — a single `signal='explicit'` row in a window
+ * dominated by heuristic rows still means a human or agent named the card,
+ * which is the strongest signal we have. The chip is a category label,
+ * not a precision claim.
+ */
+function mapHandoffConfidence(
+	events: Pick<EventRow, "signal">[]
+): "attributed" | "estimated" | "no-data" {
+	if (events.length === 0) return "no-data";
+	let hasHeuristic = false;
+	for (const event of events) {
+		if (event.signal === "explicit") return "attributed";
+		if (
+			event.signal === "single-in-progress" ||
+			event.signal === "session-recent-touch" ||
+			event.signal === "session-commit"
+		) {
+			hasHeuristic = true;
+		}
+	}
+	return hasHeuristic ? "estimated" : "no-data";
 }
 
 function median(values: number[]): number {
@@ -1210,6 +1327,103 @@ export function createTokenUsageService(prisma: PrismaClient) {
 			return {
 				success: false,
 				error: { code: "QUERY_FAILED", message: "Failed to load milestone summary." },
+			};
+		}
+	}
+
+	// Cost of authoring one handoff (#292). Window is `(prevHandoff.createdAt,
+	// thisHandoff.createdAt]`, scoped to the same `projectId + agentName`,
+	// optionally narrowed to a single `cardId` when `workingOn` resolved to
+	// exactly one card. The previous-handoff lookup keys off `boardId` (not
+	// `projectId`) — handoffs are board-local, so a sibling board's handoff
+	// must not squeeze the window.
+	async function getHandoffCost(handoffId: string): Promise<ServiceResult<HandoffCost>> {
+		try {
+			const handoff = await prisma.handoff.findUnique({
+				where: { id: handoffId },
+				select: {
+					projectId: true,
+					boardId: true,
+					agentName: true,
+					workingOn: true,
+					createdAt: true,
+				},
+			});
+			if (!handoff) {
+				return { success: false, error: { code: "NOT_FOUND", message: "Handoff not found." } };
+			}
+
+			const prev = await prisma.handoff.findFirst({
+				where: { boardId: handoff.boardId, createdAt: { lt: handoff.createdAt } },
+				orderBy: { createdAt: "desc" },
+				select: { createdAt: true },
+			});
+			const windowStart = prev?.createdAt ?? null;
+
+			// TODO(SESSION_ID-correlation): replace this `workingOn`-based
+			// narrow with precise session binding once the MCP-SESSION_ID vs
+			// Claude-Code-sessionId gap is resolved (#272-class scope). The
+			// single-card heuristic is a stopgap for the common case (solo
+			// agent on one card); multi-card sessions fall back to project +
+			// agentName scope and over-attribute.
+			let workingOnIds: string[] = [];
+			try {
+				const parsed = JSON.parse(handoff.workingOn);
+				if (Array.isArray(parsed)) {
+					workingOnIds = parsed.filter((v): v is string => typeof v === "string");
+				}
+			} catch {
+				workingOnIds = [];
+			}
+			const narrowingCardId = workingOnIds.length === 1 ? workingOnIds[0] : undefined;
+
+			const [events, pricing] = await Promise.all([
+				queryCostWindow(prisma, {
+					projectId: handoff.projectId,
+					agentName: handoff.agentName,
+					cardId: narrowingCardId,
+					from: windowStart ?? undefined,
+					to: handoff.createdAt,
+				}),
+				loadPricing(),
+			]);
+
+			const summary = aggregateEvents(events, pricing);
+			let inputTokens = 0;
+			let outputTokens = 0;
+			let cacheReadTokens = 0;
+			let cacheCreation1hTokens = 0;
+			let cacheCreation5mTokens = 0;
+			for (const event of events) {
+				inputTokens += event.inputTokens;
+				outputTokens += event.outputTokens;
+				cacheReadTokens += event.cacheReadTokens;
+				cacheCreation1hTokens += event.cacheCreation1hTokens;
+				cacheCreation5mTokens += event.cacheCreation5mTokens;
+			}
+
+			return {
+				success: true,
+				data: {
+					costUsd: summary.totalCostUsd,
+					inputTokens,
+					outputTokens,
+					cacheReadTokens,
+					cacheCreation1hTokens,
+					cacheCreation5mTokens,
+					sessionCount: summary.sessionCount,
+					eventCount: summary.eventCount,
+					confidence: mapHandoffConfidence(events),
+					cardScoped: narrowingCardId !== undefined,
+					windowStart,
+					windowEnd: handoff.createdAt,
+				},
+			};
+		} catch (error) {
+			console.error("[TOKEN_USAGE_SERVICE] getHandoffCost error:", error);
+			return {
+				success: false,
+				error: { code: "QUERY_FAILED", message: "Failed to load handoff cost." },
 			};
 		}
 	}
@@ -1998,6 +2212,7 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		getTopSessions,
 		getCardSummary,
 		getMilestoneSummary,
+		getHandoffCost,
 		getDailyCostSeries,
 		getDailyCostShareSeries,
 		getDiagnostics,
@@ -2025,4 +2240,6 @@ export const __testing__ = {
 	configHasTokenHook,
 	aggregateTranscript,
 	resolveConfigCandidates,
+	queryCostWindow,
+	mapHandoffConfidence,
 };

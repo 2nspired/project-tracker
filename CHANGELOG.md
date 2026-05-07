@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Added
+
+- Service layer for per-handoff cost tracking (PR #1 of two): `queryCostWindow` (generic project + agentName + cardId + (from, to] primitive) and `getHandoffCost(handoffId)` on the token-usage service, returning `costUsd` / per-token-class totals / `attributed | estimated | no-data` confidence. Window keys off the previous handoff on the same `boardId` so sibling boards don't squeeze it; single-card `workingOn` narrows by `cardId` to keep launchd-MCP siblings out. UI surfaces follow in PR #2. (#292)
+
 ### Fixed
 
 - Token-tracking setup dialog no longer renders three "needs paste" rows when only the project-local hook is wired. Each `configPath` now carries a `scope` ("user" | "project") so the dialog can express the hierarchy: user-level configured = single confirmed user-level row (project-local rows are hidden as redundant when user-level covers them), project-only configured = single nudge to run `scripts/connect.sh` for global install, nothing configured = paste targets sorted user-level first with a "(recommended — covers all projects)" label. Closes the deferred Direction #2 from #217. (#290)
