@@ -160,7 +160,8 @@ When the two disagree, the site wins for *concepts*; the in-repo tree wins for *
 
 ## Releases & upgrades
 
-- [CHANGELOG.md](CHANGELOG.md) — what changed in each release.
+- [RELEASES.md](RELEASES.md) — what shipped, in plain language (3–5 bullets per release).
+- [CHANGELOG.md](CHANGELOG.md) — every change with card and PR refs.
 - [docs/UPDATING.md](docs/UPDATING.md) — what to run after `git pull` (`npm run service:update` alone is not always enough).
 - [docs/VERSIONING.md](docs/VERSIONING.md) — semver + schema-version policy.
 - [docs/MIGRATION-HISTORY.md](docs/MIGRATION-HISTORY.md) — pre-v6 tool renames (only useful when reading old transcripts).
