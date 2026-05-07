@@ -21,6 +21,8 @@ import {
 import { db } from "@/server/db";
 
 export type {
+	BaselineHistory,
+	BaselineHistoryEntry,
 	BaselineResult,
 	DailyCostSeries,
 	HandoffActivity,

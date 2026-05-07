@@ -1,29 +1,26 @@
 /**
- * Unit tests for tokenUsageService.recalibrateBaseline (#192 F3).
+ * Unit tests for tokenUsageService.recalibrateBaseline (#192 F3, #293
+ * BaselineSnapshot history).
  *
  * Covered:
- *   - happy path: measures briefMe + naive payloads, persists on metadata
- *   - no-handoffs: omits latestHandoffTokens (no error, no null)
- *   - metadata merge preserves other keys
- *   - savings math: savings = naive - briefMe; savingsPct = savings/naive
+ *   - inserts a `BaselineSnapshot` row each call (history grows)
+ *   - clears the legacy `Project.metadata.tokenBaseline` singleton on first call
+ *     (one-shot forward-migrate from the pre-#293 schema)
+ *   - preserves other keys on `Project.metadata`
+ *   - happy-path response shape and savings math
+ *   - omits `latestHandoffTokens` when no handoff exists
+ *   - returns BOARD_NOT_FOUND when the project has no boards
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestDb, type TestDb } from "@/server/services/__tests__/test-db";
 
-const mocks = vi.hoisted(() => ({
-	boardFindFirst: vi.fn(),
-	boardFindUnique: vi.fn(),
-	handoffFindFirst: vi.fn(),
-	projectFindUnique: vi.fn(),
-	projectUpdate: vi.fn(),
-	buildBriefPayload: vi.fn(),
-}));
+const dbRef = vi.hoisted(() => ({ current: null as unknown }));
+const mocks = vi.hoisted(() => ({ buildBriefPayload: vi.fn() }));
 
 vi.mock("@/server/db", () => ({
-	db: {
-		board: { findFirst: mocks.boardFindFirst, findUnique: mocks.boardFindUnique },
-		handoff: { findFirst: mocks.handoffFindFirst },
-		project: { findUnique: mocks.projectFindUnique, update: mocks.projectUpdate },
+	get db() {
+		return dbRef.current;
 	},
 }));
 
@@ -31,47 +28,51 @@ vi.mock("@/server/services/brief-payload-service", () => ({
 	buildBriefPayload: mocks.buildBriefPayload,
 }));
 
-import { tokenUsageService } from "@/server/services/token-usage-service";
+const { tokenUsageService } = await import("@/server/services/token-usage-service");
 
-const PROJECT_ID = "33333333-3333-4333-8333-333333333333";
-const BOARD_ID = "11111111-1111-4111-8111-111111111111";
-
-// Lightweight payload fixtures sized so naive >> briefMe and the math is
-// deterministic across runs.
 const BRIEF_PAYLOAD = { pulse: "tiny", topWork: [], blockers: [] };
-const FULL_BOARD = {
-	id: BOARD_ID,
-	name: "B",
-	project: { id: PROJECT_ID, name: "P" },
-	columns: Array.from({ length: 5 }, (_, i) => ({
-		id: `col-${i}`,
-		name: `Column ${i}`,
-		cards: Array.from({ length: 8 }, (_, j) => ({
-			id: `c-${i}-${j}`,
-			number: i * 10 + j,
-			title: `Card ${i}-${j} with a fairly long descriptive title`,
-			description:
-				"A fully populated description that bulks up the naive payload to make the savings math observable.",
-			checklists: [
-				{ id: `chk-${i}-${j}-0`, text: "subtask one", completed: false },
-				{ id: `chk-${i}-${j}-1`, text: "subtask two", completed: true },
-			],
-		})),
-	})),
-};
 
 describe("tokenUsageService.recalibrateBaseline", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-		mocks.boardFindFirst.mockResolvedValue({ id: BOARD_ID });
-		mocks.boardFindUnique.mockResolvedValue(FULL_BOARD);
-		mocks.buildBriefPayload.mockResolvedValue(BRIEF_PAYLOAD);
-		mocks.handoffFindFirst.mockResolvedValue(null);
-		mocks.projectFindUnique.mockResolvedValue({ metadata: "{}" });
-		mocks.projectUpdate.mockResolvedValue({ id: PROJECT_ID });
+	let testDb: TestDb;
+
+	const PROJECT_ID = "33333333-3333-4333-8333-333333333333";
+	const BOARD_ID = "11111111-1111-4111-8111-111111111111";
+	const COLUMN_ID = "55555555-5555-4555-8555-555555555555";
+
+	beforeAll(async () => {
+		testDb = await createTestDb();
+		dbRef.current = testDb.prisma;
 	});
 
-	it("happy path: returns the canonical baseline shape and persists metadata", async () => {
+	afterAll(async () => {
+		dbRef.current = null;
+		await testDb.cleanup();
+	});
+
+	beforeEach(async () => {
+		vi.clearAllMocks();
+		mocks.buildBriefPayload.mockResolvedValue(BRIEF_PAYLOAD);
+
+		// Reset project + board state between tests so each starts clean.
+		await testDb.prisma.baselineSnapshot.deleteMany({});
+		await testDb.prisma.handoff.deleteMany({});
+		await testDb.prisma.card.deleteMany({});
+		await testDb.prisma.column.deleteMany({});
+		await testDb.prisma.board.deleteMany({});
+		await testDb.prisma.project.deleteMany({});
+
+		await testDb.prisma.project.create({
+			data: { id: PROJECT_ID, name: "Recal", slug: "recal", metadata: "{}" },
+		});
+		await testDb.prisma.board.create({
+			data: { id: BOARD_ID, projectId: PROJECT_ID, name: "Main" },
+		});
+		await testDb.prisma.column.create({
+			data: { id: COLUMN_ID, boardId: BOARD_ID, name: "Backlog", position: 0 },
+		});
+	});
+
+	it("inserts a snapshot row and returns the canonical baseline shape", async () => {
 		const result = await tokenUsageService.recalibrateBaseline(PROJECT_ID);
 		expect(result.success).toBe(true);
 		if (!result.success) return;
@@ -88,20 +89,71 @@ describe("tokenUsageService.recalibrateBaseline", () => {
 		const expectedBrief = Math.ceil(JSON.stringify(BRIEF_PAYLOAD).length / 4);
 		expect(result.data.briefMeTokens).toBe(expectedBrief);
 
-		// Persisted under Project.metadata.tokenBaseline.
-		expect(mocks.projectUpdate).toHaveBeenCalledTimes(1);
-		const updateArg = mocks.projectUpdate.mock.calls[0]?.[0] as {
-			data: { metadata: string };
-		};
-		const persisted = JSON.parse(updateArg.data.metadata);
-		expect(persisted.tokenBaseline).toMatchObject({
-			briefMeTokens: result.data.briefMeTokens,
-			naiveBootstrapTokens: result.data.naiveBootstrapTokens,
-			measuredAt: result.data.measuredAt,
+		const snapshots = await testDb.prisma.baselineSnapshot.findMany({
+			where: { projectId: PROJECT_ID },
 		});
+		expect(snapshots).toHaveLength(1);
+		expect(snapshots[0].briefMeTokens).toBe(result.data.briefMeTokens);
+		expect(snapshots[0].naiveBootstrapTokens).toBe(result.data.naiveBootstrapTokens);
+	});
+
+	it("each call appends a new snapshot row (history grows, doesn't overwrite)", async () => {
+		await tokenUsageService.recalibrateBaseline(PROJECT_ID);
+		await tokenUsageService.recalibrateBaseline(PROJECT_ID);
+		await tokenUsageService.recalibrateBaseline(PROJECT_ID);
+
+		const snapshots = await testDb.prisma.baselineSnapshot.findMany({
+			where: { projectId: PROJECT_ID },
+			orderBy: { measuredAt: "asc" },
+		});
+		expect(snapshots).toHaveLength(3);
+	});
+
+	it("first call clears the legacy `metadata.tokenBaseline` singleton (one-shot forward-migrate)", async () => {
+		// Simulate a project that pre-dates #293 — it has a stale singleton
+		// and other agent-written keys we must preserve.
+		await testDb.prisma.project.update({
+			where: { id: PROJECT_ID },
+			data: {
+				metadata: JSON.stringify({
+					tokenBaseline: {
+						briefMeTokens: 1,
+						naiveBootstrapTokens: 2,
+						measuredAt: "2026-01-01T00:00:00.000Z",
+					},
+					existingKey: "preserved",
+					nested: { keep: true },
+				}),
+			},
+		});
+
+		await tokenUsageService.recalibrateBaseline(PROJECT_ID);
+
+		const project = await testDb.prisma.project.findUnique({
+			where: { id: PROJECT_ID },
+			select: { metadata: true },
+		});
+		const meta = JSON.parse(project?.metadata ?? "{}");
+		expect(meta.tokenBaseline).toBeUndefined();
+		expect(meta.existingKey).toBe("preserved");
+		expect(meta.nested).toEqual({ keep: true });
 	});
 
 	it("savings math: savings = naive - briefMe, savingsPct = savings/naive", async () => {
+		// Seed enough cards to bulk up the naive payload past briefMe.
+		await testDb.prisma.card.createMany({
+			data: Array.from({ length: 40 }, (_, i) => ({
+				id: `card-${i.toString().padStart(8, "0")}-0000-4000-8000-000000000000`,
+				columnId: COLUMN_ID,
+				projectId: PROJECT_ID,
+				number: i + 1,
+				title: `Card ${i} with a fairly descriptive title`,
+				description:
+					"A meaningful description that adds tokens to the naive payload to keep the savings math directional.",
+				position: i,
+			})),
+		});
+
 		const result = await tokenUsageService.recalibrateBaseline(PROJECT_ID);
 		expect(result.success).toBe(true);
 		if (!result.success) return;
@@ -109,34 +161,33 @@ describe("tokenUsageService.recalibrateBaseline", () => {
 		const { briefMeTokens, naiveBootstrapTokens, savings, savingsPct } = result.data;
 		expect(savings).toBe(naiveBootstrapTokens - briefMeTokens);
 		expect(savingsPct).toBeCloseTo(savings / naiveBootstrapTokens);
-		// Sanity directionality on the fixture (NOT a formal acceptance —
-		// the spec explicitly says we don't assert this on real data).
 		expect(briefMeTokens).toBeLessThan(naiveBootstrapTokens);
 	});
 
-	it("omits latestHandoffTokens when there are no handoffs", async () => {
-		mocks.handoffFindFirst.mockResolvedValue(null);
+	it("omits latestHandoffTokens when no handoff exists", async () => {
 		const result = await tokenUsageService.recalibrateBaseline(PROJECT_ID);
 		expect(result.success).toBe(true);
 		if (!result.success) return;
-
 		expect(result.data).not.toHaveProperty("latestHandoffTokens");
 
-		// And the persisted metadata should also omit it.
-		const updateArg = mocks.projectUpdate.mock.calls[0]?.[0] as {
-			data: { metadata: string };
-		};
-		const persisted = JSON.parse(updateArg.data.metadata);
-		expect(persisted.tokenBaseline).not.toHaveProperty("latestHandoffTokens");
+		const snapshot = await testDb.prisma.baselineSnapshot.findFirst({
+			where: { projectId: PROJECT_ID },
+		});
+		expect(snapshot?.latestHandoffTokens).toBeNull();
 	});
 
-	it("includes latestHandoffTokens when a handoff exists", async () => {
-		mocks.handoffFindFirst.mockResolvedValue({
-			summary: "did stuff",
-			workingOn: '["#1"]',
-			nextSteps: '["onward"]',
-			findings: '["found a thing"]',
-			blockers: "[]",
+	it("includes latestHandoffTokens when a handoff exists for the canonical board", async () => {
+		await testDb.prisma.handoff.create({
+			data: {
+				boardId: BOARD_ID,
+				projectId: PROJECT_ID,
+				agentName: "claude-code",
+				summary: "did stuff",
+				workingOn: '["#1"]',
+				findings: '["found a thing"]',
+				nextSteps: '["onward"]',
+				blockers: "[]",
+			},
 		});
 		const result = await tokenUsageService.recalibrateBaseline(PROJECT_ID);
 		expect(result.success).toBe(true);
@@ -144,48 +195,47 @@ describe("tokenUsageService.recalibrateBaseline", () => {
 
 		expect(result.data.latestHandoffTokens).toEqual(expect.any(Number));
 		expect(result.data.latestHandoffTokens).toBeGreaterThan(0);
-	});
 
-	it("metadata merge preserves other keys", async () => {
-		mocks.projectFindUnique.mockResolvedValue({
-			metadata: JSON.stringify({
-				existingKey: "preserved",
-				nested: { keep: true },
-				tokenBaseline: { briefMeTokens: 1, naiveBootstrapTokens: 2, measuredAt: "old" },
-			}),
+		const snapshot = await testDb.prisma.baselineSnapshot.findFirst({
+			where: { projectId: PROJECT_ID },
 		});
-		const result = await tokenUsageService.recalibrateBaseline(PROJECT_ID);
-		expect(result.success).toBe(true);
-
-		const updateArg = mocks.projectUpdate.mock.calls[0]?.[0] as {
-			data: { metadata: string };
-		};
-		const persisted = JSON.parse(updateArg.data.metadata);
-		expect(persisted.existingKey).toBe("preserved");
-		expect(persisted.nested).toEqual({ keep: true });
-		// tokenBaseline overwritten with the fresh measurement.
-		expect(persisted.tokenBaseline.measuredAt).not.toBe("old");
+		expect(snapshot?.latestHandoffTokens).toBe(result.data.latestHandoffTokens);
 	});
 
 	it("returns BOARD_NOT_FOUND when the project has no boards", async () => {
-		mocks.boardFindFirst.mockResolvedValue(null);
+		await testDb.prisma.column.deleteMany({ where: { boardId: BOARD_ID } });
+		await testDb.prisma.board.delete({ where: { id: BOARD_ID } });
+
 		const result = await tokenUsageService.recalibrateBaseline(PROJECT_ID);
 		expect(result.success).toBe(false);
 		if (result.success) return;
 		expect(result.error.code).toBe("BOARD_NOT_FOUND");
-		expect(mocks.projectUpdate).not.toHaveBeenCalled();
+
+		const snapshots = await testDb.prisma.baselineSnapshot.findMany({
+			where: { projectId: PROJECT_ID },
+		});
+		expect(snapshots).toHaveLength(0);
 	});
 
 	it("safeParseJson tolerates malformed metadata without erroring", async () => {
-		mocks.projectFindUnique.mockResolvedValue({ metadata: "not valid json {{{" });
+		await testDb.prisma.project.update({
+			where: { id: PROJECT_ID },
+			data: { metadata: "not valid json {{{" },
+		});
 		const result = await tokenUsageService.recalibrateBaseline(PROJECT_ID);
 		expect(result.success).toBe(true);
 
-		const updateArg = mocks.projectUpdate.mock.calls[0]?.[0] as {
-			data: { metadata: string };
-		};
-		const persisted = JSON.parse(updateArg.data.metadata);
-		// Existing keys gone (couldn't parse), but tokenBaseline still written.
-		expect(persisted.tokenBaseline).toBeDefined();
+		const project = await testDb.prisma.project.findUnique({
+			where: { id: PROJECT_ID },
+			select: { metadata: true },
+		});
+		const meta = JSON.parse(project?.metadata ?? "{}");
+		// Garbage parsed → empty object → tokenBaseline absent. Snapshot still written.
+		expect(meta.tokenBaseline).toBeUndefined();
+
+		const snapshots = await testDb.prisma.baselineSnapshot.findMany({
+			where: { projectId: PROJECT_ID },
+		});
+		expect(snapshots).toHaveLength(1);
 	});
 });

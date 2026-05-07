@@ -1,13 +1,14 @@
-// Tests for `getSavingsSummary` (#273 — revived from #236).
+// Tests for `getSavingsSummary` (#273 — revived from #236; #293 swapped
+// the read source from `Project.metadata.tokenBaseline` to the
+// `BaselineSnapshot` history table).
 //
-// Cheap reader for `Project.metadata.tokenBaseline`. Three paths to lock:
+// Cheap reader for the latest `BaselineSnapshot`. Four paths to lock:
 //   1. Project missing → NOT_FOUND
-//   2. Baseline never measured (no `tokenBaseline` key) → null
-//   3. Baseline present → derived savings + savingsPct from persisted
-//      briefMeTokens + naiveBootstrapTokens
-//   4. Partial / corrupted baseline → null (don't fabricate numbers)
+//   2. No snapshots for this project → null
+//   3. Multi-snapshot history → returns the row with MAX(measuredAt)
+//   4. `latestHandoffTokens` round-trip when present, omitted otherwise
 
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb, type TestDb } from "@/server/services/__tests__/test-db";
 
 const dbRef = vi.hoisted(() => ({ current: null as unknown }));
@@ -40,10 +41,25 @@ describe("getSavingsSummary", () => {
 		await testDb.cleanup();
 	});
 
-	async function setMetadata(value: object | null) {
-		await testDb.prisma.project.update({
-			where: { id: PROJECT_ID },
-			data: { metadata: value === null ? "{}" : JSON.stringify(value) },
+	beforeEach(async () => {
+		// Each test starts from a clean snapshot history.
+		await testDb.prisma.baselineSnapshot.deleteMany({ where: { projectId: PROJECT_ID } });
+	});
+
+	async function seedSnapshot(opts: {
+		briefMeTokens: number;
+		naiveBootstrapTokens: number;
+		latestHandoffTokens?: number | null;
+		measuredAt: Date;
+	}) {
+		await testDb.prisma.baselineSnapshot.create({
+			data: {
+				projectId: PROJECT_ID,
+				briefMeTokens: opts.briefMeTokens,
+				naiveBootstrapTokens: opts.naiveBootstrapTokens,
+				latestHandoffTokens: opts.latestHandoffTokens ?? null,
+				measuredAt: opts.measuredAt,
+			},
 		});
 	}
 
@@ -54,22 +70,20 @@ describe("getSavingsSummary", () => {
 		expect(result.error.code).toBe("NOT_FOUND");
 	});
 
-	it("returns null when the baseline has never been measured", async () => {
-		await setMetadata(null);
+	it("returns null when no snapshots have been recorded yet", async () => {
 		const result = await tokenUsageService.getSavingsSummary(PROJECT_ID);
 		expect(result.success).toBe(true);
 		if (!result.success) return;
 		expect(result.data).toBeNull();
 	});
 
-	it("derives savings + savingsPct from persisted briefMe vs naive tokens", async () => {
-		await setMetadata({
-			tokenBaseline: {
-				briefMeTokens: 3500,
-				naiveBootstrapTokens: 14000,
-				measuredAt: "2026-05-02T12:00:00.000Z",
-			},
+	it("derives savings + savingsPct from the most-recent snapshot", async () => {
+		await seedSnapshot({
+			briefMeTokens: 3500,
+			naiveBootstrapTokens: 14000,
+			measuredAt: new Date("2026-05-02T12:00:00.000Z"),
 		});
+
 		const result = await tokenUsageService.getSavingsSummary(PROJECT_ID);
 		expect(result.success).toBe(true);
 		if (!result.success || !result.data) return;
@@ -81,34 +95,54 @@ describe("getSavingsSummary", () => {
 		expect(result.data.measuredAt).toBe("2026-05-02T12:00:00.000Z");
 	});
 
-	it("returns null on a partial baseline (don't fabricate numbers)", async () => {
-		// Pin: a `tokenBaseline` key that's missing required fields should
-		// surface as "not yet measured" so the UI prompts a fresh recalibrate
-		// rather than rendering misleading numbers.
-		await setMetadata({
-			tokenBaseline: {
-				briefMeTokens: 3500,
-				// missing naiveBootstrapTokens + measuredAt
-			},
+	it("returns the row with MAX(measuredAt) when multiple snapshots exist", async () => {
+		await seedSnapshot({
+			briefMeTokens: 1000,
+			naiveBootstrapTokens: 5000,
+			measuredAt: new Date("2026-04-01T00:00:00.000Z"),
 		});
-		const result = await tokenUsageService.getSavingsSummary(PROJECT_ID);
-		expect(result.success).toBe(true);
-		if (!result.success) return;
-		expect(result.data).toBeNull();
-	});
+		await seedSnapshot({
+			briefMeTokens: 1500,
+			naiveBootstrapTokens: 6000,
+			measuredAt: new Date("2026-05-01T00:00:00.000Z"),
+		});
+		await seedSnapshot({
+			briefMeTokens: 1200,
+			naiveBootstrapTokens: 5500,
+			measuredAt: new Date("2026-04-15T00:00:00.000Z"),
+		});
 
-	it("includes latestHandoffTokens when present", async () => {
-		await setMetadata({
-			tokenBaseline: {
-				briefMeTokens: 3500,
-				naiveBootstrapTokens: 14000,
-				latestHandoffTokens: 1200,
-				measuredAt: "2026-05-02T12:00:00.000Z",
-			},
-		});
 		const result = await tokenUsageService.getSavingsSummary(PROJECT_ID);
 		expect(result.success).toBe(true);
 		if (!result.success || !result.data) return;
+		// MAX(measuredAt) = 2026-05-01.
+		expect(result.data.briefMeTokens).toBe(1500);
+		expect(result.data.naiveBootstrapTokens).toBe(6000);
+		expect(result.data.measuredAt).toBe("2026-05-01T00:00:00.000Z");
+	});
+
+	it("includes latestHandoffTokens when present, omits otherwise", async () => {
+		await seedSnapshot({
+			briefMeTokens: 3500,
+			naiveBootstrapTokens: 14000,
+			latestHandoffTokens: 1200,
+			measuredAt: new Date("2026-05-02T12:00:00.000Z"),
+		});
+		let result = await tokenUsageService.getSavingsSummary(PROJECT_ID);
+		expect(result.success).toBe(true);
+		if (!result.success || !result.data) return;
 		expect(result.data.latestHandoffTokens).toBe(1200);
+
+		// Replace with a snapshot that has no handoff data; expect omitted.
+		await testDb.prisma.baselineSnapshot.deleteMany({ where: { projectId: PROJECT_ID } });
+		await seedSnapshot({
+			briefMeTokens: 3500,
+			naiveBootstrapTokens: 14000,
+			measuredAt: new Date("2026-05-03T12:00:00.000Z"),
+		});
+		result = await tokenUsageService.getSavingsSummary(PROJECT_ID);
+		expect(result.success).toBe(true);
+		if (!result.success || !result.data) return;
+		expect(result.data).not.toHaveProperty("latestHandoffTokens");
 	});
 });

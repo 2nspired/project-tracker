@@ -18,11 +18,13 @@
 import { useState } from "react";
 import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { Button } from "@/components/ui/button";
+import { Sparkline } from "@/components/ui/sparkline";
 import { formatRelative } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import { api, type RouterOutputs } from "@/trpc/react";
 
 type SavingsSummary = RouterOutputs["tokenUsage"]["getSavingsSummary"];
+type BaselineHistory = RouterOutputs["tokenUsage"]["getBaselineHistory"];
 
 type SavingsSectionProps = {
 	projectId: string;
@@ -32,10 +34,20 @@ type SavingsSectionProps = {
 export function SavingsSection({ projectId, summary }: SavingsSectionProps) {
 	const utils = api.useUtils();
 	const [isRecalibrating, setIsRecalibrating] = useState(false);
+	// Trend data drives the sparkline below the stat row. Skipped while the
+	// project has never recalibrated (the empty-state branch returns above
+	// rendering the section body).
+	const { data: history } = api.tokenUsage.getBaselineHistory.useQuery(
+		{ projectId },
+		{ enabled: summary !== null }
+	);
 	const recalibrate = api.tokenUsage.recalibrateBaseline.useMutation({
 		onMutate: () => setIsRecalibrating(true),
 		onSettled: async () => {
-			await utils.tokenUsage.getSavingsSummary.invalidate({ projectId });
+			await Promise.all([
+				utils.tokenUsage.getSavingsSummary.invalidate({ projectId }),
+				utils.tokenUsage.getBaselineHistory.invalidate({ projectId }),
+			]);
 			setIsRecalibrating(false);
 		},
 	});
@@ -118,7 +130,36 @@ export function SavingsSection({ projectId, summary }: SavingsSectionProps) {
 					/>
 				) : null}
 			</dl>
+
+			<BriefMeTrend history={history ?? null} />
 		</section>
+	);
+}
+
+// briefMe-payload trend (#293). Hides until the project has ≥2
+// snapshots — a single point isn't a trend, and rendering it as a flat
+// dot is more confusing than a one-line "go again" prompt. `tone="cost"`
+// (violet) matches the existing visual language for cost surfaces
+// across summary-strip / BoardPulse.
+function BriefMeTrend({ history }: { history: BaselineHistory | null }) {
+	if (!history) return null;
+	if (history.length < 2) {
+		return (
+			<p className="mt-3 text-2xs text-muted-foreground/60">
+				Recalibrate again to start the trend line.
+			</p>
+		);
+	}
+	const values = history.map((row) => row.briefMeTokens);
+	const firstAt = new Date(history[0].measuredAt);
+	return (
+		<div className="mt-4 flex items-baseline gap-3">
+			<dt className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+				briefMe over time
+			</dt>
+			<Sparkline data={values} tone="cost" w={160} h={32} label="briefMe payload trend" />
+			<span className="text-2xs text-muted-foreground/60">since {formatRelative(firstAt)}</span>
+		</div>
 	);
 }
 
